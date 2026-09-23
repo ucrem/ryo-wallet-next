@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-node-configuration"
+description = "Read and save the validated node choice in the selected private data location"
+commands.allow = ["node_configuration", "save_node_selection"]

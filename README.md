@@ -1,0 +1,24 @@
+# Ryo Wallet Next
+
+Independent desktop wallet proposal by **ucrem**. Not an official Ryo Currency project.
+
+Original code in this repository is licensed under [MIT](LICENSE). This permits the Ryo team to adopt or modify it while retaining the copyright and license notice. Only the Ryo team can designate a wallet as official; its name and branding need separate agreement. Upstream Ryo code and future bundled binaries remain subject to their own licenses and notices.
+
+This repository contains architecture research and an early Rust/Tauri/React foundation. It is **not a usable wallet**: its internal lifecycle foundation is not yet connected to a reviewed Ryo runtime or to wallet-operation UI, and no signing or submission flow is enabled. Upstream repositories were not modified.
+
+Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [architectural report](docs/REPORT.md). Supporting documents:
+
+- [Project definition](docs/PROJECT.md)
+- [Source-based upstream analysis](docs/UPSTREAM_ANALYSIS.md)
+- [Architecture and contracts](docs/ARCHITECTURE.md)
+- [Security](docs/SECURITY.md)
+- [MVP acceptance criteria](docs/MVP.md)
+- [Roadmap and testing](docs/ROADMAP.md)
+- [Architecture decisions](docs/ADR/README.md)
+- [Visual asset provenance](docs/ASSETS.md)
+
+Research baseline: 22 September 2026. Source conclusions are pinned to commits; runtime compatibility remains to be demonstrated. The local directory name `ryo-currency` is incidental: this was an empty Git repository without remotes when research began. The project repository is `github.com/ucrem/ryo-wallet-next`.
+
+## Development checks
+
+Use Rust 1.98.1, Node 24.21.0 and pnpm 12.5.1 (see the pin files). Then run `cargo test -p ryo-wallet-service --locked`, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, and `pnpm build`. The Tauri desktop build additionally needs the [platform prerequisites](https://tauri.app/start/prerequisites/). On Fedora, the host packages include `gtk3-devel`, `webkit2gtk4.1-devel`, `librsvg2-devel` and `dbus-devel`. Run `pnpm tauri dev` to preview the separate wallet-flow, data-location, node and setup-summary screens. The desktop window starts at 1100 × 720 and has a 960 × 720 minimum. Tauri starts Vite itself; keep its command running while using the app. On Linux with an NVIDIA driver, the launcher applies Tauri's documented WebKitGTK DMABUF workaround before creating the window. No Ryo binary is bundled or launched by this foundation.

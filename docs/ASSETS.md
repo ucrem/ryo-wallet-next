@@ -1,0 +1,3 @@
+# Visual assets
+
+The blue Ryo Currency symbol used in the onboarding header and desktop icon is based on the vector mark in [`ryo-currency/ryo-wallet` `src/statics/ryo-wallet.svg`](https://github.com/ryo-currency/ryo-wallet/blob/6c8d0aa68245271fe0e781084b38583abf758869/src/statics/ryo-wallet.svg). The path was isolated from the upstream wordmark and placed on the project's own dark desktop tile. The upstream repository's `LICENSE` and `ORIGINAL-LICENSE` are the provenance references; the symbol and Ryo name may also be subject to trademark rights. Use here does not imply endorsement or official status.

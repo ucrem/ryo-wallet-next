@@ -1,0 +1,22 @@
+[package]
+name = "ryo-wallet-next"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+build = "build.rs"
+
+[lib]
+name = "ryo_wallet_next"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+tauri = { version = "=2.11.6", features = [] }
+ryo-wallet-service = { path = "../crates/ryo-wallet-service" }
+serde.workspace = true
+serde_json.workspace = true
+tauri-plugin-dialog = "2"

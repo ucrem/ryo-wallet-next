@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-app-status"
+description = "Read the non-sensitive foundation build status"
+commands.allow = ["app_status"]

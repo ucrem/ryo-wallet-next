@@ -1,0 +1,74 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+
+permissions:
+  contents: read
+
+jobs:
+  rust-foundation:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install pinned Rust toolchain and components
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt,clippy
+          rustup default 1.98.1
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy for reusable service
+        run: cargo clippy -p ryo-wallet-service --all-targets --locked -- -D warnings
+      - name: Service tests and generated type drift
+        run: |
+          cargo test -p ryo-wallet-service --locked
+          git diff --exit-code -- src/api/generated
+
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 12.5.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install exact frontend dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck and lint
+        run: |
+          pnpm typecheck
+          pnpm lint
+      - name: Frontend tests and production build
+        run: |
+          pnpm test
+          pnpm build
+
+  tauri-linux-check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa # v4
+        with:
+          version: 12.5.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install pinned Rust toolchain
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal
+          rustup default 1.98.1
+      - name: Install Tauri Linux build prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf
+      - name: Build frontend assets
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Check Tauri host
+        run: cargo check -p ryo-wallet-next --locked

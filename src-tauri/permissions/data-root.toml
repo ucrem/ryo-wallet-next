@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-data-root"
+description = "Read the selected private wallet data location and open the native folder picker"
+commands.allow = ["data_root_configuration", "choose_data_root"]
