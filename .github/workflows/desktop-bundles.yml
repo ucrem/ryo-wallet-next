@@ -136,6 +136,7 @@ jobs:
         run: |
           test "$SOURCE_REPO" = "$GH_REPO"
           test "$SOURCE_BRANCH" = staging
+          test "$(gh api "repos/$GH_REPO/compare/main...$STAGING_SHA" --jq .status)" = ahead
           run_id=""
           for attempt in {1..60}; do
             run_id="$(gh run list --workflow desktop-bundles.yml --branch staging --commit "$STAGING_SHA" --event push --json databaseId --limit 1 --jq '.[0].databaseId // empty')"
