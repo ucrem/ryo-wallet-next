@@ -16,6 +16,8 @@ Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [archi
 - [Roadmap and testing](docs/ROADMAP.md)
 - [Architecture decisions](docs/ADR/README.md)
 - [Visual asset provenance](docs/ASSETS.md)
+- [Desktop packaging](docs/PACKAGING.md)
+- [Contributing](CONTRIBUTING.md)
 
 Research baseline: 22 September 2026. Source conclusions are pinned to commits; runtime compatibility remains to be demonstrated. The local directory name `ryo-currency` is incidental: this was an empty Git repository without remotes when research began. The project repository is `github.com/ucrem/ryo-wallet-next`.
 
