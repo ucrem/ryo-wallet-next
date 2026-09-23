@@ -139,7 +139,7 @@ jobs:
           test "$(gh api "repos/$GH_REPO/compare/main...$STAGING_SHA" --jq .status)" = ahead
           run_id=""
           for attempt in {1..60}; do
-            run_id="$(gh run list --workflow desktop-bundles.yml --branch staging --commit "$STAGING_SHA" --event push --json databaseId --limit 1 --jq '.[0].databaseId // empty')"
+            run_id="$(gh run list --branch staging --commit "$STAGING_SHA" --event push --json databaseId,workflowName --limit 20 --jq '[.[] | select(.workflowName == "Staging desktop installers")][0].databaseId // empty')"
             if [ -n "$run_id" ]; then
               break
             fi
