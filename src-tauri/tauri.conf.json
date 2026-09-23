@@ -10,6 +10,7 @@
     "frontendDist": "../dist"
   },
   "app": {
+    "enableGTKAppId": true,
     "windows": [{ "title": "Ryo Wallet Next", "width": 1100, "height": 720, "minWidth": 960, "minHeight": 720 }],
     "security": {
       "csp": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src ipc: http://ipc.localhost; object-src 'none'; base-uri 'none'; frame-src 'none'; form-action 'none'",
@@ -22,6 +23,7 @@
     "homepage": "https://github.com/ucrem/ryo-wallet-next",
     "shortDescription": "Independent Ryo desktop wallet prototype",
     "longDescription": "Development preview of an independent Ryo desktop wallet. Wallet operations are not yet available.",
+    "targets": ["rpm"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -29,6 +31,13 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "linux": {
+      "rpm": {
+        "files": {
+          "/usr/share/applications/io.github.ucrem.ryowalletnext.desktop": "linux/io.github.ucrem.ryowalletnext.desktop"
+        }
+      }
+    },
     "licenseFile": "../LICENSE",
     "windows": {
       "nsis": {
