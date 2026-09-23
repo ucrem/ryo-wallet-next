@@ -36,7 +36,9 @@ run `pnpm install --frozen-lockfile`. Build on the target operating system:
 Bundles are written under `target/release/bundle/` because this project uses
 a Cargo workspace. The committed `.icns`, `.ico`, and PNG sizes are generated
 from `src-tauri/icons/icon.png`; the [asset provenance](ASSETS.md) applies to
-all of them.
+all of them. Tauri uses the Ryo icon for the Linux package launchers, the macOS
+app inside each DMG, and the Windows app executable. The NSIS setup and
+uninstaller executables explicitly use the same `.ico` file.
 
 Before a user-facing release, each platform still needs verified Ryo runtime
 binaries, dependency and license notices, signing (and Apple notarization),

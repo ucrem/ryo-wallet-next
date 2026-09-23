@@ -29,6 +29,12 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "licenseFile": "../LICENSE"
+    "licenseFile": "../LICENSE",
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "uninstallerIcon": "icons/icon.ico"
+      }
+    }
   }
 }
