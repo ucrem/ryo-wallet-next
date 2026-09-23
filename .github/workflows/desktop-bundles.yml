@@ -1,11 +1,14 @@
-name: Desktop bundle previews
+name: Staging desktop installers
 
 on:
+  push:
+    branches: [staging]
   pull_request:
-  workflow_dispatch:
+    branches: [main]
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: desktop-bundles-${{ github.ref }}
@@ -13,6 +16,7 @@ concurrency:
 
 jobs:
   linux:
+    if: github.event_name == 'push'
     name: Linux x64 (.deb, .rpm)
     runs-on: ubuntu-24.04
     steps:
@@ -41,13 +45,16 @@ jobs:
           name: preview-linux-x64-deb
           path: target/release/bundle/deb/*.deb
           if-no-files-found: error
+          retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: preview-linux-x64-rpm
           path: target/release/bundle/rpm/*.rpm
           if-no-files-found: error
+          retention-days: 30
 
   macos:
+    if: github.event_name == 'push'
     name: macOS ${{ matrix.arch }} (.dmg)
     strategy:
       fail-fast: false
@@ -82,8 +89,10 @@ jobs:
           name: preview-macos-${{ matrix.arch }}-dmg
           path: target/release/bundle/dmg/*.dmg
           if-no-files-found: error
+          retention-days: 30
 
   windows:
+    if: github.event_name == 'push'
     name: Windows x64 (.exe)
     runs-on: windows-2025
     steps:
@@ -108,3 +117,72 @@ jobs:
           name: preview-windows-x64-exe
           path: target/release/bundle/nsis/*-setup.exe
           if-no-files-found: error
+          retention-days: 30
+
+  promote:
+    if: github.event_name == 'pull_request'
+    name: Reuse staging installers for main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Require a staging PR and find its exact build
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          STAGING_SHA: ${{ github.event.pull_request.head.sha }}
+          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+        run: |
+          test "$SOURCE_REPO" = "$GH_REPO"
+          test "$SOURCE_BRANCH" = staging
+          run_id=""
+          for attempt in {1..60}; do
+            run_id="$(gh run list --workflow desktop-bundles.yml --branch staging --commit "$STAGING_SHA" --event push --json databaseId --limit 1 --jq '.[0].databaseId // empty')"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 20
+          done
+          test -n "$run_id"
+          gh run watch "$run_id" --exit-status --interval 20
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - name: Download the staging artifacts without rebuilding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        run: gh run download "$RUN_ID" --dir staging-artifacts
+      - name: Verify all five installers and record their checksums
+        env:
+          GH_REPO: ${{ github.repository }}
+          STAGING_SHA: ${{ github.event.pull_request.head.sha }}
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        run: |
+          shopt -s nullglob
+          deb=(staging-artifacts/preview-linux-x64-deb/*.deb)
+          rpm=(staging-artifacts/preview-linux-x64-rpm/*.rpm)
+          intel=(staging-artifacts/preview-macos-intel-dmg/*.dmg)
+          arm=(staging-artifacts/preview-macos-apple-silicon-dmg/*.dmg)
+          windows=(staging-artifacts/preview-windows-x64-exe/*-setup.exe)
+          test "${#deb[@]}" -eq 1
+          test "${#rpm[@]}" -eq 1
+          test "${#intel[@]}" -eq 1
+          test "${#arm[@]}" -eq 1
+          test "${#windows[@]}" -eq 1
+          test "$(find staging-artifacts -type f | wc -l)" -eq 5
+          {
+            echo "### Staging installers reused for main"
+            echo "Commit: \`$STAGING_SHA\`"
+            echo "Source run: https://github.com/$GH_REPO/actions/runs/$RUN_ID"
+            echo 'SHA-256:'
+            echo '```'
+            sha256sum "${deb[@]}" "${rpm[@]}" "${intel[@]}" "${arm[@]}" "${windows[@]}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: staging-installers-${{ github.event.pull_request.head.sha }}
+          path: staging-artifacts/
+          if-no-files-found: error
+          retention-days: 30

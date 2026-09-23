@@ -11,12 +11,19 @@ or `ryod` executable is bundled. Do not use these artifacts with funds.
 | macOS Apple Silicon | macOS 15 arm64 | `.dmg` |
 | Windows x64 | Windows 2025 | NSIS `-setup.exe` |
 
-The [desktop bundle preview workflow](../.github/workflows/desktop-bundles.yml)
-builds each target on its native operating system for pull requests and manual
-workflow runs. It uploads artifacts to the workflow run and does not create a
-GitHub Release. macOS previews use an ad-hoc signature; Windows and Linux
-previews are unsigned. They are not a substitute for platform installation and
-runtime tests.
+The [desktop installer workflow](../.github/workflows/desktop-bundles.yml)
+builds each target on its native operating system **only after a change is
+merged into `staging`**. The resulting five artifacts are retained for 30 days;
+no GitHub Release is created. A pull request from `staging` to `main` waits for
+the successful build of that exact staging commit, downloads the existing
+installers, verifies all five formats, reports SHA-256 hashes, and uploads those
+same files to the PR run. It never rebuilds the installers for promotion. If
+the staging commit changes, another staging build and review are required.
+See the [development branch flow](../CONTRIBUTING.md).
+
+macOS previews use an ad-hoc signature; Windows and Linux previews are
+unsigned. They are not a substitute for platform installation and runtime
+tests.
 
 Install the pinned Rust, Node, and pnpm versions plus the
 [Tauri platform prerequisites](https://v2.tauri.app/start/prerequisites/), then
