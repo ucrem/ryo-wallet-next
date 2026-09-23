@@ -182,6 +182,12 @@ impl WalletService {
     }
 }
 
+impl Default for WalletService {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 enum Command {
     Status {
         response: oneshot::Sender<LifecycleStatus>,
