@@ -103,6 +103,7 @@ jobs:
           test "$TAURI_VERSION" = "$CARGO_VERSION"
 
           VERSION="$TAURI_VERSION"
+          TAG="v$VERSION"
 
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release version: $VERSION"
