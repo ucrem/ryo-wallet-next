@@ -2970,7 +2970,7 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 
 [[package]]
 name = "ryo-wallet-next"
-version = "0.1.0"
+version = "0.1.0-alpha.1"
 dependencies = [
  "ryo-wallet-service",
  "serde",

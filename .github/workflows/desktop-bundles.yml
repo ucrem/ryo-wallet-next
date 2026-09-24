@@ -136,7 +136,30 @@ jobs:
         run: |
           test "$SOURCE_REPO" = "$GH_REPO"
           test "$SOURCE_BRANCH" = staging
-          test "$(gh api "repos/$GH_REPO/compare/main...$STAGING_SHA" --jq .status)" = ahead
+          comparison="$(
+            gh api "repos/$GH_REPO/compare/main...$STAGING_SHA"
+          )"
+
+          status="$(jq -r '.status' <<<"$comparison")"
+
+          if [ "$status" = "ahead" ]; then
+            :
+          elif [ "$status" = "diverged" ]; then
+            merge_base="$(jq -r '.merge_base_commit.sha' <<<"$comparison")"
+
+          main_tree="$(
+            gh api "repos/$GH_REPO/commits/main" --jq '.commit.tree.sha'
+          )"
+
+          merge_base_tree="$(
+            gh api "repos/$GH_REPO/commits/$merge_base" --jq '.commit.tree.sha'
+          )"
+
+            test "$main_tree" = "$merge_base_tree"
+          else
+            echo "staging is not safely ahead of main: $status"
+            exit 1
+          fi
 
           run_id=""
           for attempt in {1..60}; do

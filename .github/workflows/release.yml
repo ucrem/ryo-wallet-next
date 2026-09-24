@@ -92,12 +92,17 @@ jobs:
               jq -r '.version'
           )"
 
+          CARGO_VERSION="$(
+            git show "$TARGET_SHA:src-tauri/Cargo.toml" |
+              python3 -c 'import sys, tomllib; print(tomllib.load(sys.stdin.buffer)["package"]["version"])'
+          )"
+
           test -n "$TAURI_VERSION"
           test "$TAURI_VERSION" != "null"
           test "$TAURI_VERSION" = "$PACKAGE_VERSION"
+          test "$TAURI_VERSION" = "$CARGO_VERSION"
 
           VERSION="$TAURI_VERSION"
-          TAG="v$VERSION"
 
           if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]; then
             echo "Invalid release version: $VERSION"
