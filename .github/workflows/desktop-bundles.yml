@@ -147,13 +147,13 @@ jobs:
           elif [ "$status" = "diverged" ]; then
             merge_base="$(jq -r '.merge_base_commit.sha' <<<"$comparison")"
 
-            main_tree="$(
-              gh api "repos/$GH_REPO/git/commits/main" --jq '.tree.sha'
-            )"
+          main_tree="$(
+            gh api "repos/$GH_REPO/commits/main" --jq '.commit.tree.sha'
+          )"
 
-            merge_base_tree="$(
-              gh api "repos/$GH_REPO/git/commits/$merge_base" --jq '.tree.sha'
-            )"
+          merge_base_tree="$(
+            gh api "repos/$GH_REPO/commits/$merge_base" --jq '.commit.tree.sha'
+          )"
 
             test "$main_tree" = "$merge_base_tree"
           else
