@@ -24,7 +24,7 @@ Mobile, a JavaScript wallet SDK, new cryptography, consensus changes, official-p
 
 A restrained financial application: useful density, readable labels and full addresses at confirmation; no decorative trading dashboards. Desktop navigation: Overview, Send, Receive, Activity, Settings. Wallet selection precedes that shell. Lock is always available. Node and sync state remain visible across screens.
 
-Support light, dark and system themes, keyboard navigation, visible focus, semantic labels, screen-reader announcements, reduced motion, and layouts from the current 960×720 minimum window upward. Individual screens may scroll when content or display scaling requires it. Never communicate transaction state through color alone. Use locally bundled fonts/icons and shadcn/ui components. Loading, no wallet, no transactions, disconnected, stale, insufficient unlocked funds and partial submission are distinct states.
+Support light, dark and system themes, keyboard navigation, visible focus, semantic labels, screen-reader announcements, reduced motion, and layouts from the current 1400×800 minimum window upward. Individual screens may scroll when content or display scaling requires it. Never communicate transaction state through color alone. Use locally bundled fonts/icons and shadcn/ui components. Loading, no wallet, no transactions, disconnected, stale, insufficient unlocked funds and partial submission are distinct states.
 
 ## Smallest usable product
 
