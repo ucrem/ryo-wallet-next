@@ -70,9 +70,23 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
       <section aria-labelledby="updates-title" className="mt-5 rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
         <h2 id="updates-title" className="text-xl font-semibold">App updates</h2>
         <p className="mt-2 text-sm text-slate-400">The installed app checks for new releases when it opens. You can also check here.</p>
-        <Button type="button" variant="outline" className="mt-4" onClick={() => void updates.checkNow()}
-          disabled={!appVersion.isNative || updates.checking || updates.installing}>
-          {updates.checking ? "Checking…" : "Check for updates"}
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4"
+          onClick={() => void updates.checkNow()}
+          disabled={
+            !appVersion.isNative ||
+            updates.checking ||
+            updates.installing ||
+            updates.result?.state === "development"
+          }
+        >
+          {updates.checking
+            ? "Checking…"
+            : updates.result?.state === "development"
+              ? "Unavailable in development"
+              : "Check for updates"}
         </Button>
         {updates.result?.state === "development" ? (
           <p className="mt-3 text-sm text-slate-400" role="status">Update checks and installation are available in installed builds.</p>
