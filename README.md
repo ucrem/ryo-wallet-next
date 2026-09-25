@@ -17,10 +17,11 @@ Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [archi
 - [Architecture decisions](docs/ADR/README.md)
 - [Visual asset provenance](docs/ASSETS.md)
 - [Desktop packaging](docs/PACKAGING.md)
+- [Changelog](CHANGELOG.md)
 - [Contributing](CONTRIBUTING.md)
 
 Research baseline: 22 September 2026. Source conclusions are pinned to commits; runtime compatibility remains to be demonstrated. The local directory name `ryo-currency` is incidental: this was an empty Git repository without remotes when research began. The project repository is `github.com/ucrem/ryo-wallet-next`.
 
 ## Development checks
 
-Use Rust 1.98.1, Node 24.21.0 and pnpm 12.5.1 (see the pin files). Then run `cargo test -p ryo-wallet-service --locked`, `pnpm install --frozen-lockfile`, `pnpm typecheck`, `pnpm lint`, and `pnpm build`. The Tauri desktop build additionally needs the [platform prerequisites](https://tauri.app/start/prerequisites/). On Fedora, the host packages include `gtk3-devel`, `webkit2gtk4.1-devel`, `librsvg2-devel` and `dbus-devel`. Run `pnpm tauri dev` to preview the separate wallet-flow, data-location, node and setup-summary screens. The desktop window starts at 1100 × 720 and has a 960 × 720 minimum. Tauri starts Vite itself; keep its command running while using the app. On Linux with an NVIDIA driver, the launcher applies Tauri's documented WebKitGTK DMABUF workaround before creating the window. No Ryo binary is bundled or launched by this foundation.
+Use Rust 1.98.1, Node 24.21.0 and pnpm 12.5.1 (see the pin files). Then run `cargo test -p ryo-wallet-service --locked`, `pnpm install --frozen-lockfile`, `pnpm check:version`, `pnpm typecheck`, `pnpm lint`, and `pnpm build`. The Tauri desktop build additionally needs the [platform prerequisites](https://tauri.app/start/prerequisites/). On Fedora, the host packages include `gtk3-devel`, `webkit2gtk4.1-devel`, `librsvg2-devel` and `dbus-devel`. Run `pnpm tauri dev` to preview the separate wallet-flow, data-location, node, setup-summary, and About screens. About shows the installed executable version, its release status, and the locally bundled changelog; it works offline. The desktop window starts at 1100 × 720 and has a 960 × 720 minimum. Tauri starts Vite itself; keep its command running while using the app. On Linux with an NVIDIA driver, the launcher applies Tauri's documented WebKitGTK DMABUF workaround before creating the window. No Ryo binary is bundled or launched by this foundation.
