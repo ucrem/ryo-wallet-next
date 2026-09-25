@@ -12,7 +12,7 @@ use ryo_wallet_service::domain::{Network, NodeConfig};
 use ryo_wallet_service::process::VerifiedBinary;
 #[cfg(all(debug_assertions, target_os = "linux"))]
 use ryo_wallet_service::process::{BinaryDigest, BinaryKind};
-use ryo_wallet_service::rpc::RpcError;
+use ryo_wallet_service::rpc::{DaemonRpcClient, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
 };
@@ -171,6 +171,17 @@ fn persist_data_root(app: &tauri::AppHandle, root: &PathBuf) -> Result<(), &'sta
     write_result
 }
 
+#[derive(serde::Serialize)]
+struct WalletSyncStatusResponse {
+    wallet_height: Option<String>,
+    daemon_height: Option<String>,
+    network_height: Option<String>,
+    node_reachable: bool,
+    node_ready: bool,
+    node_offline: bool,
+    node_untrusted: bool,
+}
+
 #[tauri::command]
 async fn app_status(
     service: tauri::State<'_, WalletService>,
@@ -186,6 +197,48 @@ async fn wallet_overview(
         .overview()
         .await
         .map_err(|_| "wallet overview unavailable")
+}
+
+#[tauri::command]
+async fn wallet_sync_status(
+    state: tauri::State<'_, DataRootState>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<WalletSyncStatusResponse, &'static str> {
+    let wallet_height = service.height().await.ok().map(|height| height.to_string());
+
+    let paths = selected_paths(&state)?;
+
+    let node = load_settings_if_present(&paths)
+        .map_err(|_| "node configuration is unavailable")?
+        .ok_or("choose a node first")?
+        .node;
+
+    let daemon = DaemonRpcClient::configured(&node).map_err(|_| "node configuration is invalid")?;
+
+    match daemon.health().await {
+        Ok(health) => {
+            let network_height = health.height.max(health.target_height);
+
+            Ok(WalletSyncStatusResponse {
+                wallet_height,
+                daemon_height: Some(health.height.to_string()),
+                network_height: Some(network_height.to_string()),
+                node_reachable: true,
+                node_ready: health.ready,
+                node_offline: health.offline,
+                node_untrusted: health.untrusted,
+            })
+        }
+        Err(_) => Ok(WalletSyncStatusResponse {
+            wallet_height,
+            daemon_height: None,
+            network_height: None,
+            node_reachable: false,
+            node_ready: false,
+            node_offline: true,
+            node_untrusted: false,
+        }),
+    }
 }
 
 #[tauri::command]
@@ -261,7 +314,9 @@ async fn ready_wallet_service(
     state: &DataRootState,
 ) -> Result<(), &'static str> {
     let paths = selected_paths(state)?;
-    let binary = reviewed_wallet_rpc().ok_or("verified Linux wallet runtime is unavailable; restart pnpm tauri dev to prepare it")?;
+    let binary = reviewed_wallet_rpc().ok_or(
+        "verified Linux wallet runtime is unavailable; restart pnpm tauri dev to prepare it",
+    )?;
     let node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?
@@ -541,6 +596,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_status,
             wallet_overview,
+            wallet_sync_status,
             wallet_runtime_ready,
             wallet_list,
             wallet_active,

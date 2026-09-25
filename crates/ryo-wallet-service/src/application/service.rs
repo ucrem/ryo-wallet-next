@@ -180,6 +180,12 @@ impl WalletService {
         reply.await.map_err(|_| WalletServiceError::Unavailable)?
     }
 
+    pub async fn height(&self) -> Result<u64, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::Height { response }).await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
     /// Recovery is available only for an already-open wallet. The caller must
     /// enforce its backup-pending policy before handing the phrase to the UI.
     pub async fn recovery_phrase(&self) -> Result<RecoveryPhrase, WalletServiceError> {
@@ -240,6 +246,9 @@ enum Command {
     },
     Overview {
         response: oneshot::Sender<Result<WalletOverview, WalletServiceError>>,
+    },
+    Height {
+        response: oneshot::Sender<Result<u64, WalletServiceError>>,
     },
     RecoveryPhrase {
         response: oneshot::Sender<Result<RecoveryPhrase, WalletServiceError>>,
@@ -429,6 +438,23 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                     },
                     Err(error) => Err(error),
                 };
+                let _ = response.send(result);
+            }
+            Command::Height { response } => {
+                let result = lifecycle
+                    .require_open()
+                    .map_err(WalletServiceError::Lifecycle)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+
+                let result = match result {
+                    Ok(session) => session
+                        .client()
+                        .height()
+                        .await
+                        .map_err(WalletServiceError::Rpc),
+                    Err(error) => Err(error),
+                };
+
                 let _ = response.send(result);
             }
             Command::RecoveryPhrase { response } => {

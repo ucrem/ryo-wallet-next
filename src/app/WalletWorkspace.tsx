@@ -29,7 +29,7 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
     enabled: phase === "open",
     retry: 2,
     retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000),
-    refetchInterval: phase === "open" ? 5_000 : false,
+    refetchInterval: phase === "open" ? 10_000 : false,
     refetchIntervalInBackground: false,
   })
   const selectedId = walletId || wallets.data?.[0]?.id || ""

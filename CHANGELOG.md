@@ -11,12 +11,16 @@
 - Wallet lock flow.
 - Read-only wallet screen with primary address and balance information.
 - Wallet RPC integration with the configured Ryo node.
+- Persistent wallet status bar with node connectivity and synchronization progress.
+- Wallet and network block-height monitoring.
+- Read-only remote daemon health checks for the configured node.
 
 ### Changed
 
 - Wallet data is refreshed after creation and while a wallet remains open.
 - Wallet balance is displayed in RYO instead of raw atomic units.
 - Temporary node or synchronization failures are presented as recoverable wallet states.
+- Wallet synchronization now updates silently in the persistent status bar instead of showing transient connection messages in the wallet view.
 
 ### Known limitations
 

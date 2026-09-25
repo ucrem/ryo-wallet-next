@@ -8,6 +8,19 @@ export type CreatedWallet = {
   recovery_phrase: string
 }
 
+export type WalletSyncStatus = {
+  wallet_height: string | null
+  daemon_height: string | null
+  network_height: string | null
+  node_reachable: boolean
+  node_ready: boolean
+  node_offline: boolean
+  node_untrusted: boolean
+}
+
+export const getWalletSyncStatus = () =>
+  invoke<WalletSyncStatus>("wallet_sync_status")
+
 export const walletRuntimeReady = () => invoke<boolean>("wallet_runtime_ready")
 export const listWallets = () => invoke<WalletEntry[]>("wallet_list")
 export const getActiveWallet = () => invoke<WalletEntry | null>("wallet_active")

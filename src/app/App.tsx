@@ -12,6 +12,7 @@ import { About } from "@/app/About"
 import ryoMark from "@/assets/ryo-mark.svg"
 import { Button } from "@/components/ui/button"
 import { useAppVersion } from "@/lib/useAppVersion"
+import { WalletStatusBar } from "@/app/WalletStatusBar"
 
 type WalletAction = "create" | "restore" | "open"
 type Screen = "home" | "storage" | "node" | "summary" | "wallet" | "about"
@@ -279,6 +280,10 @@ export function App() {
             ) : null}
           </div>
         </main>
+        <WalletStatusBar
+          serviceState={status.data?.state ?? null}
+          node={node.data ?? null}
+        />
       </div>
     </div>
   )
