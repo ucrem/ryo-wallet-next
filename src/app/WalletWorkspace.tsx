@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react"
+import { useEffect, useState, type FormEvent, type ReactNode } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { writeText } from "@tauri-apps/plugin-clipboard-manager"
 import { getWalletOverview } from "@/api/overview"
@@ -283,32 +283,29 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
                 </p>
               </div>
 
-              <div className="flex shrink-0 flex-wrap gap-3">
-                <Button
-                  type="button"
-                  variant="outline"
+              <div className="flex shrink-0 flex-wrap gap-2">
+                <WalletIconButton
+                  label={copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy address"}
                   onClick={() => void copyAddress()}
                   disabled={!overview.data?.primary_address}
                 >
-                  {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy address"}
-                </Button>
+                  {copyStatus === "copied" ? <CheckIcon /> : <CopyIcon />}
+                </WalletIconButton>
 
-                <Button
-                  type="button"
-                  variant="outline"
+                <WalletIconButton
+                  label={hideBalances ? "Show balances" : "Hide balances"}
                   onClick={() => setHideBalances((value) => !value)}
                 >
-                  {hideBalances ? "Show balances" : "Hide balances"}
-                </Button>
+                  {hideBalances ? <EyeOffIcon /> : <EyeIcon />}
+                </WalletIconButton>
 
-                <Button
-                  type="button"
-                  variant="outline"
+                <WalletIconButton
+                  label={busy ? "Locking…" : "Lock wallet"}
                   onClick={() => void lock()}
                   disabled={busy}
                 >
-                  {busy ? "Locking…" : "Lock wallet"}
-                </Button>
+                  <LockIcon />
+                </WalletIconButton>
               </div>
             </div>
 
@@ -368,6 +365,55 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
       {error ? <p className="mt-5 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200" role="alert">{error}</p> : null}
     </div>
   )
+}
+
+function WalletIconButton({ label, onClick, disabled, children }: {
+  label: string; onClick: () => void; disabled?: boolean; children: ReactNode
+}) {
+  return (
+    <span className="group relative inline-flex">
+      <Button type="button" variant="outline" size="icon" aria-label={label} onClick={onClick} disabled={disabled}>
+        {children}
+      </Button>
+      <span aria-hidden="true" className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
+        {label}
+      </span>
+    </span>
+  )
+}
+
+function CopyIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="8" y="8" width="12" height="12" rx="2" />
+    <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+  </svg>
+}
+
+function CheckIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="m5 12 4 4L19 6" />
+  </svg>
+}
+
+function EyeIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+    <circle cx="12" cy="12" r="3" />
+  </svg>
+}
+
+function EyeOffIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 3 21 21M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-3.1 3.8M6.1 6.1C3.4 8 2 12 2 12s3.5 7 10 7a10.5 10.5 0 0 0 4.2-.9" />
+    <path d="M10.1 10.1a3 3 0 0 0 3.8 3.8" />
+  </svg>
+}
+
+function LockIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="5" y="10" width="14" height="11" rx="2" />
+    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+  </svg>
 }
 
 function PasswordField({ name, label, autoComplete }: { name: string; label: string; autoComplete: string }) {
