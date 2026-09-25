@@ -30,7 +30,9 @@ const REVIEWED_LINUX_WALLET_RPC_SHA256: &str =
 /// exercised by the real RPC tests. Public packages need platform manifests.
 #[cfg(all(debug_assertions, target_os = "linux"))]
 fn reviewed_wallet_rpc() -> Option<VerifiedBinary> {
-    let path = PathBuf::from(std::env::var_os("RYO_WALLET_RPC_BIN")?);
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join(".dev-runtime")
+        .join("ryo-wallet-rpc");
     VerifiedBinary::verify(
         BinaryKind::WalletRpc,
         &path,
@@ -259,7 +261,7 @@ async fn ready_wallet_service(
     state: &DataRootState,
 ) -> Result<(), &'static str> {
     let paths = selected_paths(state)?;
-    let binary = reviewed_wallet_rpc().ok_or("verified Linux wallet runtime is unavailable; set RYO_WALLET_RPC_BIN before starting pnpm tauri dev")?;
+    let binary = reviewed_wallet_rpc().ok_or("verified Linux wallet runtime is unavailable; restart pnpm tauri dev to prepare it")?;
     let node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?
@@ -521,6 +523,12 @@ async fn require_stopped(service: &WalletService) -> Result<(), &'static str> {
 }
 
 pub fn run() {
+    let mut context = tauri::generate_context!();
+    #[cfg(debug_assertions)]
+    {
+        context.config_mut().identifier = "io.github.ucrem.ryowalletnext.dev".to_owned();
+        context.config_mut().product_name = Some("Ryo Wallet Next Dev".to_owned());
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -546,7 +554,7 @@ pub fn run() {
             node_configuration,
             save_node_selection
         ])
-        .run(tauri::generate_context!())
+        .run(context)
         .expect("failed to start Ryo Wallet Next");
 }
 

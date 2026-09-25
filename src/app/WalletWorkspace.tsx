@@ -154,8 +154,8 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
           </p>
           {runtime.data === false ? (
             <p className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100" role="status">
-              Local testing requires the reviewed Ryo 0.6.1.0 Linux wallet RPC binary. Set
-              <code className="mx-1">RYO_WALLET_RPC_BIN</code> before starting <code>pnpm tauri dev</code>.
+              The verified Linux wallet runtime is unavailable. Restart <code>pnpm tauri dev</code>
+              and check its terminal output.
             </p>
           ) : null}
           {mode === "create" ? (

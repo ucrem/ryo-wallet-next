@@ -4,7 +4,7 @@
   "version": "0.1.0-alpha.2",
   "identifier": "io.github.ucrem.ryowalletnext",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "node scripts/prepare-dev-runtime.mjs && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
     "beforeBuildCommand": "pnpm build",
     "frontendDist": "../dist"

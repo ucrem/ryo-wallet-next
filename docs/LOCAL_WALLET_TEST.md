@@ -1,18 +1,17 @@
 # Local wallet creation test
 
-This development flow is available on Linux only. It accepts the reviewed
-Ryo 0.6.1.0 `ryo-wallet-rpc` executable at the exact SHA-256
-`5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3`.
-The executable is not bundled, downloaded by the app, or accepted from `PATH`.
-Keep this test wallet empty; do not transfer funds to it.
+This development flow is available on Linux x64 only. `pnpm tauri dev` prepares
+the reviewed Ryo 0.6.1.0 wallet RPC binary on first run and verifies its exact
+SHA-256. The app never accepts an executable from `PATH`. Keep this test wallet
+empty; do not transfer funds to it.
 
-From this branch's checkout, with the verified executable already on disk:
+From the project directory:
 
 ```sh
-RYO_WALLET_RPC_BIN=/absolute/path/to/ryo-wallet-rpc pnpm tauri dev --config src-tauri/tauri.local-test.conf.json
+pnpm tauri dev
 ```
 
-The test configuration gives the app a separate identity and settings directory,
+The development app automatically uses a separate identity and settings directory,
 so it can run alongside an installed Ryo Wallet Next. Choose a new empty data
 folder, choose a local node, then create a wallet with a password of at least
 12 bytes. Write the recovery phrase on paper and answer the three word prompts.
