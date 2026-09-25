@@ -3,8 +3,6 @@ name: Staging desktop installers
 on:
   push:
     branches: [staging]
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -16,15 +14,14 @@ concurrency:
 
 jobs:
   linux:
-    if: github.event_name == 'push'
     name: Linux x64 (.deb, .rpm)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.5.1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -54,7 +51,6 @@ jobs:
           retention-days: 30
 
   macos:
-    if: github.event_name == 'push'
     name: macOS ${{ matrix.arch }} (.dmg)
     strategy:
       fail-fast: false
@@ -66,11 +62,11 @@ jobs:
             runner: macos-15
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.5.1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -92,15 +88,14 @@ jobs:
           retention-days: 30
 
   windows:
-    if: github.event_name == 'push'
     name: Windows x64 (.exe)
     runs-on: windows-2025
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.5.1
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm
@@ -116,105 +111,5 @@ jobs:
         with:
           name: preview-windows-x64-exe
           path: target/release/bundle/nsis/*-setup.exe
-          if-no-files-found: error
-          retention-days: 30
-
-  promote:
-    if: github.event_name == 'pull_request'
-    name: Reuse staging installers for main
-    runs-on: ubuntu-24.04
-    timeout-minutes: 45
-    steps:
-      - name: Require a staging PR and find its exact build
-        id: source
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          STAGING_SHA: ${{ github.event.pull_request.head.sha }}
-          SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
-          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
-        run: |
-          test "$SOURCE_REPO" = "$GH_REPO"
-          test "$SOURCE_BRANCH" = staging
-          comparison="$(
-            gh api "repos/$GH_REPO/compare/main...$STAGING_SHA"
-          )"
-
-          status="$(jq -r '.status' <<<"$comparison")"
-
-          if [ "$status" = "ahead" ]; then
-            :
-          elif [ "$status" = "diverged" ]; then
-            merge_base="$(jq -r '.merge_base_commit.sha' <<<"$comparison")"
-
-          main_tree="$(
-            gh api "repos/$GH_REPO/commits/main" --jq '.commit.tree.sha'
-          )"
-
-          merge_base_tree="$(
-            gh api "repos/$GH_REPO/commits/$merge_base" --jq '.commit.tree.sha'
-          )"
-
-            test "$main_tree" = "$merge_base_tree"
-          else
-            echo "staging is not safely ahead of main: $status"
-            exit 1
-          fi
-
-          run_id=""
-          for attempt in {1..60}; do
-            run_id="$(
-              gh api \
-                "repos/$GH_REPO/actions/workflows/desktop-bundles.yml/runs?branch=staging&event=push&head_sha=$STAGING_SHA&per_page=20" \
-                --jq '.workflow_runs[0].id // empty'
-            )"
-
-            if [ -n "$run_id" ]; then
-              break
-            fi
-
-            sleep 20
-          done
-
-          test -n "$run_id"
-          gh run watch "$run_id" --exit-status --interval 20
-          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
-      - name: Download the staging artifacts without rebuilding
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-          RUN_ID: ${{ steps.source.outputs.run_id }}
-        run: gh run download "$RUN_ID" --dir staging-artifacts
-      - name: Verify all five installers and record their checksums
-        env:
-          GH_REPO: ${{ github.repository }}
-          STAGING_SHA: ${{ github.event.pull_request.head.sha }}
-          RUN_ID: ${{ steps.source.outputs.run_id }}
-        run: |
-          shopt -s nullglob
-          deb=(staging-artifacts/preview-linux-x64-deb/*.deb)
-          rpm=(staging-artifacts/preview-linux-x64-rpm/*.rpm)
-          intel=(staging-artifacts/preview-macos-intel-dmg/*.dmg)
-          arm=(staging-artifacts/preview-macos-apple-silicon-dmg/*.dmg)
-          windows=(staging-artifacts/preview-windows-x64-exe/*-setup.exe)
-          test "${#deb[@]}" -eq 1
-          test "${#rpm[@]}" -eq 1
-          test "${#intel[@]}" -eq 1
-          test "${#arm[@]}" -eq 1
-          test "${#windows[@]}" -eq 1
-          test "$(find staging-artifacts -type f | wc -l)" -eq 5
-          {
-            echo "### Staging installers reused for main"
-            echo "Commit: \`$STAGING_SHA\`"
-            echo "Source run: https://github.com/$GH_REPO/actions/runs/$RUN_ID"
-            echo 'SHA-256:'
-            echo '```'
-            sha256sum "${deb[@]}" "${rpm[@]}" "${intel[@]}" "${arm[@]}" "${windows[@]}"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: staging-installers-${{ github.event.pull_request.head.sha }}
-          path: staging-artifacts/
           if-no-files-found: error
           retention-days: 30

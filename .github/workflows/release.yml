@@ -38,10 +38,13 @@ jobs:
     runs-on: ubuntu-24.04
 
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: main
           fetch-depth: 0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
 
       - name: Resolve and verify release source
         id: source
@@ -82,6 +85,17 @@ jobs:
           # is actually contained in the commit being released.
           git merge-base --is-ancestor "$STAGING_SHA" "$TARGET_SHA"
 
+          # The GitHub merge commit has a different SHA, but must contain
+          # exactly the same files as the staging commit that built installers.
+          STAGING_TREE="$(git rev-parse "$STAGING_SHA^{tree}")"
+          TARGET_TREE="$(git rev-parse "$TARGET_SHA^{tree}")"
+          if [ "$STAGING_TREE" != "$TARGET_TREE" ]; then
+            echo "Release source differs from the staging installer source"
+            echo "staging tree: $STAGING_TREE"
+            echo "release tree: $TARGET_TREE"
+            exit 1
+          fi
+
           TAURI_VERSION="$(
             git show "$TARGET_SHA:src-tauri/tauri.conf.json" |
               jq -r '.version'
@@ -101,6 +115,16 @@ jobs:
           test "$TAURI_VERSION" != "null"
           test "$TAURI_VERSION" = "$PACKAGE_VERSION"
           test "$TAURI_VERSION" = "$CARGO_VERSION"
+
+          # Validate the complete version set from the exact main commit being
+          # released, including Cargo.lock and the bundled changelog entry.
+          VERSION_SOURCE="$(mktemp -d)"
+          trap 'rm -rf "$VERSION_SOURCE"' EXIT
+          for source in package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.lock CHANGELOG.md scripts/check-version-consistency.mjs; do
+            mkdir -p "$VERSION_SOURCE/$(dirname "$source")"
+            git show "$TARGET_SHA:$source" > "$VERSION_SOURCE/$source"
+          done
+          node "$VERSION_SOURCE/scripts/check-version-consistency.mjs"
 
           VERSION="$TAURI_VERSION"
           TAG="v$VERSION"

@@ -1,6 +1,6 @@
 [package]
 name = "ryo-wallet-next"
-version = "0.1.0-alpha.1"
+version = "0.1.0-alpha.2"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
@@ -20,3 +20,4 @@ ryo-wallet-service = { path = "../crates/ryo-wallet-service" }
 serde.workspace = true
 serde_json.workspace = true
 tauri-plugin-dialog = "2"
+tauri-plugin-opener = "=2.5.5"

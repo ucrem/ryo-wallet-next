@@ -1,0 +1,97 @@
+name: Verify staging promotion
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: staging-promotion-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  promote:
+    name: Reuse staging installers for main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      STAGING_SHA: ${{ github.event.pull_request.head.sha }}
+      SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
+      SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+      - name: Verify the merge contains exactly the staging source
+        run: |
+          set -euo pipefail
+          test "$SOURCE_REPO" = "$GH_REPO"
+          test "$SOURCE_BRANCH" = staging
+          test "$(git rev-parse HEAD)" = "$STAGING_SHA"
+
+          git fetch origin main --no-tags
+          staging_tree="$(git rev-parse "$STAGING_SHA^{tree}")"
+          merge_tree="$(git merge-tree --write-tree origin/main "$STAGING_SHA")"
+          if [ "$staging_tree" != "$merge_tree" ]; then
+            echo "The proposed main merge changes files beyond the reviewed staging commit."
+            echo "staging tree: $staging_tree"
+            echo "merge tree:   $merge_tree"
+            exit 1
+          fi
+          echo "The proposed merge has the same files as staging commit $STAGING_SHA."
+
+      - name: Wait for the exact staging installer build
+        id: source
+        run: |
+          set -euo pipefail
+          run_id=""
+          for attempt in {1..60}; do
+            run_id="$(
+              gh api \
+                "repos/$GH_REPO/actions/workflows/desktop-bundles.yml/runs?branch=staging&event=push&head_sha=$STAGING_SHA&per_page=20" \
+                --jq '.workflow_runs[0].id // empty'
+            )"
+            if [ -n "$run_id" ]; then
+              break
+            fi
+            sleep 20
+          done
+          test -n "$run_id"
+          gh run watch "$run_id" --repo "$GH_REPO" --exit-status --interval 20
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Inspect the existing installers
+        env:
+          RUN_ID: ${{ steps.source.outputs.run_id }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          gh run download "$RUN_ID" --repo "$GH_REPO" --dir staging-artifacts
+
+          deb=(staging-artifacts/preview-linux-x64-deb/*.deb)
+          rpm=(staging-artifacts/preview-linux-x64-rpm/*.rpm)
+          intel=(staging-artifacts/preview-macos-intel-dmg/*.dmg)
+          arm=(staging-artifacts/preview-macos-apple-silicon-dmg/*.dmg)
+          windows=(staging-artifacts/preview-windows-x64-exe/*-setup.exe)
+          test "${#deb[@]}" -eq 1
+          test "${#rpm[@]}" -eq 1
+          test "${#intel[@]}" -eq 1
+          test "${#arm[@]}" -eq 1
+          test "${#windows[@]}" -eq 1
+          test "$(find staging-artifacts -type f | wc -l)" -eq 5
+
+          {
+            echo "### Existing staging installers verified"
+            echo "Staging commit: \`$STAGING_SHA\`"
+            echo "Source run: https://github.com/$GH_REPO/actions/runs/$RUN_ID"
+            echo 'SHA-256:'
+            echo '```'
+            sha256sum "${deb[@]}" "${rpm[@]}" "${intel[@]}" "${arm[@]}" "${windows[@]}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
