@@ -33,6 +33,9 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
     refetchIntervalInBackground: false,
   })
   const selectedId = walletId || wallets.data?.[0]?.id || ""
+  const [hideBalances, setHideBalances] = useState(false)
+
+
 
   useEffect(() => {
     if (!activeWallet || activeWallet.backup_complete || phase !== "backup" || phrase) return
@@ -146,10 +149,15 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
     }
   }
 
+  function renderBalance(atomic: string | undefined, hidden: boolean): string {
+    if (hidden) return "••••"
+    if (!atomic) return "—"
+    return `${formatAtomicRyo(atomic)} RYO`
+  }
+
   return (
     <div className="flex min-h-full flex-col">
-      <p className="text-xs font-semibold tracking-[0.16em] text-sky-300">WALLET</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">
+      <h1 className="mb-3 text-3xl font-semibold tracking-tight">
         {phase === "entry" ? mode === "create" ? "Create wallet" : "Open wallet"
           : phase === "open" ? "Wallet open" : "Back up your recovery phrase"}
       </h1>
@@ -245,74 +253,84 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
 
       {phase === "open" ? (
         <>
-          <p className="mt-3 text-sm text-slate-300">Your wallet is open. No transaction controls are available yet.</p>
+          <section className="rounded-xl border border-slate-700 bg-[#151d27] p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Primary address
+                </p>
 
-          {overview.isFetching && !overview.isPending ? (
-            <p className="mt-3 text-xs text-slate-500">
-              Refreshing wallet data…
-            </p>
-          ) : null}
-          {overview.isError ? (
-            <div
-              className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4"
-              role="status"
-            >
-              <p className="text-sm text-amber-100">
-                The wallet is open, but node data is not available yet.
-              </p>
-
-              <p className="mt-2 text-xs leading-5 text-amber-200">
-                The wallet may still be connecting or synchronizing with the configured node.
-              </p>
-
-              <Button
-                type="button"
-                variant="outline"
-                className="mt-3"
-                onClick={() => void overview.refetch()}
-                disabled={overview.isFetching}
-              >
-                {overview.isFetching ? "Retrying…" : "Retry"}
-              </Button>
-            </div>
-          ) : null}
-          {overview.data ? (
-            <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Wallet overview">
-              <p className="text-xs uppercase tracking-wide text-slate-400">Primary address</p>
-              <p className="mt-2 break-all font-mono text-sm">{overview.data.primary_address}</p>
-              <div className="mt-5 grid gap-4 sm:grid-cols-3">
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Total
-                  </p>
-                  <p className="mt-1 font-mono text-lg">
-                    {formatAtomicRyo(overview.data.total.atomic)} RYO
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Unlocked
-                  </p>
-                  <p className="mt-1 font-mono text-lg">
-                    {formatAtomicRyo(overview.data.unlocked.atomic)} RYO
-                  </p>
-                </div>
-
-                <div>
-                  <p className="text-xs uppercase tracking-wide text-slate-400">
-                    Locked
-                  </p>
-                  <p className="mt-1 font-mono text-lg">
-                    {formatAtomicRyo(overview.data.locked.atomic)} RYO
-                  </p>
-                </div>
+                <p className="mt-2 break-all font-mono text-sm text-slate-100">
+                  {overview.data?.primary_address ?? "—"}
+                </p>
               </div>
-            </section>
-          ) : null}
-          <Button type="button" variant="outline" className="mt-6 self-start" onClick={() => void lock()} disabled={busy}>
-            {busy ? "Locking…" : "Lock wallet"}
-          </Button>
+
+              <div className="flex shrink-0 flex-wrap gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setHideBalances((value) => !value)}
+                >
+                  {hideBalances ? "Show balances" : "Hide balances"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => void lock()}
+                  disabled={busy}
+                >
+                  {busy ? "Locking…" : "Lock wallet"}
+                </Button>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 border-t border-slate-700 pt-5 sm:grid-cols-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Total
+                </p>
+                <p className="mt-1 font-mono text-lg text-slate-100">
+                  {renderBalance(overview.data?.total.atomic, hideBalances)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Unlocked
+                </p>
+                <p className="mt-1 font-mono text-lg text-slate-100">
+                  {renderBalance(overview.data?.unlocked.atomic, hideBalances)}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Locked
+                </p>
+                <p className="mt-1 font-mono text-lg text-slate-100">
+                  {renderBalance(overview.data?.locked.atomic, hideBalances)}
+                </p>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-400">
+                  Transactions
+                </p>
+                <h2 className="mt-1 text-lg font-semibold text-slate-100">
+                  Activity
+                </h2>
+              </div>
+            </div>
+
+            <p className="mt-4 text-sm text-slate-400">
+              Transaction history is not available yet.
+            </p>
+          </section>
         </>
       ) : null}
 

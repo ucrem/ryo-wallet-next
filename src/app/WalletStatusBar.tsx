@@ -37,7 +37,7 @@ export function WalletStatusBar({
   if (serviceState === "open") {
     if (sync.isPending) {
       status = "Connecting"
-    } else if (!data?.node_reachable || data.node_offline) {
+    } else if (!data?.node_reachable || data?.node_offline) {
       status = "Node offline"
     } else if (!data.node_ready) {
       status = "Node connecting"
@@ -52,58 +52,60 @@ export function WalletStatusBar({
 
   return (
     <footer
-      className="flex h-12 shrink-0 items-center gap-5 border-t border-slate-800 bg-[#101720] px-6 text-xs text-slate-400"
+      className="shrink-0 border-t border-slate-800 bg-[#101720] px-6 py-3"
       aria-label="Wallet synchronization status"
     >
-      <div className="flex min-w-24 items-center gap-2">
-        <span
-          aria-hidden="true"
-          className={
-            "size-2 rounded-full " +
-            (status === "Synced"
-              ? "bg-emerald-400"
-              : status === "Syncing" || status === "Connecting"
-                ? "bg-amber-400"
-                : "bg-slate-500")
-          }
-        />
-        <span className="font-medium text-slate-200">{status}</span>
-      </div>
-
-      <span className="whitespace-nowrap">
-        {node?.mode === "remote"
-          ? "Remote node"
-          : node?.mode === "local"
-            ? "Local node"
-            : "No node"}
-      </span>
-
-      <div className="flex min-w-0 flex-1 items-center gap-3">
-        <div
-          className="h-1.5 min-w-20 flex-1 overflow-hidden rounded-full bg-slate-800"
-          role="progressbar"
-          aria-label="Wallet synchronization"
-          aria-valuemin={0}
-          aria-valuemax={100}
-          aria-valuenow={progress ?? undefined}
-        >
-          {progress !== null ? (
-            <div
-              className="h-full bg-sky-400 transition-[width] duration-300"
-              style={{ width: `${progress}%` }}
-            />
-          ) : null}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-slate-400">
+        <div className="flex min-w-24 items-center gap-2">
+          <span
+            aria-hidden="true"
+            className={
+              "size-2 rounded-full " +
+              (status === "Synced"
+                ? "bg-emerald-400"
+                : status === "Syncing" || status === "Connecting" || status === "Node connecting"
+                  ? "bg-amber-400"
+                  : "bg-slate-500")
+            }
+          />
+          <span className="font-medium text-slate-200">{status}</span>
         </div>
 
-        <span className="w-12 text-right font-mono">
+        <span className="whitespace-nowrap">
+          {node?.mode === "remote"
+            ? "Remote node"
+            : node?.mode === "local"
+              ? "Local node"
+              : "No node"}
+        </span>
+
+        <span className="whitespace-nowrap font-mono text-[11px] text-slate-300">
+          Wallet {data?.wallet_height ?? "—"}
+        </span>
+
+        <span className="whitespace-nowrap font-mono text-[11px] text-slate-300">
+          Chain {data?.network_height ?? "—"}
+        </span>
+
+        <span className="ml-auto w-16 text-right font-mono text-slate-200">
           {progress !== null ? `${progress.toFixed(1)}%` : "—"}
         </span>
       </div>
 
-      <div className="hidden whitespace-nowrap font-mono text-[11px] xl:block">
-        Wallet {data?.wallet_height ?? "—"}
-        {" / "}
-        Network {data?.network_height ?? "—"}
+      <div
+        className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-800"
+        role="progressbar"
+        aria-label="Wallet synchronization"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress ?? undefined}
+      >
+        {progress !== null ? (
+          <div
+            className="h-full bg-sky-400 transition-[width] duration-300"
+            style={{ width: `${progress}%` }}
+          />
+        ) : null}
       </div>
     </footer>
   )
