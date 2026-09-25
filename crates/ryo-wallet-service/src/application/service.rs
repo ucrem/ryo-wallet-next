@@ -92,6 +92,12 @@ impl WalletService {
         reply.await.map_err(|_| WalletServiceError::Unavailable)
     }
 
+    pub async fn is_idle(&self) -> Result<bool, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::IsIdle { response }).await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)
+    }
+
     pub async fn start_wallet_rpc(
         &self,
         binary: VerifiedBinary,
@@ -174,6 +180,14 @@ impl WalletService {
         reply.await.map_err(|_| WalletServiceError::Unavailable)?
     }
 
+    /// Recovery is available only for an already-open wallet. The caller must
+    /// enforce its backup-pending policy before handing the phrase to the UI.
+    pub async fn recovery_phrase(&self) -> Result<RecoveryPhrase, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::RecoveryPhrase { response }).await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
     async fn send(&self, command: Command) -> Result<(), WalletServiceError> {
         self.sender
             .send(command)
@@ -191,6 +205,9 @@ impl Default for WalletService {
 enum Command {
     Status {
         response: oneshot::Sender<LifecycleStatus>,
+    },
+    IsIdle {
+        response: oneshot::Sender<bool>,
     },
     Start {
         binary: VerifiedBinary,
@@ -224,6 +241,9 @@ enum Command {
     Overview {
         response: oneshot::Sender<Result<WalletOverview, WalletServiceError>>,
     },
+    RecoveryPhrase {
+        response: oneshot::Sender<Result<RecoveryPhrase, WalletServiceError>>,
+    },
 }
 
 async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
@@ -235,6 +255,15 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
             Command::Status { response } => {
                 let _ = response.send(lifecycle.status());
             }
+            Command::IsIdle { response } => {
+                let _ = response.send(
+                    session.is_none()
+                        && matches!(
+                            lifecycle.status().state,
+                            super::LifecycleState::Stopped | super::LifecycleState::Locked
+                        ),
+                );
+            }
             Command::Start {
                 binary,
                 paths,
@@ -242,7 +271,16 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 rpc_port,
                 response,
             } => {
-                if let Err(error) = lifecycle.start() {
+                if lifecycle.status().state == super::LifecycleState::Locked && session.is_some() {
+                    let _ = response.send(Ok(lifecycle.status()));
+                    continue;
+                }
+                let transition = if lifecycle.status().state == super::LifecycleState::Locked {
+                    lifecycle.restart_after_lock()
+                } else {
+                    lifecycle.start()
+                };
+                if let Err(error) = transition {
                     let _ = response.send(Err(WalletServiceError::Lifecycle(error)));
                     continue;
                 }
@@ -389,6 +427,21 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                         }
                         None => Err(WalletServiceError::Unavailable),
                     },
+                    Err(error) => Err(error),
+                };
+                let _ = response.send(result);
+            }
+            Command::RecoveryPhrase { response } => {
+                let result = lifecycle
+                    .require_open()
+                    .map_err(WalletServiceError::Lifecycle)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+                let result = match result {
+                    Ok(session) => session
+                        .client()
+                        .query_mnemonic()
+                        .await
+                        .map_err(WalletServiceError::Rpc),
                     Err(error) => Err(error),
                 };
                 let _ = response.send(result);

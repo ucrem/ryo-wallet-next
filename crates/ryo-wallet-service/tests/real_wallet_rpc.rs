@@ -151,9 +151,45 @@ async fn verified_release_service_actor_creates_restores_and_locks() {
     assert_eq!(overview.locked.atomic, "0");
     let phrase = created.into_recovery_phrase().into_secret();
     assert_eq!(
+        service
+            .recovery_phrase()
+            .await
+            .unwrap()
+            .into_secret()
+            .as_str(),
+        phrase.as_str()
+    );
+    assert_eq!(
         service.lock(Duration::from_secs(5)).await.unwrap().state,
         LifecycleState::Locked
     );
+    assert!(service.is_idle().await.unwrap());
+    assert_eq!(
+        service
+            .start_wallet_rpc(
+                binary.clone(),
+                paths.clone(),
+                node.clone(),
+                free_loopback_port(),
+            )
+            .await
+            .unwrap()
+            .state,
+        LifecycleState::Locked
+    );
+    assert!(!service.is_idle().await.unwrap());
+    assert_eq!(
+        service
+            .open_imported_wallet(
+                WalletId::parse("11111111111111111111111111111111").unwrap(),
+                Zeroizing::new("disposable-actor-test-password".to_owned()),
+            )
+            .await
+            .unwrap()
+            .state,
+        LifecycleState::Open
+    );
+    service.lock(Duration::from_secs(5)).await.unwrap();
 
     let reopened_service = WalletService::new();
     assert_eq!(
@@ -232,6 +268,69 @@ async fn verified_release_service_actor_creates_restores_and_locks() {
             .state,
         LifecycleState::Locked
     );
+}
+
+#[tokio::test]
+#[ignore = "requires RYO_WALLET_RPC_BIN to point to the verified 0.6.1.0 Linux release"]
+async fn unfinished_backup_can_be_resumed_after_process_exit() {
+    let path = PathBuf::from(
+        std::env::var("RYO_WALLET_RPC_BIN")
+            .expect("set RYO_WALLET_RPC_BIN to the reviewed ryo-wallet-rpc binary"),
+    );
+    let binary = VerifiedBinary::verify(
+        BinaryKind::WalletRpc,
+        &path,
+        BinaryDigest::parse_hex(RYO_0_6_1_0_WALLET_RPC_SHA256).unwrap(),
+    )
+    .unwrap();
+    let temporary = tempfile::tempdir().unwrap();
+    let paths = AppPaths::new(temporary.path().join("wallet-data"), Network::Mainnet).unwrap();
+    let node = NodeConfig::managed_local(Network::Mainnet);
+    let id = WalletId::parse("44444444444444444444444444444444").unwrap();
+    let first = WalletService::new();
+    first
+        .start_wallet_rpc(
+            binary.clone(),
+            paths.clone(),
+            node.clone(),
+            free_loopback_port(),
+        )
+        .await
+        .unwrap();
+    let created = first
+        .create_wallet(
+            id.clone(),
+            Zeroizing::new("disposable-unfinished-backup-password".to_owned()),
+            "English".to_owned(),
+        )
+        .await
+        .unwrap();
+    let original = created.into_recovery_phrase().into_secret();
+    drop(first);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+
+    let reopened = WalletService::new();
+    reopened
+        .start_wallet_rpc(binary, paths, node, free_loopback_port())
+        .await
+        .unwrap();
+    reopened
+        .open_imported_wallet(
+            id,
+            Zeroizing::new("disposable-unfinished-backup-password".to_owned()),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        reopened
+            .recovery_phrase()
+            .await
+            .unwrap()
+            .into_secret()
+            .as_str(),
+        original.as_str()
+    );
+    reopened.lock(Duration::from_secs(5)).await.unwrap();
 }
 
 #[tokio::test]

@@ -67,6 +67,12 @@ impl LifecycleMachine {
         self.transition(LifecycleState::Stopped, LifecycleState::Starting)
     }
 
+    /// A lock terminates the RPC child. Starting it again must advance from
+    /// Locked only after the actor has confirmed no child remains.
+    pub fn restart_after_lock(&mut self) -> Result<LifecycleStatus, LifecycleTransitionError> {
+        self.transition(LifecycleState::Locked, LifecycleState::Starting)
+    }
+
     /// Called only after the managed sidecar is ready and authenticated.
     pub fn sidecar_ready(&mut self) -> Result<LifecycleStatus, LifecycleTransitionError> {
         self.transition(LifecycleState::Starting, LifecycleState::Locked)
