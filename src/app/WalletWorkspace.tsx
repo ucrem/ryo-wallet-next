@@ -3,17 +3,18 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { writeText } from "@tauri-apps/plugin-clipboard-manager"
 import { getWalletOverview } from "@/api/overview"
 import {
-  acknowledgeBackup, createWallet, getBackupPhrase, listWallets, lockWallet, openWallet,
-  walletRuntimeReady,
-  type WalletEntry,
+  acknowledgeBackup, createReceiveAddress, createWallet, getBackupPhrase, getReceiveAddresses,
+  listWallets, lockWallet, openWallet, walletRuntimeReady,
+  type ReceiveAddress, type WalletEntry,
 } from "@/api/wallet"
 import { challengePositions, verifyBackupWords } from "./backupChallenge"
 import { Button } from "@/components/ui/button"
 
 type Phase = "entry" | "backup" | "verify" | "open"
 
-export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
-  mode: "create" | "open"; activeWallet: WalletEntry | null; onBack: () => void; onLocked: () => void
+export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack, onLocked }: {
+  mode: "create" | "open"; activeWallet: WalletEntry | null; sessionGeneration: string | null;
+  onBack: () => void; onLocked: () => void
 }) {
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<Phase>(activeWallet ? activeWallet.backup_complete ? "open" : "backup" : "entry")
@@ -36,6 +37,19 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
   const selectedId = walletId || wallets.data?.[0]?.id || ""
   const [hideBalances, setHideBalances] = useState(false)
   const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
+  const [selectedAddressIndex, setSelectedAddressIndex] = useState(0)
+  const [creatingAddress, setCreatingAddress] = useState(false)
+  const [addressError, setAddressError] = useState<string | null>(null)
+  const addressQueryKey = ["receive-addresses", walletId, sessionGeneration] as const
+  const receiveAddresses = useQuery({
+    queryKey: addressQueryKey,
+    queryFn: () => getReceiveAddresses(sessionGeneration!),
+    enabled: phase === "open" && sessionGeneration !== null && activeWallet?.backup_complete === true,
+    retry: false,
+  })
+  const selectedAddress = selectedAddressIndex === 0
+    ? overview.data?.primary_address ?? ""
+    : receiveAddresses.data?.find((entry) => entry.address_index === selectedAddressIndex)?.address ?? ""
 
   useEffect(() => {
     if (copyStatus === "idle") return
@@ -81,6 +95,7 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
     try {
       const created = await createWallet(password)
       setWalletId(created.wallet_id)
+      setSelectedAddressIndex(0)
       setPhrase(created.recovery_phrase)
       setPhase("backup")
       await refreshWalletState()
@@ -102,6 +117,7 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
     try {
       await openWallet(selectedId, password)
       setWalletId(selectedId)
+      setSelectedAddressIndex(0)
       const needsBackup = !wallets.data?.find((entry) => entry.id === selectedId)?.backup_complete
       setPhase(needsBackup ? "backup" : "open")
       await refreshWalletState()
@@ -146,6 +162,8 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
       setPhrase(null)
       setAnswers({})
       setPhase("entry")
+      setSelectedAddressIndex(0)
+      setAddressError(null)
       await refreshWalletState()
       onLocked()
     } catch (cause) {
@@ -156,13 +174,32 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
   }
 
   async function copyAddress() {
-    const address = overview.data?.primary_address
-    if (!address) return
+    if (!selectedAddress) return
     try {
-      await writeText(address)
+      await writeText(selectedAddress)
       setCopyStatus("copied")
     } catch {
       setCopyStatus("error")
+    }
+  }
+
+  async function addReceiveAddress() {
+    if (creatingAddress || !receiveAddresses.data || sessionGeneration === null) return
+    setCreatingAddress(true)
+    setAddressError(null)
+    try {
+      const created = await createReceiveAddress(sessionGeneration)
+      queryClient.setQueryData<ReceiveAddress[]>(addressQueryKey, (current) =>
+        current?.some((entry) => entry.address_index === created.address_index)
+          ? current.map((entry) => entry.address_index === created.address_index ? created : entry)
+          : current ? [...current, created] : current)
+      setSelectedAddressIndex(created.address_index)
+      setCopyStatus("idle")
+    } catch (cause) {
+      setAddressError(String(cause))
+    } finally {
+      void queryClient.invalidateQueries({ queryKey: addressQueryKey })
+      setCreatingAddress(false)
     }
   }
 
@@ -274,22 +311,44 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
           <section className="rounded-xl border border-slate-700 bg-[#151d27] p-5">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0 flex-1">
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Primary address
-                </p>
+                {receiveAddresses.data && receiveAddresses.data.length > 1 ? (
+                  <label className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-slate-400">
+                    Receive address
+                    <select
+                      value={selectedAddressIndex}
+                      onChange={(event) => { setSelectedAddressIndex(Number(event.target.value)); setCopyStatus("idle") }}
+                      className="rounded-md border border-slate-600 bg-[#0d141c] px-2 py-1 text-xs text-slate-100"
+                    >
+                      {receiveAddresses.data.map((entry) => (
+                        <option key={entry.address_index} value={entry.address_index}>
+                          {entry.address_index === 0 ? "Primary address" : `Address #${entry.address_index}`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : <p className="text-xs uppercase tracking-wide text-slate-400">Primary address</p>}
 
                 <p className="mt-2 break-all font-mono text-sm text-slate-100">
-                  {overview.data?.primary_address ?? "—"}
+                  {selectedAddress || "—"}
                 </p>
+                <p className="mt-2 text-xs text-slate-400">These addresses share one recovery phrase. After seed recovery, recreate them in the same order to show them again.</p>
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-2">
                 <WalletIconButton
                   label={copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy address"}
                   onClick={() => void copyAddress()}
-                  disabled={!overview.data?.primary_address}
+                  disabled={!selectedAddress}
                 >
                   {copyStatus === "copied" ? <CheckIcon /> : <CopyIcon />}
+                </WalletIconButton>
+
+                <WalletIconButton
+                  label={creatingAddress ? "Creating address…" : "New receive address"}
+                  onClick={() => void addReceiveAddress()}
+                  disabled={creatingAddress || !receiveAddresses.data || !activeWallet?.backup_complete}
+                >
+                  <NewAddressIcon />
                 </WalletIconButton>
 
                 <WalletIconButton
@@ -312,6 +371,10 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
             <span className="sr-only" role="status">
               {copyStatus === "copied" ? "Address copied to clipboard" : copyStatus === "error" ? "Address could not be copied" : ""}
             </span>
+            {receiveAddresses.isError ? (
+              <p className="mt-3 text-sm text-red-300" role="alert">Receive addresses could not be loaded. Reopen the wallet to try again.</p>
+            ) : null}
+            {addressError ? <p className="mt-3 text-sm text-red-300" role="alert">{addressError}</p> : null}
 
             <div className="mt-5 grid gap-4 border-t border-slate-700 pt-5 sm:grid-cols-3">
               <div>
@@ -392,6 +455,13 @@ function CopyIcon() {
 function CheckIcon() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
     <path d="m5 12 4 4L19 6" />
+  </svg>
+}
+
+function NewAddressIcon() {
+  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="3" y="5" width="11" height="14" rx="2" />
+    <path d="M18 8v8m-4-4h8" />
   </svg>
 }
 

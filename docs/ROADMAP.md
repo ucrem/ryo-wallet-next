@@ -81,4 +81,4 @@ No release signing credentials in these jobs. Later release workflows remain a s
 
 ## Post-MVP
 
-Consider subaddress/account management, contact/notes migration, watch-only and hardware wallets, tested secure remote transport, trusted updates and localization based on real demand. Revisit mobile only with an explicit alternative engine/process strategy and licensing review. No assumption that desktop sidecars can be transplanted to mobile.
+Consider subaddress labeling/account management, contact/notes migration, watch-only and hardware wallets, tested secure remote transport, trusted updates and localization based on real demand. Revisit mobile only with an explicit alternative engine/process strategy and licensing review. No assumption that desktop sidecars can be transplanted to mobile.

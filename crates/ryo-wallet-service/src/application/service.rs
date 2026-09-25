@@ -7,7 +7,7 @@ use zeroize::Zeroizing;
 
 use crate::domain::{AtomicAmount, AtomicAmountDto, NodeConfig};
 use crate::process::{ProcessError, VerifiedBinary, WalletRpcSession, WalletRpcStartupError};
-use crate::rpc::{RecoveryPhrase, RpcError};
+use crate::rpc::{ReceiveAddress, RecoveryPhrase, RpcError};
 use crate::storage::{AppPaths, PathError, WalletId};
 
 use super::{LifecycleMachine, LifecycleStatus, LifecycleTransitionError};
@@ -30,6 +30,8 @@ pub enum WalletServiceError {
     UnsupportedWalletScope,
     #[error("wallet service is unavailable")]
     Unavailable,
+    #[error("wallet session has changed")]
+    StaleSession,
 }
 
 /// Async handle for the single-owner wallet actor. The actor serializes every
@@ -180,6 +182,32 @@ impl WalletService {
         reply.await.map_err(|_| WalletServiceError::Unavailable)?
     }
 
+    pub async fn receive_addresses(
+        &self,
+        session_generation: String,
+    ) -> Result<Vec<ReceiveAddress>, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::ReceiveAddresses {
+            session_generation,
+            response,
+        })
+        .await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
+    pub async fn create_receive_address(
+        &self,
+        session_generation: String,
+    ) -> Result<ReceiveAddress, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::CreateReceiveAddress {
+            session_generation,
+            response,
+        })
+        .await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
     pub async fn height(&self) -> Result<u64, WalletServiceError> {
         let (response, reply) = oneshot::channel();
         self.send(Command::Height { response }).await?;
@@ -246,6 +274,14 @@ enum Command {
     },
     Overview {
         response: oneshot::Sender<Result<WalletOverview, WalletServiceError>>,
+    },
+    ReceiveAddresses {
+        session_generation: String,
+        response: oneshot::Sender<Result<Vec<ReceiveAddress>, WalletServiceError>>,
+    },
+    CreateReceiveAddress {
+        session_generation: String,
+        response: oneshot::Sender<Result<ReceiveAddress, WalletServiceError>>,
     },
     Height {
         response: oneshot::Sender<Result<u64, WalletServiceError>>,
@@ -440,6 +476,38 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 };
                 let _ = response.send(result);
             }
+            Command::ReceiveAddresses {
+                session_generation,
+                response,
+            } => {
+                let result = require_current_session(&lifecycle, &session_generation)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+                let result = match result {
+                    Ok(session) => session
+                        .client()
+                        .receive_addresses()
+                        .await
+                        .map_err(WalletServiceError::Rpc),
+                    Err(error) => Err(error),
+                };
+                let _ = response.send(result);
+            }
+            Command::CreateReceiveAddress {
+                session_generation,
+                response,
+            } => {
+                let result = require_current_session(&lifecycle, &session_generation)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+                let result = match result {
+                    Ok(session) => session
+                        .client()
+                        .create_receive_address()
+                        .await
+                        .map_err(WalletServiceError::Rpc),
+                    Err(error) => Err(error),
+                };
+                let _ = response.send(result);
+            }
             Command::Height { response } => {
                 let result = lifecycle
                     .require_open()
@@ -474,6 +542,19 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
             }
         }
     }
+}
+
+fn require_current_session(
+    lifecycle: &LifecycleMachine,
+    session_generation: &str,
+) -> Result<(), WalletServiceError> {
+    lifecycle
+        .require_open()
+        .map_err(WalletServiceError::Lifecycle)?;
+    if lifecycle.status().session_generation != session_generation {
+        return Err(WalletServiceError::StaleSession);
+    }
+    Ok(())
 }
 
 async fn complete_supported_open(
@@ -548,5 +629,9 @@ mod tests {
             service.status().await.unwrap().state,
             super::super::LifecycleState::Stopped
         );
+        assert!(matches!(
+            service.create_receive_address("0".to_owned()).await,
+            Err(WalletServiceError::Lifecycle(_))
+        ));
     }
 }

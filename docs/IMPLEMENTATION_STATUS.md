@@ -5,6 +5,7 @@ Updated 2026-09-25. This follows the architecture investigation. Phase 1 is **in
 ## Implemented
 
 - A Linux development-only wallet flow now verifies the reviewed 0.6.1.0 wallet RPC digest before use, creates a fresh app-owned wallet, presents its mnemonic for paper backup, checks three hidden words, records backup acknowledgement privately, locks the process, and reopens by password. An interrupted backup remains pending and can be resumed after password unlock. Public installers do not bundle or enable the runtime.
+- After backup acknowledgement, an open long-address wallet can create account-0 receive subaddresses. Rust saves each new address through wallet RPC before returning it; the dashboard lists saved addresses and copies the selected one. A disposable test confirms persistence after reopening and deterministic regeneration from the same recovery phrase.
 
 - Two-member Cargo workspace: reusable `ryo-wallet-service` and a minimal Tauri 2 host.
 - Rust domain amount parsing with exact nine-digit precision, checked `u64` arithmetic, network enum and string-based IPC amount DTOs generated to TypeScript by `ts-rs`.

@@ -2,6 +2,12 @@ import { invoke } from "@tauri-apps/api/core"
 import type { LifecycleStatus } from "@/api/generated/LifecycleStatus"
 
 export type WalletEntry = { id: string; backup_complete: boolean }
+export type ReceiveAddress = {
+  address_index: number
+  address: string
+  label: string
+  used: boolean
+}
 export type CreatedWallet = {
   wallet_id: string
   status: LifecycleStatus
@@ -20,6 +26,11 @@ export type WalletSyncStatus = {
 
 export const getWalletSyncStatus = () =>
   invoke<WalletSyncStatus>("wallet_sync_status")
+
+export const getReceiveAddresses = (sessionGeneration: string) =>
+  invoke<ReceiveAddress[]>("wallet_receive_addresses", { sessionGeneration })
+export const createReceiveAddress = (sessionGeneration: string) =>
+  invoke<ReceiveAddress>("wallet_create_receive_address", { sessionGeneration })
 
 export const walletRuntimeReady = () => invoke<boolean>("wallet_runtime_ready")
 export const listWallets = () => invoke<WalletEntry[]>("wallet_list")

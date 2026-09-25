@@ -279,6 +279,7 @@ export function App() {
               ) : (
                 <WalletWorkspace mode={walletAction === "create" ? "create" : "open"}
                   activeWallet={status.data?.state === "open" ? activeWallet.data ?? null : null}
+                  sessionGeneration={status.data?.state === "open" ? status.data.session_generation : null}
                   onBack={() => setScreen("summary")} onLocked={() => setWalletAction("open")} />
               )
             ) : null}

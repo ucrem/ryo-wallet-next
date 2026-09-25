@@ -13,7 +13,7 @@ use ryo_wallet_service::domain::{Network, NodeConfig};
 use ryo_wallet_service::process::VerifiedBinary;
 #[cfg(all(debug_assertions, target_os = "linux"))]
 use ryo_wallet_service::process::{BinaryDigest, BinaryKind};
-use ryo_wallet_service::rpc::{DaemonRpcClient, RpcError};
+use ryo_wallet_service::rpc::{DaemonRpcClient, ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
 };
@@ -201,6 +201,57 @@ async fn wallet_overview(
         .overview()
         .await
         .map_err(|_| "wallet overview unavailable")
+}
+
+#[tauri::command]
+async fn wallet_receive_addresses(
+    session_generation: String,
+    state: tauri::State<'_, DataRootState>,
+    active: tauri::State<'_, ActiveWalletState>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<Vec<ReceiveAddress>, &'static str> {
+    require_completed_backup(&state, &active)?;
+    service
+        .receive_addresses(session_generation)
+        .await
+        .map_err(|error| match error {
+            WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
+            _ => "receive addresses are unavailable",
+        })
+}
+
+#[tauri::command]
+async fn wallet_create_receive_address(
+    session_generation: String,
+    state: tauri::State<'_, DataRootState>,
+    active: tauri::State<'_, ActiveWalletState>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<ReceiveAddress, &'static str> {
+    require_completed_backup(&state, &active)?;
+    service
+        .create_receive_address(session_generation)
+        .await
+        .map_err(|error| match error {
+            WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
+            _ => "address creation may have succeeded; check the address list before trying again",
+        })
+}
+
+fn require_completed_backup(
+    state: &DataRootState,
+    active: &ActiveWalletState,
+) -> Result<(), &'static str> {
+    let id = active
+        .0
+        .lock()
+        .map_err(|_| "wallet state is unavailable")?
+        .clone()
+        .ok_or("open a wallet first")?;
+    let paths = selected_paths(state)?;
+    if !backup_complete(&paths, &id) {
+        return Err("confirm the recovery phrase backup before creating receive addresses");
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -664,6 +715,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             app_status,
             wallet_overview,
+            wallet_receive_addresses,
+            wallet_create_receive_address,
             wallet_sync_status,
             wallet_runtime_ready,
             wallet_list,
