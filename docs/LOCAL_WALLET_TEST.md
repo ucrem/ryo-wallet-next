@@ -20,6 +20,10 @@ wallet, and enter its password. Try a wrong password first; the files must remai
 available for a correct retry. If you quit before confirming the backup, open
 the wallet again to resume the backup step.
 
+After confirming the backup, use the plus icon beside the address to create a
+second receive address. Select it and copy it with the adjacent icon. Lock and
+reopen the wallet to confirm the address remains in the list.
+
 The local node option does not start `ryod` yet. Creation and backup work with
 an empty wallet; balance or sync may be unavailable until a node is running.
 This test does not validate packaged binaries, Windows ACLs, macOS support, or
