@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-wallet-lifecycle"
+description = "Create and reopen app-owned wallets with the reviewed runtime, complete recovery backup, and lock the wallet"
+commands.allow = ["wallet_runtime_ready", "wallet_list", "wallet_active", "wallet_create", "wallet_open", "wallet_lock", "wallet_backup_phrase", "wallet_acknowledge_backup"]

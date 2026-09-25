@@ -3,6 +3,9 @@
 Start each independent change from the latest `staging` on its own branch and
 open a pull request into `staging`. Codex work uses the `codex/<topic>` branch
 prefix. Do not push feature work directly to `staging` or `main`.
+Use the normal project checkout for local `pnpm tauri dev` testing. If a
+temporary Git worktree is used, remove its checkout and generated directory
+after its changes reach `main`.
 Both branches are protected on GitHub: PRs and passing checks are required,
 including the staging-installer reuse check for `main`.
 

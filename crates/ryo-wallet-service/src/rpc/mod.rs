@@ -4,4 +4,4 @@ mod wallet;
 
 pub use daemon::{DaemonRpcClient, NodeHealth};
 pub use transport::{RpcCredentials, RpcError};
-pub use wallet::{Balance, RecoveryPhrase, WalletRpcClient, WalletScope};
+pub use wallet::{Balance, ReceiveAddress, RecoveryPhrase, WalletRpcClient, WalletScope};

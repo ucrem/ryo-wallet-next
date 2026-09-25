@@ -37,6 +37,14 @@ pub struct WalletScope {
     pub multisig: bool,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReceiveAddress {
+    pub address_index: u32,
+    pub address: String,
+    pub label: String,
+    pub used: bool,
+}
+
 impl WalletRpcClient {
     pub fn new(address: SocketAddrV4, credentials: RpcCredentials) -> Result<Self, RpcError> {
         Ok(Self {
@@ -231,16 +239,61 @@ impl WalletRpcClient {
                 &json!({ "account_index": 0, "address_index": [0] }),
             )
             .await?;
-        if result.address.is_empty()
-            || result.address.len() > 256
-            || !result
-                .address
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric())
-        {
+        if !valid_wallet_address(&result.address) {
             return Err(RpcError::InvalidResponse);
         }
         Ok(result.address)
+    }
+
+    pub async fn receive_addresses(&self) -> Result<Vec<ReceiveAddress>, RpcError> {
+        #[derive(Deserialize)]
+        struct AddressList {
+            address: String,
+            addresses: Vec<ReceiveAddress>,
+        }
+        let result: AddressList = self
+            .transport
+            .call("get_address", &json!({ "account_index": 0 }))
+            .await?;
+        if result.addresses.is_empty()
+            || result.address != result.addresses[0].address
+            || result.addresses.iter().enumerate().any(|(index, entry)| {
+                entry.address_index as usize != index
+                    || !valid_wallet_address(&entry.address)
+                    || entry.label.len() > 256
+                    || entry.label.chars().any(char::is_control)
+            })
+        {
+            return Err(RpcError::InvalidResponse);
+        }
+        Ok(result.addresses)
+    }
+
+    /// Creates an account-zero subaddress and saves it before exposing it to the UI.
+    pub async fn create_receive_address(&self) -> Result<ReceiveAddress, RpcError> {
+        #[derive(Deserialize)]
+        struct CreatedAddress {
+            address: String,
+            address_index: u32,
+        }
+        let created: CreatedAddress = self
+            .transport
+            .call(
+                "create_address",
+                &json!({ "account_index": 0, "label": "" }),
+            )
+            .await?;
+        if created.address_index == 0 || !valid_wallet_address(&created.address) {
+            return Err(RpcError::InvalidResponse);
+        }
+        self.empty_call("store").await?;
+        self.receive_addresses()
+            .await?
+            .into_iter()
+            .find(|entry| {
+                entry.address_index == created.address_index && entry.address == created.address
+            })
+            .ok_or(RpcError::InvalidResponse)
     }
 
     /// Reports only scope metadata needed to enforce the MVP's account-zero,
@@ -321,4 +374,10 @@ impl WalletRpcClient {
 
 fn wallet_filename(wallet_id: &WalletId) -> String {
     format!("{}/wallet", wallet_id.as_str())
+}
+
+fn valid_wallet_address(address: &str) -> bool {
+    !address.is_empty()
+        && address.len() <= 256
+        && address.bytes().all(|byte| byte.is_ascii_alphanumeric())
 }

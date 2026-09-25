@@ -1,8 +1,10 @@
 # Desktop packaging
 
-The current bundles are **development previews**, not wallet releases. The UI
-does not yet create, restore, open, sign, or submit wallets. No `ryo-wallet-rpc`
-or `ryod` executable is bundled. Do not use these artifacts with funds.
+The current bundles are **development previews**, not production wallets. The
+Linux development build can create and reopen wallets, but public installers do
+not bundle the verified `ryo-wallet-rpc` runtime or `ryod`; their wallet actions
+are therefore unavailable. Recovery from a phrase and transactions are not
+available in the UI. Do not use these artifacts with funds.
 
 | Platform | CI runner | Preview bundle |
 | --- | --- | --- |

@@ -1,5 +1,5 @@
 use std::fmt;
-use std::net::{Ipv4Addr, SocketAddrV4};
+use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
@@ -8,6 +8,8 @@ use reqwest::{Client, StatusCode, redirect::Policy};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use zeroize::Zeroizing;
+
+use crate::domain::{NodeConfig, NodeMode};
 
 const MAX_RESPONSE_BYTES: usize = 2 * 1024 * 1024;
 
@@ -80,10 +82,31 @@ impl JsonRpcTransport {
         if *address.ip() != Ipv4Addr::LOCALHOST || address.port() == 0 {
             return Err(RpcError::InvalidEndpoint);
         }
-        new_loopback_client()?;
+        new_rpc_client()?;
         Ok(Self {
             endpoint: format!("http://{address}/json_rpc"),
             credentials,
+            next_id: AtomicU64::new(1),
+        })
+    }
+
+    pub(crate) fn remote(node: &NodeConfig) -> Result<Self, RpcError> {
+        node.validate().map_err(|_| RpcError::InvalidEndpoint)?;
+
+        if node.mode != NodeMode::Remote {
+            return Err(RpcError::InvalidEndpoint);
+        }
+
+        let host = match node.host.parse::<IpAddr>() {
+            Ok(IpAddr::V6(_)) => format!("[{}]", node.host),
+            _ => node.host.clone(),
+        };
+
+        new_rpc_client()?;
+
+        Ok(Self {
+            endpoint: format!("http://{host}:{}/json_rpc", node.port),
+            credentials: None,
             next_id: AtomicU64::new(1),
         })
     }
@@ -107,7 +130,7 @@ impl JsonRpcTransport {
         // The 0.6.1.0 loopback server accepts a fresh Digest handshake per
         // request but fails after connection reuse. The endpoint is private
         // and local, so a short-lived client is the compatible safe boundary.
-        let client = new_loopback_client()?;
+        let client = new_rpc_client()?;
         let request = client
             .post(&self.endpoint)
             .header("Content-Type", "application/json")
@@ -152,7 +175,7 @@ impl JsonRpcTransport {
     }
 }
 
-fn new_loopback_client() -> Result<Client, RpcError> {
+fn new_rpc_client() -> Result<Client, RpcError> {
     Client::builder()
         .no_proxy()
         .redirect(Policy::none())

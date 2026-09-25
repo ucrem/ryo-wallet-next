@@ -2,6 +2,7 @@
 /dist/
 /target/
 /src-tauri/target/
+/src-tauri/.dev-runtime/
 /src-tauri/gen/schemas/
 .env
 .env.*

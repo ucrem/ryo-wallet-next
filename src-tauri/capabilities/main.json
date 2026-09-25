@@ -8,9 +8,14 @@
   "permissions": [
     "allow-app-status",
     "allow-wallet-overview",
+    "allow-wallet-receive",
+    "allow-wallet-lifecycle",
     "allow-data-root",
     "allow-node-configuration",
     "core:app:allow-version",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
+    "clipboard-manager:allow-write-text",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://github.com/ucrem/ryo-wallet-next/releases/tag/v*" }]

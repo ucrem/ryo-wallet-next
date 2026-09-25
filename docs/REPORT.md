@@ -27,7 +27,7 @@ Passwords/seeds pass transiently from input through IPC/Rust to local wallet-rpc
 
 ## MVP and transaction decision
 
-Include onboarding, create/seed backup, restore, import/open a protected wallet, account-0 balances, sync, primary receive address/QR, one-recipient send with payment-ID support, actual-fee confirmation, split-aware submission, history, node health/choice, lock and basic settings. Explicitly defer account/subaddress management, watch-only/multisig, mining, sweeps, mobile, hybrid mode and automatic updates. [Acceptance criteria](MVP.md).
+Include onboarding, create/seed backup, restore, import/open a protected wallet, account-0 balances, sync, primary receive address and user-created account-0 subaddresses/QR, one-recipient send with payment-ID support, actual-fee confirmation, split-aware submission, history, node health/choice, lock and basic settings. Explicitly defer multi-account and advanced subaddress management, watch-only/multisig, mining, sweeps, mobile, hybrid mode and automatic updates. [Acceptance criteria](MVP.md).
 
 Prepare with `transfer_split(do_not_relay=true, get_tx_metadata=true)`, review the fee/total, then relay metadata by opaque draft ID. This already signs during preparation; it gates **broadcast**, not signing. Split submissions may partly succeed; store hashes for reconciliation and never blindly resend. [src/wallet/wallet_rpc_server.cpp — `fill_response / on_transfer_split / on_relay_tx`](https://github.com/ryo-currency/ryo-currency/blob/185dd1fa33ba88c88bb22df9069ad368c0f9a27e/src/wallet/wallet_rpc_server.cpp#L693); [src/wallet/wallet2.cpp — `commit_tx`](https://github.com/ryo-currency/ryo-currency/blob/185dd1fa33ba88c88bb22df9069ad368c0f9a27e/src/wallet/wallet2.cpp#L4481).
 

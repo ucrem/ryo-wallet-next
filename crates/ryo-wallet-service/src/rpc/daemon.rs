@@ -1,10 +1,10 @@
-use std::net::SocketAddrV4;
+use std::net::{Ipv4Addr, SocketAddrV4};
 
 use serde::Deserialize;
 use serde_json::json;
 
 use super::transport::{JsonRpcTransport, RpcCredentials, RpcError};
-use crate::domain::Network;
+use crate::domain::{Network, NodeConfig, NodeMode};
 
 pub struct DaemonRpcClient {
     transport: JsonRpcTransport,
@@ -28,6 +28,17 @@ impl DaemonRpcClient {
         Ok(Self {
             transport: JsonRpcTransport::local(address, credentials)?,
         })
+    }
+
+    pub fn configured(node: &NodeConfig) -> Result<Self, RpcError> {
+        node.validate().map_err(|_| RpcError::InvalidEndpoint)?;
+
+        match node.mode {
+            NodeMode::Local => Self::local(SocketAddrV4::new(Ipv4Addr::LOCALHOST, node.port), None),
+            NodeMode::Remote => Ok(Self {
+                transport: JsonRpcTransport::remote(node)?,
+            }),
+        }
     }
 
     /// A local daemon is a health source. Remote daemon transport is deliberately
