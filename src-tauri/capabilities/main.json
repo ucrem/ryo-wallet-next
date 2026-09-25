@@ -12,6 +12,8 @@
     "allow-data-root",
     "allow-node-configuration",
     "core:app:allow-version",
+    "core:event:allow-listen",
+    "core:event:allow-unlisten",
     {
       "identifier": "opener:allow-open-url",
       "allow": [{ "url": "https://github.com/ucrem/ryo-wallet-next/releases/tag/v*" }]

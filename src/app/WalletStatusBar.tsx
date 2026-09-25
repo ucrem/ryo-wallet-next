@@ -1,23 +1,52 @@
-import { useQuery } from "@tanstack/react-query"
+import { useEffect } from "react"
+import { listen } from "@tauri-apps/api/event"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import type { NodeConfig } from "@/api/generated/NodeConfig"
-import { getWalletSyncStatus } from "@/api/wallet"
+import { getWalletSyncStatus, type WalletSyncStatus } from "@/api/wallet"
+
+const WALLET_SYNC_EVENT = "wallet-sync-status"
 
 export function WalletStatusBar({
   serviceState,
+  sessionGeneration,
   node,
 }: {
   serviceState: string | null
+  sessionGeneration: string | null
   node: NodeConfig | null
 }) {
+  const queryClient = useQueryClient()
   const sync = useQuery({
-    queryKey: ["wallet-sync-status"],
+    queryKey: ["wallet-sync-status", sessionGeneration],
     queryFn: getWalletSyncStatus,
-    enabled: serviceState === "open",
+    enabled: serviceState === "open" && sessionGeneration !== null,
     retry: false,
-    refetchInterval: serviceState === "open" ? 3_000 : false,
-    refetchIntervalInBackground: false,
-    staleTime: 1_000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    staleTime: Infinity,
   })
+
+  useEffect(() => {
+    if (serviceState !== "open" || sessionGeneration === null) return
+
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    void listen<WalletSyncStatus>(WALLET_SYNC_EVENT, (event) => {
+      if (!disposed) {
+        queryClient.setQueryData(["wallet-sync-status", sessionGeneration], event.payload)
+      }
+    }).then((listener) => {
+      if (disposed) listener()
+      else unlisten = listener
+    }).catch(() => {
+      // The initial snapshot remains available if event registration fails.
+    })
+
+    return () => {
+      disposed = true
+      unlisten?.()
+    }
+  }, [queryClient, serviceState, sessionGeneration])
 
   const data = serviceState === "open" ? sync.data : undefined
 
@@ -30,7 +59,7 @@ export function WalletStatusBar({
     data?.node_reachable === true &&
     data.wallet_height !== null &&
     data.network_height !== null &&
-    BigInt(data.wallet_height) >= BigInt(data.network_height)
+    syncProgress(data.wallet_height, data.network_height) === 100
 
   let status = "Wallet locked"
 
@@ -80,11 +109,11 @@ export function WalletStatusBar({
         </span>
 
         <span className="whitespace-nowrap font-mono text-[11px] text-slate-300">
-          Wallet {data?.wallet_height ?? "—"}
+          Wallet {formatHeight(data?.wallet_height ?? null)}
         </span>
 
         <span className="whitespace-nowrap font-mono text-[11px] text-slate-300">
-          Chain {data?.network_height ?? "—"}
+          Chain {formatHeight(data?.network_height ?? null)}
         </span>
 
         <span className="ml-auto w-16 text-right font-mono text-slate-200">
@@ -109,6 +138,15 @@ export function WalletStatusBar({
       </div>
     </footer>
   )
+}
+
+function formatHeight(height: string | null): string {
+  if (height === null) return "—"
+  try {
+    return new Intl.NumberFormat().format(BigInt(height))
+  } catch {
+    return "—"
+  }
 }
 
 function syncProgress(

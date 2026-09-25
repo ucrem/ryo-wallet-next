@@ -3279,6 +3279,7 @@ dependencies = [
  "tauri-plugin-dialog",
  "tauri-plugin-opener",
  "tempfile",
+ "tokio",
  "uuid",
  "zeroize",
 ]

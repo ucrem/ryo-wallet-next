@@ -3,6 +3,7 @@ use std::io::{BufWriter, Write};
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::PathBuf;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use ryo_wallet_service::application::{
@@ -17,11 +18,13 @@ use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
 };
 use serde::ser::SerializeStruct;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
 const DATA_ROOT_SELECTION_FILE: &str = "wallet-data-root.json";
+const WALLET_SYNC_EVENT: &str = "wallet-sync-status";
+const WALLET_SYNC_INTERVAL: Duration = Duration::from_secs(2);
 #[cfg(all(debug_assertions, target_os = "linux"))]
 const REVIEWED_LINUX_WALLET_RPC_SHA256: &str =
     "5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3";
@@ -81,6 +84,7 @@ struct PersistedDataRoot {
 
 struct DataRootState(Mutex<Option<AppPaths>>);
 struct ActiveWalletState(Mutex<Option<WalletId>>);
+struct SyncMonitorState(AtomicU64);
 
 #[derive(serde::Serialize)]
 struct WalletEntry {
@@ -171,7 +175,7 @@ fn persist_data_root(app: &tauri::AppHandle, root: &PathBuf) -> Result<(), &'sta
     write_result
 }
 
-#[derive(serde::Serialize)]
+#[derive(Clone, PartialEq, Eq, serde::Serialize)]
 struct WalletSyncStatusResponse {
     wallet_height: Option<String>,
     daemon_height: Option<String>,
@@ -204,22 +208,26 @@ async fn wallet_sync_status(
     state: tauri::State<'_, DataRootState>,
     service: tauri::State<'_, WalletService>,
 ) -> Result<WalletSyncStatusResponse, &'static str> {
-    let wallet_height = service.height().await.ok().map(|height| height.to_string());
-
     let paths = selected_paths(&state)?;
-
     let node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?
         .node;
-
     let daemon = DaemonRpcClient::configured(&node).map_err(|_| "node configuration is invalid")?;
+    Ok(collect_wallet_sync_status(service.inner(), &daemon).await)
+}
+
+async fn collect_wallet_sync_status(
+    service: &WalletService,
+    daemon: &DaemonRpcClient,
+) -> WalletSyncStatusResponse {
+    let wallet_height = service.height().await.ok().map(|height| height.to_string());
 
     match daemon.health().await {
         Ok(health) => {
             let network_height = health.height.max(health.target_height);
 
-            Ok(WalletSyncStatusResponse {
+            WalletSyncStatusResponse {
                 wallet_height,
                 daemon_height: Some(health.height.to_string()),
                 network_height: Some(network_height.to_string()),
@@ -227,9 +235,9 @@ async fn wallet_sync_status(
                 node_ready: health.ready,
                 node_offline: health.offline,
                 node_untrusted: health.untrusted,
-            })
+            }
         }
-        Err(_) => Ok(WalletSyncStatusResponse {
+        Err(_) => WalletSyncStatusResponse {
             wallet_height,
             daemon_height: None,
             network_height: None,
@@ -237,8 +245,58 @@ async fn wallet_sync_status(
             node_ready: false,
             node_offline: true,
             node_untrusted: false,
-        }),
+        },
     }
+}
+
+fn stop_wallet_sync_monitor(monitor: &SyncMonitorState) {
+    monitor.0.fetch_add(1, Ordering::AcqRel);
+}
+
+fn start_wallet_sync_monitor(
+    app: tauri::AppHandle,
+    service: WalletService,
+    node: NodeConfig,
+    monitor: &SyncMonitorState,
+) {
+    let generation = monitor.0.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
+    tauri::async_runtime::spawn(async move {
+        let Ok(daemon) = DaemonRpcClient::configured(&node) else {
+            return;
+        };
+        let mut previous: Option<WalletSyncStatusResponse> = None;
+
+        loop {
+            if app.state::<SyncMonitorState>().0.load(Ordering::Acquire) != generation {
+                break;
+            }
+            let snapshot = collect_wallet_sync_status(&service, &daemon).await;
+            // A lock or a new wallet can invalidate this task while RPC is in flight.
+            if app.state::<SyncMonitorState>().0.load(Ordering::Acquire) != generation {
+                break;
+            }
+            if previous.as_ref() != Some(&snapshot) {
+                let _ = app.emit(WALLET_SYNC_EVENT, snapshot.clone());
+                previous = Some(snapshot);
+            }
+            tokio::time::sleep(WALLET_SYNC_INTERVAL).await;
+        }
+    });
+}
+
+fn start_wallet_sync_monitor_for_current_node(
+    app: tauri::AppHandle,
+    service: &WalletService,
+    state: &DataRootState,
+    monitor: &SyncMonitorState,
+) {
+    let Ok(paths) = selected_paths(state) else {
+        return;
+    };
+    let Ok(Some(settings)) = load_settings_if_present(&paths) else {
+        return;
+    };
+    start_wallet_sync_monitor(app, service.clone(), settings.node, monitor);
 }
 
 #[tauri::command]
@@ -333,9 +391,11 @@ async fn ready_wallet_service(
 #[tauri::command]
 async fn wallet_create(
     password: String,
+    app: tauri::AppHandle,
     state: tauri::State<'_, DataRootState>,
     active: tauri::State<'_, ActiveWalletState>,
     service: tauri::State<'_, WalletService>,
+    monitor: tauri::State<'_, SyncMonitorState>,
 ) -> Result<CreatedWalletResponse, &'static str> {
     if !(12..=1024).contains(&password.len()) {
         return Err("wallet password must contain 12 to 1024 bytes");
@@ -352,6 +412,7 @@ async fn wallet_create(
         )?;
     let status = created.status().clone();
     *active.0.lock().map_err(|_| "wallet state is unavailable")? = Some(wallet_id.clone());
+    start_wallet_sync_monitor_for_current_node(app, service.inner(), &state, monitor.inner());
     Ok(CreatedWalletResponse {
         wallet_id: wallet_id.to_string(),
         status,
@@ -363,9 +424,11 @@ async fn wallet_create(
 async fn wallet_open(
     wallet_id: String,
     password: String,
+    app: tauri::AppHandle,
     state: tauri::State<'_, DataRootState>,
     active: tauri::State<'_, ActiveWalletState>,
     service: tauri::State<'_, WalletService>,
+    monitor: tauri::State<'_, SyncMonitorState>,
 ) -> Result<LifecycleStatus, &'static str> {
     let id = WalletId::parse(wallet_id).map_err(|_| "wallet identifier is invalid")?;
     let paths = selected_paths(&state)?;
@@ -385,6 +448,7 @@ async fn wallet_open(
             _ => "wallet could not be opened; files were not changed",
         })?;
     *active.0.lock().map_err(|_| "wallet state is unavailable")? = Some(id);
+    start_wallet_sync_monitor_for_current_node(app, service.inner(), &state, monitor.inner());
     Ok(status)
 }
 
@@ -392,7 +456,9 @@ async fn wallet_open(
 async fn wallet_lock(
     active: tauri::State<'_, ActiveWalletState>,
     service: tauri::State<'_, WalletService>,
+    monitor: tauri::State<'_, SyncMonitorState>,
 ) -> Result<LifecycleStatus, &'static str> {
+    stop_wallet_sync_monitor(monitor.inner());
     let status = service
         .lock(Duration::from_secs(5))
         .await
@@ -591,6 +657,7 @@ pub fn run() {
             app.manage(WalletService::new());
             app.manage(DataRootState::load(&app.handle())?);
             app.manage(ActiveWalletState(Mutex::new(None)));
+            app.manage(SyncMonitorState(AtomicU64::new(0)));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

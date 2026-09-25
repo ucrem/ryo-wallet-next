@@ -47,7 +47,7 @@ export function App() {
     queryFn: getActiveWallet,
     enabled: inDesktop && status.data?.state === "open",
   })
-  const visibleScreen = status.data?.state === "open" && activeWallet.data ? "wallet" : screen
+  const visibleScreen = screen
   const overview = useQuery({
     queryKey: ["wallet-overview", status.data?.session_generation],
     queryFn: getWalletOverview,
@@ -78,13 +78,13 @@ export function App() {
   }
 
   function canVisit(destination: Screen): boolean {
-    if (status.data?.state === "open") return destination === "wallet"
+    const walletOpen = status.data?.state === "open"
     switch (destination) {
       case "home": return true
-      case "storage": return walletAction !== null
-      case "node": return walletAction !== null && root !== null && !dataRoot.isFetching
-      case "summary": return walletAction !== null && root !== null && !!node.data && !node.isFetching
-      case "wallet": return ((walletAction === "create" || walletAction === "open") || !!activeWallet.data) && root !== null && !!node.data
+      case "storage": return walletOpen || walletAction !== null
+      case "node": return walletOpen || (walletAction !== null && root !== null && !dataRoot.isFetching)
+      case "summary": return walletOpen || (walletAction !== null && root !== null && !!node.data && !node.isFetching)
+      case "wallet": return walletOpen || (((walletAction === "create" || walletAction === "open") || !!activeWallet.data) && root !== null && !!node.data)
       case "about": return true
     }
   }
@@ -181,10 +181,10 @@ export function App() {
               </>
             ) : null}
 
-            {visibleScreen === "storage" && walletAction ? (
+            {visibleScreen === "storage" ? (
               <>
                 <PageHeading eyebrow="SETUP · 1 OF 2" title="Choose a data location"
-                  description={"For " + actionDetails[walletAction].title.toLowerCase() + ", choose where the app will keep its private wallet copy and runtime files."} />
+                  description={"For " + actionDetails[walletAction ?? "open"].title.toLowerCase() + ", choose where the app will keep its private wallet copy and runtime files."} />
                 <section className="mt-7 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Data location">
                   <p className="text-sm font-medium">Wallet data folder</p>
                   <p className="mt-1 text-sm text-slate-400">Select a writable folder on this computer.</p>
@@ -219,7 +219,7 @@ export function App() {
               </>
             ) : null}
 
-            {visibleScreen === "node" && walletAction ? (
+            {visibleScreen === "node" ? (
               <>
                 <PageHeading eyebrow="SETUP · 2 OF 2" title="Choose a node"
                   description="Use your own local daemon or enter a remote node. This choice is saved for the selected data location." />
@@ -241,12 +241,12 @@ export function App() {
               </>
             ) : null}
 
-            {visibleScreen === "summary" && walletAction ? (
+            {visibleScreen === "summary" ? (
               <>
                 <PageHeading eyebrow="SETUP SUMMARY" title="Your preferences are saved"
                   description="Review your setup before continuing." />
                 <section className="mt-7 grid gap-4 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Setup summary">
-                  <SummaryRow label="Wallet action" value={actionDetails[walletAction].title} />
+                  <SummaryRow label="Wallet action" value={actionDetails[walletAction ?? "open"].title} />
                   <SummaryRow label="Data location" value={root ?? "Not configured"} mono />
                   <SummaryRow label="Mainnet node" value={node.data ? nodeDescription(node.data) : "Not configured"} />
                 </section>
@@ -273,15 +273,20 @@ export function App() {
                 </div>
               </>
             ) : null}
-            {visibleScreen === "wallet" && (walletAction === "create" || walletAction === "open" || activeWallet.data) ? (
-              <WalletWorkspace mode={walletAction === "create" ? "create" : "open"}
-                activeWallet={status.data?.state === "open" ? activeWallet.data ?? null : null}
-                onBack={() => setScreen("summary")} onLocked={() => setWalletAction("open")} />
+            {visibleScreen === "wallet" && (status.data?.state === "open" || walletAction === "create" || walletAction === "open" || activeWallet.data) ? (
+              status.data?.state === "open" && activeWallet.isPending ? (
+                <p className="text-sm text-slate-400">Loading wallet…</p>
+              ) : (
+                <WalletWorkspace mode={walletAction === "create" ? "create" : "open"}
+                  activeWallet={status.data?.state === "open" ? activeWallet.data ?? null : null}
+                  onBack={() => setScreen("summary")} onLocked={() => setWalletAction("open")} />
+              )
             ) : null}
           </div>
         </main>
         <WalletStatusBar
           serviceState={status.data?.state ?? null}
+          sessionGeneration={status.data?.session_generation ?? null}
           node={node.data ?? null}
         />
       </div>

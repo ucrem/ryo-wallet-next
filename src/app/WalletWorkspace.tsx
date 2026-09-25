@@ -35,8 +35,6 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
   const selectedId = walletId || wallets.data?.[0]?.id || ""
   const [hideBalances, setHideBalances] = useState(false)
 
-
-
   useEffect(() => {
     if (!activeWallet || activeWallet.backup_complete || phase !== "backup" || phrase) return
     let cancelled = false
@@ -157,10 +155,11 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
 
   return (
     <div className="flex min-h-full flex-col">
-      <h1 className="mb-3 text-3xl font-semibold tracking-tight">
-        {phase === "entry" ? mode === "create" ? "Create wallet" : "Open wallet"
-          : phase === "open" ? "Wallet open" : "Back up your recovery phrase"}
-      </h1>
+      {phase !== "open" ? (
+        <h1 className="mb-3 text-3xl font-semibold tracking-tight">
+          {phase === "entry" ? mode === "create" ? "Create wallet" : "Open wallet" : "Back up your recovery phrase"}
+        </h1>
+      ) : null}
 
       {phase === "entry" ? (
         <>
