@@ -1,6 +1,6 @@
 {
   "name": "ryo-wallet-next",
-  "version": "0.1.0-alpha.1",
+  "version": "0.1.0-alpha.2",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -10,11 +10,13 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
+    "check:version": "node scripts/check-version-consistency.mjs",
     "build": "pnpm typecheck && vite build"
   },
   "dependencies": {
     "@tanstack/react-query": "5.103.2",
     "@tauri-apps/api": "2.11.1",
+    "@tauri-apps/plugin-opener": "2.5.5",
     "class-variance-authority": "0.7.1",
     "cn": "0.3.2",
     "radix-ui": "1.6.7",

@@ -42,6 +42,9 @@ jobs:
         with:
           ref: main
           fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .node-version
 
       - name: Resolve and verify release source
         id: source
@@ -101,6 +104,16 @@ jobs:
           test "$TAURI_VERSION" != "null"
           test "$TAURI_VERSION" = "$PACKAGE_VERSION"
           test "$TAURI_VERSION" = "$CARGO_VERSION"
+
+          # Validate the complete version set from the exact main commit being
+          # released, including Cargo.lock and the bundled changelog entry.
+          VERSION_SOURCE="$(mktemp -d)"
+          trap 'rm -rf "$VERSION_SOURCE"' EXIT
+          for source in package.json src-tauri/tauri.conf.json src-tauri/Cargo.toml Cargo.lock CHANGELOG.md scripts/check-version-consistency.mjs; do
+            mkdir -p "$VERSION_SOURCE/$(dirname "$source")"
+            git show "$TARGET_SHA:$source" > "$VERSION_SOURCE/$source"
+          done
+          node "$VERSION_SOURCE/scripts/check-version-consistency.mjs"
 
           VERSION="$TAURI_VERSION"
           TAG="v$VERSION"

@@ -38,6 +38,8 @@ jobs:
           cache: pnpm
       - name: Install exact frontend dependencies
         run: pnpm install --frozen-lockfile
+      - name: Validate application and changelog versions
+        run: pnpm check:version
       - name: Typecheck and lint
         run: |
           pnpm typecheck

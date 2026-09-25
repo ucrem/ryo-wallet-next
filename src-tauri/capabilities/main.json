@@ -9,6 +9,11 @@
     "allow-app-status",
     "allow-wallet-overview",
     "allow-data-root",
-    "allow-node-configuration"
+    "allow-node-configuration",
+    "core:app:allow-version",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [{ "url": "https://github.com/ucrem/ryo-wallet-next/releases/tag/v*" }]
+    }
   ]
 }

@@ -6,11 +6,13 @@ import { chooseDataRoot, getDataRootConfiguration } from "@/api/onboarding"
 import { getWalletOverview } from "@/api/overview"
 import { getFoundationStatus } from "@/api/status"
 import { NodeSetup } from "@/app/NodeSetup"
+import { About } from "@/app/About"
 import ryoMark from "@/assets/ryo-mark.svg"
 import { Button } from "@/components/ui/button"
+import { useAppVersion } from "@/lib/useAppVersion"
 
 type WalletAction = "create" | "restore" | "open"
-type Screen = "home" | "storage" | "node" | "summary"
+type Screen = "home" | "storage" | "node" | "summary" | "about"
 
 const actionDetails: Record<WalletAction, { title: string; description: string }> = {
   create: { title: "Create a new wallet", description: "Set up a new private Ryo wallet." },
@@ -27,6 +29,7 @@ const navigation: { screen: Screen; label: string; number: string }[] = [
 
 export function App() {
   const inDesktop = "__TAURI_INTERNALS__" in window
+  const appVersion = useAppVersion()
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>("home")
   const [walletAction, setWalletAction] = useState<WalletAction | null>(null)
@@ -70,6 +73,7 @@ export function App() {
       case "storage": return walletAction !== null
       case "node": return walletAction !== null && root !== null && !dataRoot.isFetching
       case "summary": return walletAction !== null && root !== null && !!node.data && !node.isFetching
+      case "about": return true
     }
   }
 
@@ -100,7 +104,21 @@ export function App() {
             </button>
           ))}
         </nav>
+        <nav aria-label="Project navigation" className="mt-6 border-t border-slate-800 pt-5">
+          <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Project</p>
+          <button type="button" onClick={() => setScreen("about")}
+            aria-current={screen === "about" ? "page" : undefined}
+            className={"flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sky-400 " +
+              (screen === "about" ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}>
+            <span aria-hidden="true" className="w-6 shrink-0 text-center text-base text-slate-400">ⓘ</span>
+            About
+          </button>
+        </nav>
         <div className="mt-auto border-t border-slate-800 pt-5 text-xs text-slate-400">
+          <p className="mb-4 font-mono text-slate-400">
+            {appVersion.label ?? (appVersion.isLoading ? "Checking version…" : "Version unavailable")}
+            {!appVersion.isNative ? " · browser preview" : ""}
+          </p>
           <p className="font-medium text-slate-300">Native service</p>
           <p className="mt-1" role="status">
             {inDesktop
@@ -124,6 +142,7 @@ export function App() {
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col">
+            {screen === "about" ? <About appVersion={appVersion} /> : null}
             {screen === "home" ? (
               <>
                 <PageHeading eyebrow="GET STARTED" title="How would you like to use Ryo?"
