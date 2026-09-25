@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.1.0-alpha.3] - 2026-09-25
+
+### Added
+
+- Initial app-owned wallet creation flow.
+- Password-protected wallet creation using the reviewed Ryo wallet RPC runtime.
+- Recovery phrase backup and three-word verification flow.
+- Reopening of wallets previously created by the application.
+- Wallet lock flow.
+- Read-only wallet screen with primary address and balance information.
+- Wallet RPC integration with the configured Ryo node.
+
+### Changed
+
+- Wallet data is refreshed after creation and while a wallet remains open.
+- Wallet balance is displayed in RYO instead of raw atomic units.
+- Temporary node or synchronization failures are presented as recoverable wallet states.
+
+### Known limitations
+
+- Transaction creation, signing, and submission are not implemented.
+- Wallet synchronization status is not yet exposed in the UI.
+- Restore-from-recovery-phrase UI is not yet complete.
+- Preview builds are not intended for use with funds.
+
 ## [0.1.0-alpha.2] - 2026-09-25
 
 ### Added
