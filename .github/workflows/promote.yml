@@ -21,19 +21,23 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       STAGING_SHA: ${{ github.event.pull_request.head.sha }}
-      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
       SOURCE_BRANCH: ${{ github.event.pull_request.head.ref }}
       SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name }}
     steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
       - name: Verify the merge contains exactly the staging source
         run: |
           set -euo pipefail
           test "$SOURCE_REPO" = "$GH_REPO"
           test "$SOURCE_BRANCH" = staging
-          test -n "$MERGE_SHA"
+          test "$(git rev-parse HEAD)" = "$STAGING_SHA"
 
-          staging_tree="$(gh api "repos/$GH_REPO/commits/$STAGING_SHA" --jq '.commit.tree.sha')"
-          merge_tree="$(gh api "repos/$GH_REPO/commits/$MERGE_SHA" --jq '.commit.tree.sha')"
+          git fetch origin main --no-tags
+          staging_tree="$(git rev-parse "$STAGING_SHA^{tree}")"
+          merge_tree="$(git merge-tree --write-tree origin/main "$STAGING_SHA")"
           if [ "$staging_tree" != "$merge_tree" ]; then
             echo "The proposed main merge changes files beyond the reviewed staging commit."
             echo "staging tree: $staging_tree"
