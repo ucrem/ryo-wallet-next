@@ -258,7 +258,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
               </Button>
             </form>
           )}
-          <Button type="button" variant="outline" className="mt-auto self-start" onClick={onBack}>← Back to setup</Button>
+          <Button type="button" variant="outline" className="mt-4 self-start" onClick={onBack}>← Back to setup</Button>
         </>
       ) : null}
 
