@@ -23,7 +23,15 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
   const [error, setError] = useState<string | null>(null)
   const runtime = useQuery({ queryKey: ["wallet-runtime-ready"], queryFn: walletRuntimeReady })
   const wallets = useQuery({ queryKey: ["wallet-list"], queryFn: listWallets })
-  const overview = useQuery({ queryKey: ["wallet-overview"], queryFn: getWalletOverview, enabled: phase === "open" })
+  const overview = useQuery({
+    queryKey: ["wallet-overview", walletId],
+    queryFn: getWalletOverview,
+    enabled: phase === "open",
+    retry: 2,
+    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000),
+    refetchInterval: phase === "open" ? 5_000 : false,
+    refetchIntervalInBackground: false,
+  })
   const selectedId = walletId || wallets.data?.[0]?.id || ""
 
   useEffect(() => {
@@ -238,14 +246,68 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
       {phase === "open" ? (
         <>
           <p className="mt-3 text-sm text-slate-300">Your wallet is open. No transaction controls are available yet.</p>
-          {overview.isPending ? <p className="mt-6 text-sm text-slate-400">Loading wallet…</p> : null}
-          {overview.isError ? <p className="mt-6 text-sm text-red-300" role="alert">Wallet balance is unavailable. Check your node connection.</p> : null}
+
+          {overview.isFetching && !overview.isPending ? (
+            <p className="mt-3 text-xs text-slate-500">
+              Refreshing wallet data…
+            </p>
+          ) : null}
+          {overview.isError ? (
+            <div
+              className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4"
+              role="status"
+            >
+              <p className="text-sm text-amber-100">
+                The wallet is open, but node data is not available yet.
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-amber-200">
+                The wallet may still be connecting or synchronizing with the configured node.
+              </p>
+
+              <Button
+                type="button"
+                variant="outline"
+                className="mt-3"
+                onClick={() => void overview.refetch()}
+                disabled={overview.isFetching}
+              >
+                {overview.isFetching ? "Retrying…" : "Retry"}
+              </Button>
+            </div>
+          ) : null}
           {overview.data ? (
             <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Wallet overview">
               <p className="text-xs uppercase tracking-wide text-slate-400">Primary address</p>
               <p className="mt-2 break-all font-mono text-sm">{overview.data.primary_address}</p>
-              <p className="mt-5 text-xs uppercase tracking-wide text-slate-400">Total balance</p>
-              <p className="mt-1 font-mono text-lg">{overview.data.total.atomic} atomic units</p>
+              <div className="mt-5 grid gap-4 sm:grid-cols-3">
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Total
+                  </p>
+                  <p className="mt-1 font-mono text-lg">
+                    {formatAtomicRyo(overview.data.total.atomic)} RYO
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Unlocked
+                  </p>
+                  <p className="mt-1 font-mono text-lg">
+                    {formatAtomicRyo(overview.data.unlocked.atomic)} RYO
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-xs uppercase tracking-wide text-slate-400">
+                    Locked
+                  </p>
+                  <p className="mt-1 font-mono text-lg">
+                    {formatAtomicRyo(overview.data.locked.atomic)} RYO
+                  </p>
+                </div>
+              </div>
             </section>
           ) : null}
           <Button type="button" variant="outline" className="mt-6 self-start" onClick={() => void lock()} disabled={busy}>
@@ -264,4 +326,16 @@ function PasswordField({ name, label, autoComplete }: { name: string; label: str
     <input name={name} type="password" autoComplete={autoComplete} required minLength={12}
       className="rounded-md border border-slate-600 bg-[#0d141c] px-3 py-2" />
   </label>
+}
+
+function formatAtomicRyo(atomic: string): string {
+  const value = BigInt(atomic)
+  const scale = 1_000_000_000n
+  const whole = value / scale
+  const fraction = (value % scale)
+    .toString()
+    .padStart(9, "0")
+    .replace(/0+$/, "")
+
+  return fraction ? `${whole}.${fraction}` : whole.toString()
 }
