@@ -85,6 +85,17 @@ jobs:
           # is actually contained in the commit being released.
           git merge-base --is-ancestor "$STAGING_SHA" "$TARGET_SHA"
 
+          # The GitHub merge commit has a different SHA, but must contain
+          # exactly the same files as the staging commit that built installers.
+          STAGING_TREE="$(git rev-parse "$STAGING_SHA^{tree}")"
+          TARGET_TREE="$(git rev-parse "$TARGET_SHA^{tree}")"
+          if [ "$STAGING_TREE" != "$TARGET_TREE" ]; then
+            echo "Release source differs from the staging installer source"
+            echo "staging tree: $STAGING_TREE"
+            echo "release tree: $TARGET_TREE"
+            exit 1
+          fi
+
           TAURI_VERSION="$(
             git show "$TARGET_SHA:src-tauri/tauri.conf.json" |
               jq -r '.version'

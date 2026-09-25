@@ -14,11 +14,14 @@ or `ryod` executable is bundled. Do not use these artifacts with funds.
 The [desktop installer workflow](../.github/workflows/desktop-bundles.yml)
 builds each target on its native operating system **only after a change is
 merged into `staging`**. The resulting five artifacts are retained for 30 days;
-no GitHub Release is created. A pull request from `staging` to `main` waits for
-the successful build of that exact staging commit, downloads the existing
-installers, verifies all five formats, reports SHA-256 hashes, and uploads those
-same files to the PR run. It never rebuilds the installers for promotion. If
-the staging commit changes, another staging build and review are required.
+no GitHub Release is created. A pull request from `staging` to `main` runs a
+[single promotion check](../.github/workflows/promote.yml). It confirms that
+the proposed merge has the same source files as the staging build, downloads
+the existing installers, verifies all five formats, and reports SHA-256 hashes.
+It neither rebuilds nor uploads installers. After the merge, the release
+workflow checks the final source again before publishing the same staging
+artifacts. If the staging commit changes, another staging build and review are
+required.
 See the [development branch flow](../CONTRIBUTING.md).
 
 macOS previews use an ad-hoc signature; Windows and Linux previews are
