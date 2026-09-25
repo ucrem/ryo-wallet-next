@@ -3,16 +3,19 @@ import { openUrl } from "@tauri-apps/plugin-opener"
 import { bundledChangelog } from "@/lib/bundledChangelog"
 import { releaseUrl } from "@/lib/appVersion"
 import type { AppVersionInfo } from "@/lib/useAppVersion"
+import type { AppUpdates } from "@/lib/useAppUpdates"
+import { Button } from "@/components/ui/button"
 
-export function About({ appVersion }: { appVersion: AppVersionInfo }) {
+export function About({ appVersion, updates }: { appVersion: AppVersionInfo; updates: AppUpdates }) {
   const [openError, setOpenError] = useState(false)
   const url = appVersion.version ? releaseUrl(appVersion.version) : null
+  const availableUpdate = updates.result?.state === "available" ? updates.result : null
 
-  async function openRelease() {
-    if (!url) return
+  async function openRelease(target = url) {
+    if (!target) return
     setOpenError(false)
     try {
-      await openUrl(url)
+      await openUrl(target)
     } catch {
       setOpenError(true)
     }
@@ -62,6 +65,62 @@ export function About({ appVersion }: { appVersion: AppVersionInfo }) {
             View this release on GitHub ↗
           </a>
         ) : null}
+      </section>
+
+      <section aria-labelledby="updates-title" className="mt-5 rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
+        <h2 id="updates-title" className="text-xl font-semibold">App updates</h2>
+        <p className="mt-2 text-sm text-slate-400">The installed app checks for new releases when it opens. You can also check here.</p>
+        <Button
+          type="button"
+          variant="outline"
+          className="mt-4"
+          onClick={() => void updates.checkNow()}
+          disabled={
+            !appVersion.isNative ||
+            updates.checking ||
+            updates.installing ||
+            updates.result?.state === "development"
+          }
+        >
+          {updates.checking
+            ? "Checking…"
+            : updates.result?.state === "development"
+              ? "Unavailable in development"
+              : "Check for updates"}
+        </Button>
+        {updates.result?.state === "development" ? (
+          <p className="mt-3 text-sm text-slate-400" role="status">Update checks and installation are available in installed builds.</p>
+        ) : updates.result?.state === "current" ? (
+          <p className="mt-3 text-sm text-slate-300" role="status">You have the latest published version.</p>
+        ) : availableUpdate ? (
+          <div className="mt-4 rounded-lg border border-sky-500/40 bg-sky-400/10 p-4" role="status">
+            <p className="font-medium text-sky-100">Version v{availableUpdate.version} is available</p>
+            {availableUpdate.notes ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">{availableUpdate.notes}</p> : null}
+            {availableUpdate.automatic_install ? (
+              <>
+                <Button type="button" className="mt-4 bg-sky-400 text-slate-950 hover:bg-sky-300"
+                  disabled={updates.installing} onClick={() => void updates.install(availableUpdate.version)}>
+                  {updates.installing ? "Downloading and installing…" : "Download and install"}
+                </Button>
+                {updates.installing && updates.progress ? (
+                  <p className="mt-2 text-sm text-slate-300">
+                    Downloaded {formatMegabytes(updates.progress.downloaded)}
+                    {updates.progress.total ? ` of ${formatMegabytes(updates.progress.total)}` : ""}
+                  </p>
+                ) : null}
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-slate-300">For a DEB or RPM installation, download the matching new package and install it with your package manager.</p>
+                <Button type="button" variant="outline" className="mt-4"
+                  onClick={() => void openRelease(releaseUrl(availableUpdate.version))}>
+                  Open release page ↗
+                </Button>
+              </>
+            )}
+          </div>
+        ) : null}
+        {updates.error ? <p className="mt-3 text-sm text-red-300" role="alert">{updates.error}</p> : null}
         {openError ? <p className="mt-2 text-sm text-red-300" role="alert">Could not open your browser. Please try again.</p> : null}
       </section>
 
@@ -94,6 +153,10 @@ export function About({ appVersion }: { appVersion: AppVersionInfo }) {
       </section>
     </div>
   )
+}
+
+function formatMegabytes(bytes: number): string {
+  return `${(bytes / 1_000_000).toFixed(1)} MB`
 }
 
 function formatDate(date: string): string {

@@ -21,7 +21,7 @@ A usable MVP must meet every included acceptance criterion on Linux, Windows and
 | Activity | Incoming, outgoing, pool, pending, failed states; stable ordering and detail with fee/time/height where available. Empty, loading, stale and failed-to-load differ. Reorgs update status |
 | Nodes | Local starts owned ryod; Remote reaches an explicit host/port. Show network, availability, readiness, transport and freshness. Node change invalidates draft and requires wallet reopening; no hybrid/autofallback |
 | Lock/close | Manual lock + idle timeout (proposed default 5 minutes, configurable). Immediately hide sensitive UI; report locking until key-bearing process exits. Reopen requires password. OS suspend/resume returns to locked/reconciliation state |
-| Settings | Theme/system preference, node mode/endpoint, idle lock, change password, explicit full rescan, app/backend versions, private diagnostic status. No auto-updater |
+| Settings | Theme/system preference, node mode/endpoint, idle lock, change password, explicit full rescan, app/backend versions, private diagnostic status. Signed desktop updates are described in [packaging](PACKAGING.md) |
 | Accessibility | Keyboard-only completion of onboarding/send/lock, visible focus, proper modal focus return, readable light/dark states, screen-reader labels and errors; usable at small desktop window sizes |
 
 ## Payment flow detail
@@ -43,6 +43,6 @@ MVP handles a single recipient but multiple underlying transactions because upst
 
 ## Explicitly post-MVP
 
-Mobile; automatic updates; hardware wallets; multisig/watch-only/key-image workflows; account management; subaddress labeling and advanced management; integrated receive addresses; address book and notes; mining/pool features; hybrid bootstrap; app-managed TLS proxy/Tor; deep links; price feeds; exchanges; sweep all; multi-recipient sends; CSV export; tray/background wallet-unlocked mode; automatic legacy-directory discovery; broad localization beyond a localization-ready initial interface.
+Mobile; hardware wallets; multisig/watch-only/key-image workflows; account management; subaddress labeling and advanced management; integrated receive addresses; address book and notes; mining/pool features; hybrid bootstrap; app-managed TLS proxy/Tor; deep links; price feeds; exchanges; sweep all; multi-recipient sends; CSV export; tray/background wallet-unlocked mode; automatic legacy-directory discovery; broad localization beyond a localization-ready initial interface.
 
 Receiving at existing addresses still works through upstream synchronization within the supported account scope. Advanced-wallet users are told which workflows remain in Atom; this MVP does not claim full feature parity. Mainnet is the product default network; separate developer builds/configurations expose testnet/stagenet without shared wallet directories. Live public test-network availability is not assumed.

@@ -168,6 +168,10 @@ jobs:
             exit 1
           fi
 
+          # Package the release with the exact scripts that were promoted,
+          # even if main receives another merge before this job starts.
+          git checkout --detach "$TARGET_SHA"
+
           echo "staging_sha=$STAGING_SHA" >> "$GITHUB_OUTPUT"
           echo "target_sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
@@ -184,7 +188,7 @@ jobs:
           set -euo pipefail
 
           rm -rf staging-artifacts release-assets
-          mkdir -p staging-artifacts release-assets
+          mkdir -p staging-artifacts
 
           gh run download "$RUN_ID" \
             --repo "$GH_REPO" \
@@ -199,35 +203,7 @@ jobs:
           RUN_ID: ${{ steps.source.outputs.run_id }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
-
-          deb=(staging-artifacts/preview-linux-x64-deb/*.deb)
-          rpm=(staging-artifacts/preview-linux-x64-rpm/*.rpm)
-          intel=(staging-artifacts/preview-macos-intel-dmg/*.dmg)
-          arm=(staging-artifacts/preview-macos-apple-silicon-dmg/*.dmg)
-          windows=(staging-artifacts/preview-windows-x64-exe/*-setup.exe)
-
-          test "${#deb[@]}" -eq 1
-          test "${#rpm[@]}" -eq 1
-          test "${#intel[@]}" -eq 1
-          test "${#arm[@]}" -eq 1
-          test "${#windows[@]}" -eq 1
-
-          test "$(find staging-artifacts -type f | wc -l)" -eq 5
-
-          cp "${deb[0]}" release-assets/
-          cp "${rpm[0]}" release-assets/
-          cp "${intel[0]}" release-assets/
-          cp "${arm[0]}" release-assets/
-          cp "${windows[0]}" release-assets/
-
-          # Detect filename collisions between architecture-specific artifacts.
-          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -eq 5
-
-          (
-            cd release-assets
-            sha256sum * > SHA256SUMS.txt
-          )
+          python3 scripts/prepare_update_assets.py staging-artifacts release-assets "$VERSION"
 
           cat > release-notes.md <<EOF
           Ryo Wallet Next v$VERSION
@@ -278,3 +254,25 @@ jobs:
             "$TAG" \
             release-assets/* \
             "${args[@]}"
+
+      - name: Publish the update feed after the release succeeds
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TARGET_SHA: ${{ steps.source.outputs.target_sha }}
+          VERSION: ${{ steps.source.outputs.version }}
+        run: |
+          set -euo pipefail
+          if ! gh api "repos/$GH_REPO/git/ref/heads/update-channel" >/dev/null 2>&1; then
+            gh api "repos/$GH_REPO/git/refs" --method POST \
+              -f ref=refs/heads/update-channel -f sha="$TARGET_SHA" >/dev/null
+          fi
+
+          old_sha="$(gh api "repos/$GH_REPO/contents/latest.json?ref=update-channel" --jq .sha 2>/dev/null || true)"
+          base64 -w0 release-assets/latest.json > update-feed.b64
+          args=(--method PUT -f "message=Publish signed update feed for v$VERSION" \
+            -f branch=update-channel -F content=@update-feed.b64)
+          if [ -n "$old_sha" ]; then
+            args+=(-f "sha=$old_sha")
+          fi
+          gh api "repos/$GH_REPO/contents/latest.json" "${args[@]}" >/dev/null
