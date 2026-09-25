@@ -12,6 +12,7 @@ import { About } from "@/app/About"
 import ryoMark from "@/assets/ryo-mark.svg"
 import { Button } from "@/components/ui/button"
 import { useAppVersion } from "@/lib/useAppVersion"
+import { useAppUpdates } from "@/lib/useAppUpdates"
 import { WalletStatusBar } from "@/app/WalletStatusBar"
 
 type WalletAction = "create" | "restore" | "open"
@@ -34,6 +35,7 @@ const navigation: { screen: Screen; label: string; number: string }[] = [
 export function App() {
   const inDesktop = "__TAURI_INTERNALS__" in window
   const appVersion = useAppVersion()
+  const updates = useAppUpdates(inDesktop)
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>("home")
   const [walletAction, setWalletAction] = useState<WalletAction | null>(null)
@@ -125,6 +127,12 @@ export function App() {
             <span aria-hidden="true" className="w-6 shrink-0 text-center text-base text-slate-400">ⓘ</span>
             About
           </button>
+          {updates.result?.state === "available" ? (
+            <button type="button" onClick={() => setScreen("about")}
+              className="mt-2 rounded-lg border border-sky-500/40 bg-sky-400/10 px-3 py-2 text-left text-xs text-sky-200 hover:bg-sky-400/20 focus-visible:outline-2 focus-visible:outline-sky-400">
+              Update v{updates.result.version} available →
+            </button>
+          ) : null}
         </nav>
         <div className="mt-auto border-t border-slate-800 pt-5 text-xs text-slate-400">
           <p className="mb-4 font-mono text-slate-400">
@@ -154,7 +162,7 @@ export function App() {
         </header>
         <main className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col">
-            {visibleScreen === "about" ? <About appVersion={appVersion} /> : null}
+            {visibleScreen === "about" ? <About appVersion={appVersion} updates={updates} /> : null}
             {visibleScreen === "home" ? (
               <>
                 <PageHeading eyebrow="GET STARTED" title="How would you like to use Ryo?"

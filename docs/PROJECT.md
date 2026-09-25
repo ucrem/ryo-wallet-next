@@ -18,7 +18,7 @@ Build an independent, open-source desktop alternative to Ryo Wallet Atom for peo
 
 ## Non-goals
 
-Mobile, a JavaScript wallet SDK, new cryptography, consensus changes, official-project claims, exchange integrations, token swaps, pricing feeds, mining, telemetry, automatic updates and upstream patches. Tauri 2 leaves a possible mobile UI route, but desktop child processes are not a mobile backend implementation.
+Mobile, a JavaScript wallet SDK, new cryptography, consensus changes, official-project claims, exchange integrations, token swaps, pricing feeds, mining, telemetry and upstream patches. Tauri 2 leaves a possible mobile UI route, but desktop child processes are not a mobile backend implementation. Desktop updates are covered in [packaging](PACKAGING.md).
 
 ## Product principles
 

@@ -22,6 +22,8 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
+mod app_updates;
+
 const DATA_ROOT_SELECTION_FILE: &str = "wallet-data-root.json";
 const WALLET_SYNC_EVENT: &str = "wallet-sync-status";
 const WALLET_SYNC_INTERVAL: Duration = Duration::from_secs(2);
@@ -695,13 +697,16 @@ async fn require_stopped(service: &WalletService) -> Result<(), &'static str> {
 }
 
 pub fn run() {
-    let mut context = tauri::generate_context!();
+    let context = tauri::generate_context!();
     #[cfg(debug_assertions)]
-    {
+    let context = {
+        let mut context = context;
         context.config_mut().identifier = "io.github.ucrem.ryowalletnext.dev".to_owned();
         context.config_mut().product_name = Some("Ryo Wallet Next Dev".to_owned());
-    }
+        context
+    };
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
@@ -710,10 +715,13 @@ pub fn run() {
             app.manage(DataRootState::load(&app.handle())?);
             app.manage(ActiveWalletState(Mutex::new(None)));
             app.manage(SyncMonitorState(AtomicU64::new(0)));
+            app.manage(app_updates::InstallState::default());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             app_status,
+            app_updates::app_update_check,
+            app_updates::app_update_install,
             wallet_overview,
             wallet_receive_addresses,
             wallet_create_receive_address,
