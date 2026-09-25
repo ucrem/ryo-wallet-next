@@ -9,13 +9,15 @@ including the staging-installer reuse check for `main`.
 After review, merge the change into `staging`. The staging push builds Linux
 DEB/RPM, macOS Intel/Apple Silicon DMGs, and a Windows NSIS setup EXE. Download
 and verify those artifacts before opening a pull request from `staging` to
-`main`. That PR downloads the installers built for the **exact staging commit**,
-checks that all five exist, reports their SHA-256 hashes, and uploads the same
-installer files for review. It does not compile a new release. Merge to `main`
-only after the staging artifacts and PR checks are accepted. If `staging` moves,
-review the new build and the updated promotion PR. `main` must be an ancestor
-of the staging commit; if it is not, integrate `main` into `staging` through a
-separate PR and review its new build. Do not push directly to `main`.
+`main`. That PR runs one promotion check: it verifies that the proposed merge
+has exactly the same files as the **staging commit** and that its successful
+installer build contains all five formats. It reports SHA-256 hashes without
+building or uploading new installers. Merge to `main` only after the staging
+artifacts and promotion check are accepted. The release workflow then verifies
+the final main commit has the same files as that staging commit and publishes
+the existing installers. If `staging` moves, review its new build and the
+updated promotion PR. A merge commit on `main` alone does not require a sync
+back into `staging`. Do not push directly to `main`.
 
 Keep the project clearly independent from Ryo Currency. Run the relevant
 frontend, Rust, and desktop checks for the files you change. Packaging
