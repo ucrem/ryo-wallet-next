@@ -1,4 +1,4 @@
 [[permission]]
 identifier = "allow-wallet-overview"
-description = "Read the current wallet address and exact balance only while an app-owned wallet is open"
-commands.allow = ["wallet_overview"]
+description = "Read wallet address, balance and synchronization status while an app-owned wallet is open"
+commands.allow = ["wallet_overview", "wallet_sync_status"]

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-wallet-receive"
+description = "List and create receive subaddresses for the open, backed-up wallet"
+commands.allow = ["wallet_receive_addresses", "wallet_create_receive_address"]

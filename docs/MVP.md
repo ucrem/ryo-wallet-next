@@ -14,7 +14,7 @@ A usable MVP must meet every included acceptance criterion on Linux, Windows and
 | Scope checks | One open wallet; account 0. Inspect accounts/type on import. Reject unsupported multiple-account, watch-only or multisig use with a clear explanation; never hide funds behind an incomplete total |
 | Sync | Show wallet scan and daemon progress separately, last update and disconnected/stale state. No misleading 100% based on one height; send disabled until conservative readiness checks pass |
 | Balance | Exact total/unlocked/locked with nine-place precision; never negative/rounded into a different atomic amount. Clarify unconfirmed/locked state |
-| Receive | Primary address returned by backend; copy button and locally generated QR of exact address. QR round-trip matches address; no network request. Show wallet/network and don't truncate copied data |
+| Receive | Primary address and user-created account-0 subaddresses returned by backend; list and copy any address, with a locally generated QR of the exact selection. QR round-trip matches address; no network request. Show wallet/network and don't truncate copied data |
 | Send | One recipient + decimal amount + optional payment ID; validate through Rust/upstream. Support current/legacy long, Kurz and integrated destinations accepted by backend; reject conflicting integrated/separate IDs |
 | Confirm | Display full destination, explicit/embedded ID context, amount, actual fee, total, transaction count and network. Editing invalidates draft. No transaction relay before explicit confirmation |
 | Submit | One-shot draft submission; disable duplicate actions. Track each split transaction; show txids, pending/confirmed/rejected/unknown/partial distinctly. Never automatically recreate a transfer after uncertainty |
@@ -43,6 +43,6 @@ MVP handles a single recipient but multiple underlying transactions because upst
 
 ## Explicitly post-MVP
 
-Mobile; automatic updates; hardware wallets; multisig/watch-only/key-image workflows; account management; creation/management of subaddresses and integrated receive addresses; address book and notes; mining/pool features; hybrid bootstrap; app-managed TLS proxy/Tor; deep links; price feeds; exchanges; sweep all; multi-recipient sends; CSV export; tray/background wallet-unlocked mode; automatic legacy-directory discovery; broad localization beyond a localization-ready initial interface.
+Mobile; automatic updates; hardware wallets; multisig/watch-only/key-image workflows; account management; subaddress labeling and advanced management; integrated receive addresses; address book and notes; mining/pool features; hybrid bootstrap; app-managed TLS proxy/Tor; deep links; price feeds; exchanges; sweep all; multi-recipient sends; CSV export; tray/background wallet-unlocked mode; automatic legacy-directory discovery; broad localization beyond a localization-ready initial interface.
 
 Receiving at existing addresses still works through upstream synchronization within the supported account scope. Advanced-wallet users are told which workflows remain in Atom; this MVP does not claim full feature parity. Mainnet is the product default network; separate developer builds/configurations expose testnet/stagenet without shared wallet directories. Live public test-network availability is not assumed.
