@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { writeText } from "@tauri-apps/plugin-clipboard-manager"
 import { getWalletOverview } from "@/api/overview"
 import {
   acknowledgeBackup, createWallet, getBackupPhrase, listWallets, lockWallet, openWallet,
@@ -34,6 +35,13 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
   })
   const selectedId = walletId || wallets.data?.[0]?.id || ""
   const [hideBalances, setHideBalances] = useState(false)
+  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
+
+  useEffect(() => {
+    if (copyStatus === "idle") return
+    const timeout = window.setTimeout(() => setCopyStatus("idle"), 2_000)
+    return () => window.clearTimeout(timeout)
+  }, [copyStatus])
 
   useEffect(() => {
     if (!activeWallet || activeWallet.backup_complete || phase !== "backup" || phrase) return
@@ -144,6 +152,17 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
       setError(String(cause))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function copyAddress() {
+    const address = overview.data?.primary_address
+    if (!address) return
+    try {
+      await writeText(address)
+      setCopyStatus("copied")
+    } catch {
+      setCopyStatus("error")
     }
   }
 
@@ -268,6 +287,15 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
                 <Button
                   type="button"
                   variant="outline"
+                  onClick={() => void copyAddress()}
+                  disabled={!overview.data?.primary_address}
+                >
+                  {copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy address"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
                   onClick={() => setHideBalances((value) => !value)}
                 >
                   {hideBalances ? "Show balances" : "Hide balances"}
@@ -283,6 +311,10 @@ export function WalletWorkspace({ mode, activeWallet, onBack, onLocked }: {
                 </Button>
               </div>
             </div>
+
+            <span className="sr-only" role="status">
+              {copyStatus === "copied" ? "Address copied to clipboard" : copyStatus === "error" ? "Address could not be copied" : ""}
+            </span>
 
             <div className="mt-5 grid gap-4 border-t border-slate-700 pt-5 sm:grid-cols-3">
               <div>
