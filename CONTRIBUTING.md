@@ -10,11 +10,11 @@ Both branches are protected on GitHub: PRs and passing checks are required,
 including the staging-installer reuse check for `main`.
 
 After review, merge the change into `staging`. The staging push builds Linux
-DEB/RPM, macOS Intel/Apple Silicon DMGs, and a Windows NSIS setup EXE. Download
+DEB/RPM/AppImage, macOS Intel/Apple Silicon DMGs, and a Windows NSIS setup EXE, with signed updater files. Download
 and verify those artifacts before opening a pull request from `staging` to
 `main`. That PR runs one promotion check: it verifies that the proposed merge
 has exactly the same files as the **staging commit** and that its successful
-installer build contains all five formats. It reports SHA-256 hashes without
+installer build contains the expected installers and updater signatures. It reports SHA-256 hashes without
 building or uploading new installers. Merge to `main` only after the staging
 artifacts and promotion check are accepted. The release workflow then verifies
 the final main commit has the same files as that staging commit and publishes

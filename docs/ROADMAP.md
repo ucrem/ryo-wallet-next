@@ -32,7 +32,7 @@ Exit: no relay before confirmation; no duplicate send on double click/retry; can
 
 ## Phase 5 — Production hardening
 
-Complete platform binary build provenance/license inventory, resource/performance profiling, minimum OS/WebView baseline, long-sync shutdown tests, recovery drills, supply-chain review and independent security review. Validate package contents/paths and binary identities per target. Only after architecture and release criteria hold, define signing/notarization/release publication infrastructure in a separate task. No updater in the MVP.
+Complete platform binary build provenance/license inventory, resource/performance profiling, minimum OS/WebView baseline, long-sync shutdown tests, recovery drills, supply-chain review and independent security review. Validate package contents/paths and binary identities per target. The preview update channel is described in [packaging](PACKAGING.md); production platform signing/notarization and installation tests remain release gates.
 
 Exit: every MVP criterion and platform gate passes with documented artifacts, known limitations and operator recovery instructions.
 
@@ -81,4 +81,4 @@ No release signing credentials in these jobs. Later release workflows remain a s
 
 ## Post-MVP
 
-Consider subaddress labeling/account management, contact/notes migration, watch-only and hardware wallets, tested secure remote transport, trusted updates and localization based on real demand. Revisit mobile only with an explicit alternative engine/process strategy and licensing review. No assumption that desktop sidecars can be transplanted to mobile.
+Consider subaddress labeling/account management, contact/notes migration, watch-only and hardware wallets, tested secure remote transport and localization based on real demand. Revisit mobile only with an explicit alternative engine/process strategy and licensing review. No assumption that desktop sidecars can be transplanted to mobile.

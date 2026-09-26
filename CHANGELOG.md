@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.1.0-alpha.4] - 2026-09-25
+
+### Added
+
+- Automatic update checks on startup and a manual check button in About.
+- Signed in-app updates for installed Windows and macOS builds and Linux AppImage builds.
+- A Linux AppImage preview alongside the existing DEB and RPM installers.
+- Update availability notices with a release link for DEB and RPM installations.
+
+### Known limitations
+
+- Existing alpha.3 installations must install alpha.4 manually once before in-app update checks become available.
+- DEB and RPM installations require manual package updates; the in-app installer works only with AppImage on Linux.
+- Public installers still do not bundle the Ryo wallet runtime. Do not use this preview with funds.
+
 ## [0.1.0-alpha.3] - 2026-09-25
 
 ### Added

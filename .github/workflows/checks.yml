@@ -48,6 +48,8 @@ jobs:
         run: |
           pnpm test
           pnpm build
+      - name: Validate update manifest preparation
+        run: python3 -m unittest discover -s scripts -p 'test_prepare_update_assets.py'
 
   tauri-linux-check:
     runs-on: ubuntu-24.04

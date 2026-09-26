@@ -71,20 +71,9 @@ jobs:
           RUN_ID: ${{ steps.source.outputs.run_id }}
         run: |
           set -euo pipefail
-          shopt -s nullglob
           gh run download "$RUN_ID" --repo "$GH_REPO" --dir staging-artifacts
-
-          deb=(staging-artifacts/preview-linux-x64-deb/*.deb)
-          rpm=(staging-artifacts/preview-linux-x64-rpm/*.rpm)
-          intel=(staging-artifacts/preview-macos-intel-dmg/*.dmg)
-          arm=(staging-artifacts/preview-macos-apple-silicon-dmg/*.dmg)
-          windows=(staging-artifacts/preview-windows-x64-exe/*-setup.exe)
-          test "${#deb[@]}" -eq 1
-          test "${#rpm[@]}" -eq 1
-          test "${#intel[@]}" -eq 1
-          test "${#arm[@]}" -eq 1
-          test "${#windows[@]}" -eq 1
-          test "$(find staging-artifacts -type f | wc -l)" -eq 5
+          version="$(jq -r '.version' src-tauri/tauri.conf.json)"
+          python3 scripts/prepare_update_assets.py staging-artifacts verified-assets "$version"
 
           {
             echo "### Existing staging installers verified"
@@ -92,6 +81,6 @@ jobs:
             echo "Source run: https://github.com/$GH_REPO/actions/runs/$RUN_ID"
             echo 'SHA-256:'
             echo '```'
-            sha256sum "${deb[@]}" "${rpm[@]}" "${intel[@]}" "${arm[@]}" "${windows[@]}"
+            cat verified-assets/SHA256SUMS.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
