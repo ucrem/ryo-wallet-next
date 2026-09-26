@@ -22,7 +22,7 @@ rpm_path="$(realpath "${rpms[0]}")"
 
 inspection="$(mktemp -d)"
 trap 'rm -rf "$inspection"' EXIT
-mkdir -p "$inspection/deb" "$inspection/rpm"
+mkdir -p "$inspection/deb"
 if command -v dpkg-deb >/dev/null; then
   echo "Extracting DEB: $deb_path"
   dpkg-deb -x "$deb_path" "$inspection/deb"
@@ -34,16 +34,9 @@ else
     tar -xf data.tar.*
   )
 fi
-(
-  cd "$inspection/rpm"
-  echo "Extracting RPM: $rpm_path"
-  rpm2cpio "$rpm_path" | cpio -idm --quiet
-)
-
 target=x86_64-unknown-linux-gnu
-for package in deb rpm; do
-  python3 scripts/verify-packaged-runtime.py --target "$target" --path "$inspection/$package/usr/bin/ryo-wallet-rpc"
-done
+python3 scripts/verify-packaged-runtime.py --target "$target" --path "$inspection/deb/usr/bin/ryo-wallet-rpc"
+python3 scripts/verify-packaged-runtime.py --target "$target" --rpm-package "$rpm_path"
 if find "$inspection" -name .dev-runtime | grep -q .; then
   echo 'Development runtime path leaked into an installer' >&2
   exit 1
