@@ -44,7 +44,7 @@ Updated 2026-09-26. This follows the architecture investigation. Phase 1 is **in
 - `cargo fmt --all -- --check`: passed.
 - `pnpm install --frozen-lockfile`, `pnpm check:version`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` passed with pnpm 12.6.0. CI pins Node 24.21.0; the current host has Node 22.23.1.
 - `pnpm test`: 16 frontend tests pass, including the manual updater states. Native wallet creation, backup, import and receive-address behavior are additionally exercised by five opt-in disposable wallet-RPC tests.
-- Local release builds of DEB, RPM and AppImage contain the exact reviewed Linux wallet RPC; extracted files passed SHA-256, executable and dynamic-library checks. The final AppImage and version-bound updater signature were generated. On this Fedora/Wayland/NVIDIA host the published alpha.4 AppImage reproduced `EGL_BAD_ALLOC`, while the repacked local build stayed running without that abort during a 15-second smoke test. Full installed-wallet and cross-platform tests remain outstanding.
+- Local release builds of DEB and RPM contain the exact reviewed Linux wallet RPC; extracted files passed SHA-256, executable and dynamic-library checks. Future Linux packaging omits AppImage. The already published alpha.4 AppImage reproduced `EGL_BAD_ALLOC` on this Fedora/Wayland/NVIDIA host; existing AppImage users need a manual DEB/RPM migration. The new explicit, signed Linux package-update path still needs an installed-package and authorization test. Full installed-wallet and cross-platform tests remain outstanding.
 - `cargo clippy` is unavailable on the host's Fedora Rust installation. CI installs the pinned toolchain with clippy and runs the native Linux Tauri check with development packages.
 
 ## Upstream compatibility finding

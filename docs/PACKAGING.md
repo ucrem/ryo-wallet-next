@@ -10,7 +10,7 @@ transactions are not available in the UI. Do not use these artifacts with funds.
 
 | Platform | CI runner | Preview bundle |
 | --- | --- | --- |
-| Linux x64 | Ubuntu 22.04 | `.deb`, `.rpm` and `.AppImage` |
+| Linux x64 | Ubuntu 22.04 | `.deb` and `.rpm` |
 | macOS Intel | macOS 15 Intel | `.dmg` |
 | Windows x64 | Windows 2025 | NSIS `-setup.exe` |
 
@@ -43,20 +43,26 @@ the reviewed digest. The separate Tauri updater signature authenticates
 update downloads, but does not replace platform signing or installation tests.
 Production macOS signing needs a reviewed post-signing digest strategy.
 
-The AppImage pipeline removes ten Ubuntu-era Wayland/X11 protocol libraries
-from the generated AppDir, restores the exact reviewed wallet RPC after
-linuxdeploy patches its ELF RUNPATH, repacks with the AppImage output plugin,
-and signs the final image. GTK/WebKitGTK and the Ubuntu 22.04 glibc baseline
-remain. DEB, RPM and the final AppImage are extracted in CI and their sidecars
-are checked for regular-file status, executable mode, SHA-256 and unresolved
-Linux libraries. macOS and Windows workflows inspect their native bundles.
+Future Linux releases provide only DEB and RPM packages. Both are extracted in
+CI; their wallet RPC sidecars are checked for regular-file status, executable
+mode, SHA-256 and unresolved Linux libraries. Tauri also produces detached
+updater signatures for both packages with the existing version-bound key; these
+are not native APT/DNF repository signatures. macOS and Windows workflows inspect
+their native bundles. The already published alpha.4 AppImage is historical;
+users of that build must migrate manually to a DEB or RPM installation.
 
-Installed builds check the public `update-channel/latest.json` feed at startup,
-and About has a manual check button. The updater verifies a signature bound to
-the announced app version before installation. Windows NSIS, macOS app bundles
-and Linux AppImage can install updates in the app. DEB and RPM users receive an
-availability notice and link to the matching release, then install the new
-package with their package manager. The updater signing private key and its
+Installed builds check the public update feed at startup, and About has a
+manual check button. Linux DEB and RPM installations use separate signed-package
+feeds (`latest-deb.json` and `latest-rpm.json`) so each gets the matching format.
+Checking never downloads or installs a package. When an update exists, About
+warns the user to back up wallet files and recovery secrets. Only after the user
+acknowledges the warning and clicks Update does the app download the package,
+verify its version-bound signature, lock the wallet and invoke the native
+`pkexec` authorization prompt. The system package manager (`apt-get` or `dnf`)
+performs the installation; the wallet never collects the administrator password.
+If system authorization is unavailable or refused, the update fails visibly.
+Windows and macOS retain their explicit click-to-install Tauri updater flow.
+The updater signing private key and its
 passphrase are kept outside Git and configured as repository Actions secrets;
 the public key is embedded in the app. Back up the private key securely: losing
 it prevents future updates for installed builds. The initial alpha.4 install
@@ -68,8 +74,8 @@ run `pnpm install --frozen-lockfile`. These release builds require
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; CI reads
 them from repository secrets. Build on the target operating system:
 
-- Linux: `pnpm exec tauri build --ci --bundles deb,rpm,appimage`, then
-  `bash scripts/repack-appimage.sh` and `bash scripts/verify-linux-bundles.sh`
+- Linux: `pnpm exec tauri build --ci --bundles deb,rpm`, then run
+  `bash scripts/verify-linux-bundles.sh`
 - macOS Intel: `pnpm exec tauri build --ci --bundles app,dmg --no-sign`
 - Windows: `pnpm exec tauri build --ci --bundles nsis`
 

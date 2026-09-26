@@ -49,12 +49,14 @@ describe("installed update feedback", () => {
   })
 
   it("keeps install and package-manager update paths visible", () => {
-    expect(html({ result: { state: "available", version: "0.1.0-alpha.5", notes: null, automatic_install: true } }))
-      .toContain("Download and install")
-    expect(html({ result: { state: "available", version: "0.1.0-alpha.5", notes: null, automatic_install: false } }))
+    const update = html({ result: { state: "available", version: "0.1.0-alpha.5", notes: null, install_in_app: true } })
+    expect(update).toContain("Before updating, back up your wallet files and recovery phrase")
+    expect(update).toContain("I have backed up my wallet files and recovery phrase.")
+    expect(update).toMatch(/disabled=""[^>]*>Update<\/button>/)
+    expect(html({ result: { state: "available", version: "0.1.0-alpha.5", notes: null, install_in_app: false } }))
       .toContain("Open release page")
     expect(html({
-      result: { state: "available", version: "0.1.0-alpha.5", notes: null, automatic_install: true },
+      result: { state: "available", version: "0.1.0-alpha.5", notes: null, install_in_app: true },
       installing: true,
       progress: { downloaded: 2_000_000, total: 4_000_000 },
     })).toContain("Downloaded 2.0 MB of 4.0 MB")

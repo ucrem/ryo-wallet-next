@@ -11,9 +11,8 @@ from urllib.parse import quote
 
 REPOSITORY = "ucrem/ryo-wallet-next"
 GROUPS = {
-    "preview-linux-x64-deb": (".deb",),
-    "preview-linux-x64-rpm": (".rpm",),
-    "preview-linux-x64-appimage": (".AppImage", ".AppImage.sig"),
+    "preview-linux-x64-deb": (".deb", ".deb.sig"),
+    "preview-linux-x64-rpm": (".rpm", ".rpm.sig"),
     "preview-macos-intel-dmg": (".dmg",),
     "preview-macos-intel-updater": (".app.tar.gz", ".app.tar.gz.sig"),
     "preview-windows-x64-exe": ("-setup.exe", "-setup.exe.sig"),
@@ -49,7 +48,7 @@ def prepare(source: Path, output: Path, version: str) -> dict:
         raise ValueError("invalid version")
     files = collect(source)
     for (group, suffix), path in files.items():
-        if suffix in (".deb", ".rpm", ".AppImage", ".dmg", "-setup.exe") and version not in path.name:
+        if suffix in (".deb", ".rpm", ".dmg", "-setup.exe") and version not in path.name:
             raise ValueError(f"{group}: package version does not match the release")
     output.mkdir(parents=True, exist_ok=False)
     published = {}
@@ -62,11 +61,12 @@ def prepare(source: Path, output: Path, version: str) -> dict:
         published[name] = destination
         return destination
 
-    copy("preview-linux-x64-deb", ".deb", f"ryo-wallet-next_{version}_amd64.deb")
-    copy("preview-linux-x64-rpm", ".rpm", f"ryo-wallet-next-{version}-1.x86_64.rpm")
-    appimage = f"ryo-wallet-next_{version}_x86_64.AppImage"
-    copy("preview-linux-x64-appimage", ".AppImage", appimage)
-    appimage_sig = copy("preview-linux-x64-appimage", ".AppImage.sig", appimage + ".sig")
+    deb = f"ryo-wallet-next_{version}_amd64.deb"
+    copy("preview-linux-x64-deb", ".deb", deb)
+    deb_sig = copy("preview-linux-x64-deb", ".deb.sig", deb + ".sig")
+    rpm = f"ryo-wallet-next-{version}-1.x86_64.rpm"
+    copy("preview-linux-x64-rpm", ".rpm", rpm)
+    rpm_sig = copy("preview-linux-x64-rpm", ".rpm.sig", rpm + ".sig")
     intel_dmg = f"ryo-wallet-next_{version}_darwin_x86_64.dmg"
     copy("preview-macos-intel-dmg", ".dmg", intel_dmg)
     intel_update = f"ryo-wallet-next_{version}_darwin_x86_64.app.tar.gz"
@@ -86,15 +86,19 @@ def prepare(source: Path, output: Path, version: str) -> dict:
         "version": version,
         "notes": "Development preview. See the release notes for details.",
         "platforms": {
-            # DEB/RPM installations use this entry only to discover a new version.
-            "linux-x86_64": platform(appimage, appimage_sig),
             "darwin-x86_64": platform(intel_update, intel_sig),
             "windows-x86_64": platform(windows, windows_sig),
         },
     }
-    if any(not item["signature"] for item in manifest["platforms"].values()):
+    linux_manifests = {
+        "latest-deb.json": {"version": version, "notes": manifest["notes"], "platforms": {"linux-x86_64": platform(deb, deb_sig)}},
+        "latest-rpm.json": {"version": version, "notes": manifest["notes"], "platforms": {"linux-x86_64": platform(rpm, rpm_sig)}},
+    }
+    if any(not item["signature"] for feed in [manifest, *linux_manifests.values()] for item in feed["platforms"].values()):
         raise ValueError("an updater signature is empty")
     (output / "latest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+    for name, feed in linux_manifests.items():
+        (output / name).write_text(json.dumps(feed, indent=2) + "\n")
     checksums = []
     for name, path in sorted(published.items()):
         with path.open("rb") as stream:

@@ -65,7 +65,7 @@ Use Tauri `bundle.externalBin` for traceable packaging, with architecture-suffix
 
 | Target | Initial architecture | Required checks |
 | --- | --- | --- |
-| Linux | x86_64-unknown-linux-gnu | execute bit, glibc/shared-library baseline, AppImage/deb/rpm paths, process-group shutdown |
+| Linux | x86_64-unknown-linux-gnu | execute bit, glibc/shared-library baseline, deb/rpm paths, process-group shutdown |
 | Windows | x86_64-pc-windows-msvc | .exe and DLL dependencies, owner ACL, no console window, Job Object cleanup, antivirus quarantine/missing binary |
 | macOS | x86_64-apple-darwin | reviewed Intel core build, bundle resources, executable permission, eventual nested signing/notarization, child cleanup; Apple Silicon awaits a reviewable native runtime |
 
@@ -75,7 +75,7 @@ Bundle both wallet-rpc and ryod in the eventual full desktop package, start ryod
 
 Manifest per binary: upstream commit/tag, build recipe/toolchain, target, digest, license notices, expected version/protocol profile. Hash verification must anchor to reviewed signed release/build provenance, not a hash fetched beside an untrusted binary. Avoid executable replacement races by protected install locations and fail on modification. Running verified code as an unprivileged user does not sandbox that code from the user's wallet files.
 
-App updates use Tauri's signed updater artifacts and require the signed version to match the release feed. Installation is requested only after a fresh version check and signature-verified download; the wallet service locks before replacement. Linux AppImage, Windows NSIS and macOS app bundles can self-update; DEB/RPM remain package-manager-owned. Production hardening still needs signing-key rotation and recovery planning, platform installation tests and rollback rules compatible with wallet-file formats. Disable upstream daemon autonomous update checks in managed launch using verified `--check-updates disabled`; upstream defaults to notify. [src/cryptonote_core/cryptonote_core.cpp — `arg_check_updates`](https://github.com/ryo-currency/ryo-currency/blob/185dd1fa33ba88c88bb22df9069ad368c0f9a27e/src/cryptonote_core/cryptonote_core.cpp#L117).
+App updates use version-bound signed packages. Checking alone never installs an update; an explicit backup warning and user action precede a signature-verified download. The wallet service locks before replacement. Linux DEB/RPM installation delegates elevation to `pkexec` and the system package manager without collecting an administrator password in the wallet; Windows NSIS and macOS app bundles retain their click-to-install Tauri updater flow. Production hardening still needs signing-key rotation and recovery planning, platform installation tests and rollback rules compatible with wallet-file formats. Disable upstream daemon autonomous update checks in managed launch using verified `--check-updates disabled`; upstream defaults to notify. [src/cryptonote_core/cryptonote_core.cpp — `arg_check_updates`](https://github.com/ryo-currency/ryo-currency/blob/185dd1fa33ba88c88bb22df9069ad368c0f9a27e/src/cryptonote_core/cryptonote_core.cpp#L117).
 
 ## Diagnostics, supply chain and release gates
 

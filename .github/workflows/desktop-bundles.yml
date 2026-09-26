@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   linux:
-    name: Linux x64 (.deb, .rpm, .AppImage)
+    name: Linux x64 (.deb, .rpm)
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -32,38 +32,26 @@ jobs:
       - name: Install Tauri Linux build prerequisites
         run: |
           sudo apt-get update
-          sudo apt-get install -y libdbus-1-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libfuse2 patchelf rpm cpio
+          sudo apt-get install -y libdbus-1-dev libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm cpio
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build DEB, RPM and signed AppImage previews
+      - name: Build signed DEB and RPM previews
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          NO_STRIP: "1"
-        run: pnpm exec tauri build --ci --bundles deb,rpm,appimage
-      - name: Use the host display stack in AppImage and re-sign it
-        env:
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: bash scripts/repack-appimage.sh
+        run: pnpm exec tauri build --ci --bundles deb,rpm
       - name: Verify installed Linux package contents
         run: bash scripts/verify-linux-bundles.sh
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: preview-linux-x64-deb
-          path: target/release/bundle/deb/*.deb
+          path: target/release/bundle/deb/*.deb*
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: preview-linux-x64-rpm
-          path: target/release/bundle/rpm/*.rpm
-          if-no-files-found: error
-          retention-days: 30
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: preview-linux-x64-appimage
-          path: target/release/bundle/appimage/*.AppImage*
+          path: target/release/bundle/rpm/*.rpm*
           if-no-files-found: error
           retention-days: 30
 
