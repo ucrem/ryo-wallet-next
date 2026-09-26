@@ -1,22 +1,33 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+trap 'status=$?; echo "Linux package verification failed at line $LINENO: $BASH_COMMAND (exit $status)" >&2' ERR
 
 shopt -s nullglob
 version="$(python3 -c 'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])')"
 debs=(target/release/bundle/deb/*"$version"*.deb)
 rpms=(target/release/bundle/rpm/*"$version"*.rpm)
-test "${#debs[@]}" -eq 1
-test "${#rpms[@]}" -eq 1
-test -s "${debs[0]}.sig"
-test -s "${rpms[0]}.sig"
+if (( ${#debs[@]} != 1 || ${#rpms[@]} != 1 )); then
+  echo "Expected one DEB and one RPM for $version; found ${#debs[@]} DEB and ${#rpms[@]} RPM" >&2
+  exit 1
+fi
+for package in "${debs[0]}" "${rpms[0]}"; do
+  if [[ ! -s "$package.sig" ]]; then
+    echo "Missing or empty updater signature: $package.sig" >&2
+    exit 1
+  fi
+done
+
+deb_path="$(realpath "${debs[0]}")"
+rpm_path="$(realpath "${rpms[0]}")"
 
 inspection="$(mktemp -d)"
 trap 'rm -rf "$inspection"' EXIT
 mkdir -p "$inspection/deb" "$inspection/rpm"
 if command -v dpkg-deb >/dev/null; then
-  dpkg-deb -x "${debs[0]}" "$inspection/deb"
+  echo "Extracting DEB: $deb_path"
+  dpkg-deb -x "$deb_path" "$inspection/deb"
 else
-  deb_path="$(realpath "${debs[0]}")"
+  echo "Extracting DEB with ar: $deb_path"
   (
     cd "$inspection/deb"
     ar x "$deb_path"
@@ -25,7 +36,8 @@ else
 fi
 (
   cd "$inspection/rpm"
-  rpm2cpio "$OLDPWD/${rpms[0]}" | cpio -idm --quiet
+  echo "Extracting RPM: $rpm_path"
+  rpm2cpio "$rpm_path" | cpio -idm --quiet
 )
 
 target=x86_64-unknown-linux-gnu
