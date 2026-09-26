@@ -58,49 +58,157 @@ jobs:
   macos:
     name: macOS Intel (.dmg)
     runs-on: macos-15-intel
+
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 12.6.0
+
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: .node-version
           cache: pnpm
+
       - name: Install pinned Rust toolchain
         run: |
           rustup toolchain install 1.98.1 --profile minimal
           rustup default 1.98.1
+
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
-      - name: Build unsigned macOS app and DMG preview
+
+      - name: Build unsigned macOS app, DMG and updater archive
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: pnpm exec tauri build --ci --bundles app,dmg --no-sign
+        run: |
+          set -euo pipefail
+          pnpm exec tauri build --ci --bundles app,dmg --no-sign
+
       - name: Verify macOS app runtime and DMG integrity
         run: |
           set -euo pipefail
+
           sidecar='Ryo Wallet Next.app/Contents/MacOS/ryo-wallet-rpc'
-          python3 scripts/verify-packaged-runtime.py --target x86_64-apple-darwin --path "target/release/bundle/macos/$sidecar"
-          otool -L "target/release/bundle/macos/$sidecar"
-          shopt -s nullglob
-          dmgs=(target/release/bundle/dmg/*.dmg)
-          if (( ${#dmgs[@]} != 1 )); then
-            echo "Expected one macOS DMG, found ${#dmgs[@]}" >&2
+          sidecar_path="target/release/bundle/macos/$sidecar"
+
+          if [[ ! -f "$sidecar_path" ]]; then
+            echo "macOS wallet RPC sidecar is missing: $sidecar_path" >&2
             exit 1
           fi
+
+          python3 scripts/verify-packaged-runtime.py \
+            --target x86_64-apple-darwin \
+            --path "$sidecar_path"
+
+          otool -L "$sidecar_path"
+
+          shopt -s nullglob
+          dmgs=(target/release/bundle/dmg/*.dmg)
+
+          if (( ${#dmgs[@]} != 1 )); then
+            echo "Expected exactly one macOS DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
+
           hdiutil verify "${dmgs[0]}"
+
+      - name: Sign macOS updater artifact
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+
+          updaters=(target/release/bundle/macos/*.app.tar.gz)
+
+          if (( ${#updaters[@]} != 1 )); then
+            echo "Expected exactly one macOS updater archive, found ${#updaters[@]}" >&2
+            exit 1
+          fi
+
+          updater="${updaters[0]}"
+
+          version="$(
+            python3 -c \
+              'import json; print(json.load(open("src-tauri/tauri.conf.json"))["version"])'
+          )"
+
+          if [[ -z "$version" ]]; then
+            echo "Could not resolve application version" >&2
+            exit 1
+          fi
+
+          rm -f "$updater.sig"
+
+          pnpm exec tauri signer sign \
+            --app-version "$version" \
+            "$updater"
+
+          signature="$updater.sig"
+
+          if [[ ! -s "$signature" ]]; then
+            echo "macOS updater signature was not generated: $signature" >&2
+            exit 1
+          fi
+
+          # requireSignedVersion=true: verify that the generated signature
+          # actually contains the expected version binding.
+          python3 - "$signature" "$version" <<'PY'
+          import base64
+          import sys
+
+          signature_path = sys.argv[1]
+          expected_version = sys.argv[2]
+
+          encoded = open(signature_path, "rb").read().strip()
+
+          try:
+              decoded = base64.b64decode(encoded, validate=True).decode("utf-8")
+          except Exception as error:
+              raise SystemExit(
+                  f"Could not decode updater signature {signature_path}: {error}"
+              )
+
+          marker = f"\tversion:{expected_version}"
+
+          if marker not in decoded:
+              raise SystemExit(
+                  f"Updater signature is not bound to version {expected_version}"
+              )
+
+          print(
+              f"Verified updater signature version binding: {expected_version}"
+          )
+          PY
+
+          updater_files=(target/release/bundle/macos/*.app.tar.gz*)
+
+          if (( ${#updater_files[@]} != 2 )); then
+            echo "Expected updater archive + signature, found ${#updater_files[@]} files" >&2
+            printf '%s\n' "${updater_files[@]}" >&2
+            exit 1
+          fi
+
+          echo "macOS updater archive: $updater"
+          echo "macOS updater signature: $signature"
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-macos-intel-dmg
           path: target/release/bundle/dmg/*.dmg
           if-no-files-found: error
           retention-days: 30
+
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-macos-intel-updater
-          path: target/release/bundle/macos/*.app.tar.gz*
+          path: |
+            target/release/bundle/macos/*.app.tar.gz
+            target/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
           retention-days: 30
 
