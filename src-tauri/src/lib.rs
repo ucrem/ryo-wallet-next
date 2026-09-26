@@ -10,9 +10,6 @@ use ryo_wallet_service::application::{
     LifecycleStatus, WalletOverview, WalletService, WalletServiceError,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
-use ryo_wallet_service::process::VerifiedBinary;
-#[cfg(all(debug_assertions, target_os = "linux"))]
-use ryo_wallet_service::process::{BinaryDigest, BinaryKind};
 use ryo_wallet_service::rpc::{DaemonRpcClient, ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
@@ -23,33 +20,11 @@ use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
 mod app_updates;
+mod wallet_runtime;
 
 const DATA_ROOT_SELECTION_FILE: &str = "wallet-data-root.json";
 const WALLET_SYNC_EVENT: &str = "wallet-sync-status";
 const WALLET_SYNC_INTERVAL: Duration = Duration::from_secs(2);
-#[cfg(all(debug_assertions, target_os = "linux"))]
-const REVIEWED_LINUX_WALLET_RPC_SHA256: &str =
-    "5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3";
-
-/// This development-only adapter accepts exactly the Linux 0.6.1.0 binary
-/// exercised by the real RPC tests. Public packages need platform manifests.
-#[cfg(all(debug_assertions, target_os = "linux"))]
-fn reviewed_wallet_rpc() -> Option<VerifiedBinary> {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join(".dev-runtime")
-        .join("ryo-wallet-rpc");
-    VerifiedBinary::verify(
-        BinaryKind::WalletRpc,
-        &path,
-        BinaryDigest::parse_hex(REVIEWED_LINUX_WALLET_RPC_SHA256).ok()?,
-    )
-    .ok()
-}
-
-#[cfg(not(all(debug_assertions, target_os = "linux")))]
-fn reviewed_wallet_rpc() -> Option<VerifiedBinary> {
-    None
-}
 
 struct CreatedWalletResponse {
     wallet_id: String,
@@ -354,7 +329,7 @@ fn start_wallet_sync_monitor_for_current_node(
 
 #[tauri::command]
 fn wallet_runtime_ready() -> bool {
-    reviewed_wallet_rpc().is_some()
+    wallet_runtime::reviewed_wallet_rpc().is_some()
 }
 
 fn wallet_file_pair_exists(paths: &AppPaths, id: &WalletId) -> bool {
@@ -425,9 +400,8 @@ async fn ready_wallet_service(
     state: &DataRootState,
 ) -> Result<(), &'static str> {
     let paths = selected_paths(state)?;
-    let binary = reviewed_wallet_rpc().ok_or(
-        "verified Linux wallet runtime is unavailable; restart pnpm tauri dev to prepare it",
-    )?;
+    let binary =
+        wallet_runtime::reviewed_wallet_rpc().ok_or(wallet_runtime::MISSING_RUNTIME_MESSAGE)?;
     let node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?

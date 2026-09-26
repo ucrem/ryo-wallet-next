@@ -37,11 +37,13 @@ export function useAppUpdates(isNative: boolean): AppUpdates {
     setChecking(true)
     setError(null)
     if (manual) setResult(null)
+    const started = Date.now()
     try {
       setResult(await invoke<UpdateCheck>("app_update_check"))
     } catch {
-      if (manual) setError("Could not check for updates. Try again later.")
+      setError("Could not check for updates. Check your connection and try again.")
     } finally {
+      if (manual) await new Promise((resolve) => setTimeout(resolve, Math.max(0, 450 - (Date.now() - started))))
       checkingRef.current = false
       setChecked(true)
       setChecking(false)

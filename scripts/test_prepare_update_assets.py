@@ -21,7 +21,7 @@ class UpdateAssetTests(unittest.TestCase):
     def test_manifest_points_at_exact_published_files(self):
         output = self.root / "release"
         manifest = prepare(self.source, output, "0.1.0-alpha.4")
-        self.assertEqual(len(list(output.iterdir())), 14)
+        self.assertEqual(len(list(output.iterdir())), 11)
         self.assertEqual(manifest["version"], "0.1.0-alpha.4")
         for platform in manifest["platforms"].values():
             self.assertEqual(platform["signature"], "test-signature")
@@ -29,7 +29,7 @@ class UpdateAssetTests(unittest.TestCase):
             self.assertTrue((output / platform["url"].rsplit("/", 1)[1]).exists())
         self.assertEqual(
             set(manifest["platforms"]),
-            {"linux-x86_64", "darwin-x86_64", "darwin-aarch64", "windows-x86_64"},
+            {"linux-x86_64", "darwin-x86_64", "windows-x86_64"},
         )
 
     def test_missing_signature_rejects_the_staging_build(self):

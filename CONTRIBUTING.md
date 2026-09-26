@@ -10,7 +10,7 @@ Both branches are protected on GitHub: PRs and passing checks are required,
 including the staging-installer reuse check for `main`.
 
 After review, merge the change into `staging`. The staging push builds Linux
-DEB/RPM/AppImage, macOS Intel/Apple Silicon DMGs, and a Windows NSIS setup EXE, with signed updater files. Download
+DEB/RPM/AppImage, a macOS Intel DMG, and a Windows NSIS setup EXE, with signed updater files. Apple Silicon packaging is paused until a reviewed native Ryo wallet RPC exists. Download
 and verify those artifacts before opening a pull request from `staging` to
 `main`. That PR runs one promotion check: it verifies that the proposed merge
 has exactly the same files as the **staging commit** and that its successful

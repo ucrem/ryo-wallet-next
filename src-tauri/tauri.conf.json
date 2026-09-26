@@ -6,7 +6,7 @@
   "build": {
     "beforeDevCommand": "node scripts/prepare-dev-runtime.mjs && pnpm dev",
     "devUrl": "http://127.0.0.1:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "node scripts/prepare-package-runtime.mjs && pnpm build",
     "frontendDist": "../dist"
   },
   "app": {
@@ -23,7 +23,8 @@
     "publisher": "ucrem",
     "homepage": "https://github.com/ucrem/ryo-wallet-next",
     "shortDescription": "Independent Ryo desktop wallet prototype",
-    "longDescription": "Development preview of an independent Ryo desktop wallet. Wallet operations are not yet available.",
+    "longDescription": "Development preview of an independent Ryo desktop wallet with a verified bundled wallet RPC runtime.",
+    "externalBin": ["binaries/ryo-wallet-rpc"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

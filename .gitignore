@@ -3,6 +3,7 @@
 /target/
 /src-tauri/target/
 /src-tauri/.dev-runtime/
+/src-tauri/binaries/
 /src-tauri/gen/schemas/
 .env
 .env.*

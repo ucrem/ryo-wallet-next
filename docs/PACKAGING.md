@@ -1,17 +1,28 @@
 # Desktop packaging
 
-The current bundles are **development previews**, not production wallets. The
-Linux development build can create and reopen wallets, but public installers do
-not bundle the verified `ryo-wallet-rpc` runtime or `ryod`; their wallet actions
-are therefore unavailable. Recovery from a phrase and transactions are not
-available in the UI. Do not use these artifacts with funds.
+The bundles are **development previews**, not production wallets. The already
+published alpha.4 installers omitted `ryo-wallet-rpc` and cannot use wallet
+flows. Builds from this source stage the reviewed upstream 0.6.1.0 wallet RPC
+binary inside each supported package. They can use the existing create, backup,
+open, lock, balance, receive-address and remote-node flows; `ryod` is not bundled,
+so local-node operation is still unavailable. Recovery from a phrase and
+transactions are not available in the UI. Do not use these artifacts with funds.
 
 | Platform | CI runner | Preview bundle |
 | --- | --- | --- |
 | Linux x64 | Ubuntu 22.04 | `.deb`, `.rpm` and `.AppImage` |
 | macOS Intel | macOS 15 Intel | `.dmg` |
-| macOS Apple Silicon | macOS 15 arm64 | `.dmg` |
 | Windows x64 | Windows 2025 | NSIS `-setup.exe` |
+
+Apple Silicon packaging is paused: the official Ryo 0.6.1.0 release has no
+native arm64 macOS wallet RPC binary. An Intel executable under Rosetta is not
+treated as a verified native runtime. The reviewed archive and executable hashes
+for supported targets live in [one runtime manifest](../src-tauri/runtime-manifest.json).
+`prepare-package-runtime.mjs` verifies the official archive and executable on
+each build, then stages only the wallet RPC sidecar for Tauri `externalBin`.
+Rust resolves that sidecar next to the installed application executable and
+verifies its SHA-256 again before `WalletService` may launch it. `pnpm tauri dev`
+keeps a separate `.dev-runtime` preparation path.
 
 The [desktop installer workflow](../.github/workflows/desktop-bundles.yml)
 builds each target on its native operating system **only after a change is
@@ -26,9 +37,19 @@ artifacts. If the staging commit changes, another staging build and review are
 required.
 See the [development branch flow](../CONTRIBUTING.md).
 
-macOS previews use an ad-hoc platform signature; Windows and Linux previews
-lack platform code signing. The separate Tauri updater signature authenticates
+These previews lack platform code signing. macOS ad-hoc signing modifies the
+upstream Mach-O executable, so packaging currently uses `--no-sign` to retain
+the reviewed digest. The separate Tauri updater signature authenticates
 update downloads, but does not replace platform signing or installation tests.
+Production macOS signing needs a reviewed post-signing digest strategy.
+
+The AppImage pipeline removes ten Ubuntu-era Wayland/X11 protocol libraries
+from the generated AppDir, restores the exact reviewed wallet RPC after
+linuxdeploy patches its ELF RUNPATH, repacks with the AppImage output plugin,
+and signs the final image. GTK/WebKitGTK and the Ubuntu 22.04 glibc baseline
+remain. DEB, RPM and the final AppImage are extracted in CI and their sidecars
+are checked for regular-file status, executable mode, SHA-256 and unresolved
+Linux libraries. macOS and Windows workflows inspect their native bundles.
 
 Installed builds check the public `update-channel/latest.json` feed at startup,
 and About has a manual check button. The updater verifies a signature bound to
@@ -47,9 +68,10 @@ run `pnpm install --frozen-lockfile`. These release builds require
 `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`; CI reads
 them from repository secrets. Build on the target operating system:
 
-- Linux: `pnpm exec tauri build --ci --bundles deb,rpm,appimage`
-- macOS: `APPLE_SIGNING_IDENTITY=- pnpm exec tauri build --ci --bundles dmg`
-- Windows: `pnpm exec tauri build --ci --bundles nsis --no-sign`
+- Linux: `pnpm exec tauri build --ci --bundles deb,rpm,appimage`, then
+  `bash scripts/repack-appimage.sh` and `bash scripts/verify-linux-bundles.sh`
+- macOS Intel: `pnpm exec tauri build --ci --bundles app,dmg --no-sign`
+- Windows: `pnpm exec tauri build --ci --bundles nsis`
 
 Bundles are written under `target/release/bundle/` because this project uses
 a Cargo workspace. The committed `.icns`, `.ico`, and PNG sizes are generated
@@ -58,7 +80,7 @@ all of them. Tauri uses the Ryo icon for the Linux package launchers, the macOS
 app inside each DMG, and the Windows app executable. The NSIS setup and
 uninstaller executables explicitly use the same `.ico` file.
 
-Before a user-facing release, each platform still needs verified Ryo runtime
-binaries, dependency and license notices, signing (and Apple notarization),
-installation tests, and wallet-flow tests on clean systems. See the
+Before a user-facing release, each platform still needs dependency and license
+notices, platform signing (and Apple notarization), installation tests, and
+wallet-flow tests on clean systems. See the
 [MVP criteria](MVP.md) and [implementation status](IMPLEMENTATION_STATUS.md).

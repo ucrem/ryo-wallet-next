@@ -16,8 +16,6 @@ GROUPS = {
     "preview-linux-x64-appimage": (".AppImage", ".AppImage.sig"),
     "preview-macos-intel-dmg": (".dmg",),
     "preview-macos-intel-updater": (".app.tar.gz", ".app.tar.gz.sig"),
-    "preview-macos-apple-silicon-dmg": (".dmg",),
-    "preview-macos-apple-silicon-updater": (".app.tar.gz", ".app.tar.gz.sig"),
     "preview-windows-x64-exe": ("-setup.exe", "-setup.exe.sig"),
 }
 
@@ -74,11 +72,6 @@ def prepare(source: Path, output: Path, version: str) -> dict:
     intel_update = f"ryo-wallet-next_{version}_darwin_x86_64.app.tar.gz"
     copy("preview-macos-intel-updater", ".app.tar.gz", intel_update)
     intel_sig = copy("preview-macos-intel-updater", ".app.tar.gz.sig", intel_update + ".sig")
-    arm_dmg = f"ryo-wallet-next_{version}_darwin_aarch64.dmg"
-    copy("preview-macos-apple-silicon-dmg", ".dmg", arm_dmg)
-    arm_update = f"ryo-wallet-next_{version}_darwin_aarch64.app.tar.gz"
-    copy("preview-macos-apple-silicon-updater", ".app.tar.gz", arm_update)
-    arm_sig = copy("preview-macos-apple-silicon-updater", ".app.tar.gz.sig", arm_update + ".sig")
     windows = f"ryo-wallet-next_{version}_windows_x86_64-setup.exe"
     copy("preview-windows-x64-exe", "-setup.exe", windows)
     windows_sig = copy("preview-windows-x64-exe", "-setup.exe.sig", windows + ".sig")
@@ -96,7 +89,6 @@ def prepare(source: Path, output: Path, version: str) -> dict:
             # DEB/RPM installations use this entry only to discover a new version.
             "linux-x86_64": platform(appimage, appimage_sig),
             "darwin-x86_64": platform(intel_update, intel_sig),
-            "darwin-aarch64": platform(arm_update, arm_sig),
             "windows-x86_64": platform(windows, windows_sig),
         },
     }

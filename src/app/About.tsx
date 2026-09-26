@@ -88,10 +88,17 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
               ? "Unavailable in development"
               : "Check for updates"}
         </Button>
-        {updates.result?.state === "development" ? (
+        {updates.checking ? (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-sky-500/40 bg-sky-400/10 p-4 text-sm text-sky-100" role="status" aria-live="polite">
+            <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" aria-hidden="true" />
+            Checking for updates…
+          </div>
+        ) : updates.result?.state === "development" ? (
           <p className="mt-3 text-sm text-slate-400" role="status">Update checks and installation are available in installed builds.</p>
         ) : updates.result?.state === "current" ? (
-          <p className="mt-3 text-sm text-slate-300" role="status">You have the latest published version.</p>
+          <p className="mt-3 rounded-lg border border-slate-600 bg-slate-800/50 p-4 text-sm text-slate-200" role="status" aria-live="polite">
+            Ryo Wallet Next is already up to date{appVersion.label ? ` (${appVersion.label})` : ""}.
+          </p>
         ) : availableUpdate ? (
           <div className="mt-4 rounded-lg border border-sky-500/40 bg-sky-400/10 p-4" role="status">
             <p className="font-medium text-sky-100">Version v{availableUpdate.version} is available</p>

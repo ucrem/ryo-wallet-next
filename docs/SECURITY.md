@@ -67,7 +67,7 @@ Use Tauri `bundle.externalBin` for traceable packaging, with architecture-suffix
 | --- | --- | --- |
 | Linux | x86_64-unknown-linux-gnu | execute bit, glibc/shared-library baseline, AppImage/deb/rpm paths, process-group shutdown |
 | Windows | x86_64-pc-windows-msvc | .exe and DLL dependencies, owner ACL, no console window, Job Object cleanup, antivirus quarantine/missing binary |
-| macOS | aarch64-apple-darwin and x86_64-apple-darwin | both core builds verified separately, bundle resources, executable permission, eventual nested signing/notarization, child cleanup |
+| macOS | x86_64-apple-darwin | reviewed Intel core build, bundle resources, executable permission, eventual nested signing/notarization, child cleanup; Apple Silicon awaits a reviewable native runtime |
 
 Target triples describe package targets; they do not prove upstream Ryo binaries currently exist for each. Separate macOS architecture packages are simpler initially than assuming a universal sidecar. Linux/Windows ARM64 and mobile are post-MVP pending upstream support.
 
