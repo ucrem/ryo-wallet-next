@@ -49,7 +49,9 @@ jobs:
           pnpm test
           pnpm build
       - name: Validate update manifest preparation
-        run: python3 -m unittest discover -s scripts -p 'test_prepare_update_assets.py'
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_prepare_update_assets.py'
+          node --test scripts/test_prepare_wallet_runtime.mjs
 
   tauri-linux-check:
     runs-on: ubuntu-24.04
@@ -74,5 +76,6 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           pnpm build
+          node scripts/prepare-dev-runtime.mjs
       - name: Check Tauri host
         run: cargo check -p ryo-wallet-next --locked

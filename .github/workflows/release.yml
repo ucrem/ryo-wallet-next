@@ -225,6 +225,10 @@ jobs:
           This development preview does not yet provide complete production wallet
           functionality. Do not use it with funds.
 
+          Linux AppImage is discontinued. If you use the alpha.4 AppImage, back up
+          your wallet files and recovery phrase, then install the matching DEB or
+          RPM manually. That older AppImage cannot switch package formats in-app.
+
           SHA-256 checksums are included in \`SHA256SUMS.txt\`.
           EOF
 
@@ -255,7 +259,7 @@ jobs:
             release-assets/* \
             "${args[@]}"
 
-      - name: Publish the update feed after the release succeeds
+      - name: Publish the update feeds after the release succeeds
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -268,11 +272,13 @@ jobs:
               -f ref=refs/heads/update-channel -f sha="$TARGET_SHA" >/dev/null
           fi
 
-          old_sha="$(gh api "repos/$GH_REPO/contents/latest.json?ref=update-channel" --jq .sha 2>/dev/null || true)"
-          base64 -w0 release-assets/latest.json > update-feed.b64
-          args=(--method PUT -f "message=Publish signed update feed for v$VERSION" \
-            -f branch=update-channel -F content=@update-feed.b64)
-          if [ -n "$old_sha" ]; then
-            args+=(-f "sha=$old_sha")
-          fi
-          gh api "repos/$GH_REPO/contents/latest.json" "${args[@]}" >/dev/null
+          for feed in latest-deb.json latest-rpm.json latest.json; do
+            old_sha="$(gh api "repos/$GH_REPO/contents/$feed?ref=update-channel" --jq .sha 2>/dev/null || true)"
+            base64 -w0 "release-assets/$feed" > update-feed.b64
+            args=(--method PUT -f "message=Publish signed update feed $feed for v$VERSION" \
+              -f branch=update-channel -F content=@update-feed.b64)
+            if [ -n "$old_sha" ]; then
+              args+=(-f "sha=$old_sha")
+            fi
+            gh api "repos/$GH_REPO/contents/$feed" "${args[@]}" >/dev/null
+          done

@@ -5,7 +5,7 @@ import { listen } from "@tauri-apps/api/event"
 export type UpdateCheck =
   | { state: "development" }
   | { state: "current" }
-  | { state: "available"; version: string; notes: string | null; automatic_install: boolean }
+  | { state: "available"; version: string; notes: string | null; install_in_app: boolean }
 
 type UpdateProgress = { downloaded: number; total: number | null }
 
@@ -37,11 +37,13 @@ export function useAppUpdates(isNative: boolean): AppUpdates {
     setChecking(true)
     setError(null)
     if (manual) setResult(null)
+    const started = Date.now()
     try {
       setResult(await invoke<UpdateCheck>("app_update_check"))
     } catch {
-      if (manual) setError("Could not check for updates. Try again later.")
+      setError("Could not check for updates. Check your connection and try again.")
     } finally {
+      if (manual) await new Promise((resolve) => setTimeout(resolve, Math.max(0, 450 - (Date.now() - started))))
       checkingRef.current = false
       setChecked(true)
       setChecking(false)
@@ -56,7 +58,7 @@ export function useAppUpdates(isNative: boolean): AppUpdates {
 
   const install = useCallback(async (version: string) => {
     if (!isNative || installingRef.current || result?.state !== "available" ||
-      !result.automatic_install || result.version !== version) return
+      !result.install_in_app || result.version !== version) return
     installingRef.current = true
     setInstalling(true)
     setProgress(null)
@@ -67,8 +69,8 @@ export function useAppUpdates(isNative: boolean): AppUpdates {
         setProgress(event.payload)
       })
       await invoke("app_update_install", { expectedVersion: version })
-    } catch {
-      setError("The update could not be installed. Your current app is still available; check again before retrying.")
+    } catch (reason) {
+      setError(typeof reason === "string" ? reason : "The update could not be installed. Your current app is still available; check again before retrying.")
     } finally {
       unlisten?.()
       installingRef.current = false
