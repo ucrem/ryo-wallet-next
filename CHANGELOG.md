@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.0-alpha.6] - 2026-09-26
+
+### Added
+
+- Read-only wallet transaction history with incoming, outgoing, pending, pool, and failed transaction states.
+- Transaction detail view with locally formatted amount, status, timestamp, height, fee where available, and copyable transaction ID.
+
+### Changed
+
+- The application top bar now shows the current page title.
+- Removed duplicated page headings and setup labels to provide more usable vertical space.
+- Wallet transaction activity now refreshes from the authenticated bundled Ryo wallet RPC while the wallet is open.
+
+### Known limitations
+
+- Transaction creation, signing, and submission are not implemented.
+- Restore-from-recovery-phrase UI is not yet complete.
+- macOS Apple Silicon packaging remains unavailable until a reviewed native ARM64 Ryo wallet RPC runtime is available.
+- The Activity view currently exposes only the most recent bounded transaction snapshot when history exceeds the alpha.6 display limit.
+- Pool transactions cannot be refreshed while the configured daemon is unavailable; other history remains visible with a warning.
+- Preview builds are not intended for use with funds.
+
 ## [0.1.0-alpha.5] - 2026-09-26
 
 ### Added

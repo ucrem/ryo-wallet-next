@@ -69,6 +69,10 @@ async fn verified_release_starts_with_generated_login_and_digest_readiness() {
     assert!(!phrase.is_empty());
     let primary_address = session.client().primary_address().await.unwrap();
     assert!(!primary_address.is_empty());
+    let activity = session.client().activity().await.unwrap();
+    assert!(activity.transactions.is_empty());
+    assert!(!activity.truncated);
+    assert!(activity.pool_unavailable);
     session.client().close_wallet().await.unwrap();
     session.stop(Duration::from_secs(5)).await.unwrap();
 

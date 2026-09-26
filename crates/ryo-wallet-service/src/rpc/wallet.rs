@@ -1,9 +1,11 @@
 use std::net::SocketAddrV4;
+use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use zeroize::Zeroizing;
 
+use super::activity::{ActivitySnapshot, RawTransfers};
 use super::transport::{JsonRpcTransport, RpcCredentials, RpcError};
 use crate::domain::AtomicAmount;
 use crate::storage::WalletId;
@@ -225,6 +227,52 @@ impl WalletRpcClient {
             unlocked: AtomicAmount::from_atomic(raw.unlocked_balance),
             multisig_import_needed: raw.multisig_import_needed,
         })
+    }
+
+    /// Retrieves account-zero history from the authenticated, owned wallet RPC.
+    /// Ryo provides no cursor for this method; normalization bounds the IPC result.
+    pub async fn activity(&self) -> Result<ActivitySnapshot, RpcError> {
+        let mut raw: RawTransfers = self
+            .transport
+            .call(
+                "get_transfers",
+                &json!({
+                    "in": true,
+                    "out": true,
+                    "pending": true,
+                    "failed": true,
+                    "pool": false,
+                    "filter_by_height": false,
+                    "min_height": 0,
+                    "account_index": 0,
+                    "subaddr_indices": [],
+                }),
+            )
+            .await?;
+        // Ryo's pool branch refreshes the daemon. Keep confirmed and outgoing
+        // history usable when a configured node is offline or too slow.
+        let pool_request = json!({
+            "in": false, "out": false, "pending": false, "failed": false, "pool": true,
+            "filter_by_height": false, "min_height": 0,
+            "account_index": 0, "subaddr_indices": [],
+        });
+        let pool = tokio::time::timeout(
+            Duration::from_secs(3),
+            self.transport
+                .call::<_, RawTransfers>("get_transfers", &pool_request),
+        )
+        .await;
+        let pool_unavailable = match pool {
+            Ok(Ok(pool)) => {
+                raw.merge_pool(pool)?;
+                false
+            }
+            Ok(Err(RpcError::InvalidResponse)) => return Err(RpcError::InvalidResponse),
+            _ => true,
+        };
+        let mut snapshot = raw.normalize()?;
+        snapshot.pool_unavailable = pool_unavailable;
+        Ok(snapshot)
     }
 
     pub async fn primary_address(&self) -> Result<String, RpcError> {

@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { NodeConfig } from "@/api/generated/NodeConfig"
 import { getNodeConfiguration } from "@/api/node"
@@ -9,6 +9,7 @@ import { getActiveWallet } from "@/api/wallet"
 import { NodeSetup } from "@/app/NodeSetup"
 import { WalletWorkspace } from "@/app/WalletWorkspace"
 import { About } from "@/app/About"
+import { Activity } from "@/app/Activity"
 import ryoMark from "@/assets/ryo-mark.svg"
 import { Button } from "@/components/ui/button"
 import { useAppVersion } from "@/lib/useAppVersion"
@@ -16,7 +17,16 @@ import { useAppUpdates } from "@/lib/useAppUpdates"
 import { WalletStatusBar } from "@/app/WalletStatusBar"
 
 type WalletAction = "create" | "restore" | "open"
-type Screen = "home" | "storage" | "node" | "summary" | "wallet" | "about"
+const pages = {
+  home: { title: "Start", number: "◆" },
+  storage: { title: "Data location", number: "01" },
+  node: { title: "Node", number: "02" },
+  summary: { title: "Summary", number: "03" },
+  wallet: { title: "Wallet", number: "04" },
+  activity: { title: "Activity", number: "05" },
+  about: { title: "About", number: "ⓘ" },
+} as const
+export type Screen = keyof typeof pages
 
 const actionDetails: Record<WalletAction, { title: string; description: string }> = {
   create: { title: "Create a new wallet", description: "Set up a new private Ryo wallet." },
@@ -24,13 +34,7 @@ const actionDetails: Record<WalletAction, { title: string; description: string }
   open: { title: "Open an existing wallet", description: "Import an existing wallet into private app storage." },
 }
 
-const navigation: { screen: Screen; label: string; number: string }[] = [
-  { screen: "home", label: "Start", number: "◆" },
-  { screen: "storage", label: "Data location", number: "01" },
-  { screen: "node", label: "Node", number: "02" },
-  { screen: "summary", label: "Summary", number: "03" },
-  { screen: "wallet", label: "Wallet", number: "04" },
-]
+const navigation: Screen[] = ["home", "storage", "node", "summary", "wallet", "activity"]
 
 export function App() {
   const inDesktop = "__TAURI_INTERNALS__" in window
@@ -38,18 +42,22 @@ export function App() {
   const updates = useAppUpdates(inDesktop)
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>("home")
+  const [activitySession, setActivitySession] = useState<string | null>(null)
   const [walletAction, setWalletAction] = useState<WalletAction | null>(null)
   const status = useQuery({
     queryKey: ["foundation-status"],
     queryFn: getFoundationStatus,
     enabled: inDesktop,
+    refetchInterval: screen === "activity" ? 1_000 : false,
+    refetchIntervalInBackground: false,
   })
   const activeWallet = useQuery({
     queryKey: ["active-wallet", status.data?.session_generation],
     queryFn: getActiveWallet,
     enabled: inDesktop && status.data?.state === "open",
   })
-  const visibleScreen = screen
+  const activityAvailable = status.isSuccess && activeWallet.isSuccess && status.data.state === "open" && activeWallet.data?.backup_complete === true
+  const visibleScreen = resolveVisibleScreen(screen, activityAvailable, activitySession, status.data?.session_generation)
   const overview = useQuery({
     queryKey: ["wallet-overview", status.data?.session_generation],
     queryFn: getWalletOverview,
@@ -74,6 +82,12 @@ export function App() {
     },
   })
 
+  useEffect(() => {
+    if (activityAvailable) return
+    void queryClient.cancelQueries({ queryKey: ["wallet-activity"] })
+    queryClient.removeQueries({ queryKey: ["wallet-activity"] })
+  }, [activityAvailable, queryClient])
+
   function start(action: WalletAction) {
     setWalletAction(action)
     setScreen("storage")
@@ -87,6 +101,7 @@ export function App() {
       case "node": return walletOpen || (walletAction !== null && root !== null && !dataRoot.isFetching)
       case "summary": return walletOpen || (walletAction !== null && root !== null && !!node.data && !node.isFetching)
       case "wallet": return walletOpen || (((walletAction === "create" || walletAction === "open") || !!activeWallet.data) && root !== null && !!node.data)
+      case "activity": return activityAvailable
       case "about": return true
     }
   }
@@ -103,18 +118,21 @@ export function App() {
         </div>
         <nav aria-label="Main navigation" className="mt-7 grid gap-1">
           <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Navigation</p>
-          {navigation.map((item) => (
+          {navigation.map((destination) => (
             <button
-              key={item.screen}
+              key={destination}
               type="button"
-              onClick={() => setScreen(item.screen)}
-              disabled={!canVisit(item.screen)}
-              aria-current={visibleScreen === item.screen ? "page" : undefined}
+              onClick={() => {
+                if (destination === "activity") setActivitySession(status.data?.session_generation ?? null)
+                setScreen(destination)
+              }}
+              disabled={!canVisit(destination)}
+              aria-current={visibleScreen === destination ? "page" : undefined}
               className={"flex h-11 items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sky-400 disabled:cursor-not-allowed disabled:opacity-40 " +
-                (visibleScreen === item.screen ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}
+                (visibleScreen === destination ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}
             >
-              <span className="w-6 shrink-0 text-center font-mono text-xs text-slate-400">{item.number}</span>
-              {item.label}
+              <span className="w-6 shrink-0 text-center font-mono text-xs text-slate-400">{pages[destination].number}</span>
+              {pages[destination].title}
             </button>
           ))}
         </nav>
@@ -124,8 +142,8 @@ export function App() {
             aria-current={visibleScreen === "about" ? "page" : undefined}
             className={"flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sky-400 " +
               (visibleScreen === "about" ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}>
-            <span aria-hidden="true" className="w-6 shrink-0 text-center text-base text-slate-400">ⓘ</span>
-            About
+            <span aria-hidden="true" className="w-6 shrink-0 text-center text-base text-slate-400">{pages.about.number}</span>
+            {pages.about.title}
           </button>
           {updates.result?.state === "available" ? (
             <button type="button" onClick={() => setScreen("about")}
@@ -156,18 +174,13 @@ export function App() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-8">
-          <span className="text-sm font-medium text-slate-400">Ryo Wallet Next</span>
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Mainnet · Preview</span>
-        </header>
-        <main className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
+        <PageHeader screen={visibleScreen} />
+        <main aria-labelledby="page-title" className="min-h-0 flex-1 overflow-y-auto px-8 py-6">
           <div className="mx-auto flex min-h-full max-w-3xl flex-col">
             {visibleScreen === "about" ? <About appVersion={appVersion} updates={updates} /> : null}
             {visibleScreen === "home" ? (
               <>
-                <PageHeading eyebrow="GET STARTED" title="How would you like to use Ryo?"
-                  description="Choose a wallet action. Storage and node settings follow in separate steps." />
-                <div className="mt-7 grid gap-3">
+                <div className="grid gap-3">
                   {(["create", "restore", "open"] as const).map((action) => (
                     <button
                       key={action}
@@ -191,9 +204,7 @@ export function App() {
 
             {visibleScreen === "storage" ? (
               <>
-                <PageHeading eyebrow="SETUP · 1 OF 2" title="Choose a data location"
-                  description={"For " + actionDetails[walletAction ?? "open"].title.toLowerCase() + ", choose where the app will keep its private wallet copy and runtime files."} />
-                <section className="mt-7 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Data location">
+                <section className="rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Data location">
                   <p className="text-sm font-medium">Wallet data folder</p>
                   <p className="mt-1 text-sm text-slate-400">Select a writable folder on this computer.</p>
                   {inDesktop && dataRoot.isPending ? <p className="mt-5 text-sm text-slate-400">Checking saved location…</p> : null}
@@ -229,9 +240,7 @@ export function App() {
 
             {visibleScreen === "node" ? (
               <>
-                <PageHeading eyebrow="SETUP · 2 OF 2" title="Choose a node"
-                  description="Use your own local daemon or enter a remote node. This choice is saved for the selected data location." />
-                <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Node settings">
+                <section className="rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Node settings">
                   {!root ? (
                     <p className="text-sm text-slate-300">Choose a data location before selecting a node.</p>
                   ) : node.isPending ? (
@@ -251,9 +260,7 @@ export function App() {
 
             {visibleScreen === "summary" ? (
               <>
-                <PageHeading eyebrow="SETUP SUMMARY" title="Your preferences are saved"
-                  description="Review your setup before continuing." />
-                <section className="mt-7 grid gap-4 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Setup summary">
+                <section className="grid gap-4 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Setup summary">
                   <SummaryRow label="Wallet action" value={actionDetails[walletAction ?? "open"].title} />
                   <SummaryRow label="Data location" value={root ?? "Not configured"} mono />
                   <SummaryRow label="Mainnet node" value={node.data ? nodeDescription(node.data) : "Not configured"} />
@@ -291,6 +298,10 @@ export function App() {
                   onBack={() => setScreen("summary")} onLocked={() => setWalletAction("open")} />
               )
             ) : null}
+            {visibleScreen === "activity" && activityAvailable && status.data ? (
+              <Activity key={status.data.session_generation} sessionGeneration={status.data.session_generation}
+                onSessionChanged={() => { setActivitySession(null); setScreen("wallet") }} />
+            ) : null}
           </div>
         </main>
         <WalletStatusBar
@@ -303,14 +314,15 @@ export function App() {
   )
 }
 
-function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
-  return (
-    <div>
-      <p className="text-xs font-semibold tracking-[0.16em] text-sky-300">{eyebrow}</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
-    </div>
-  )
+export function PageHeader({ screen }: { screen: Screen }) {
+  return <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-8">
+    <h1 id="page-title" className="text-lg font-semibold text-slate-100">{pages[screen].title}</h1>
+    <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Mainnet · Preview</span>
+  </header>
+}
+
+export function resolveVisibleScreen(screen: Screen, activityAvailable: boolean, activitySession: string | null, currentSession?: string): Screen {
+  return screen === "activity" && (!activityAvailable || activitySession !== currentSession) ? "wallet" : screen
 }
 
 function SummaryRow({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {

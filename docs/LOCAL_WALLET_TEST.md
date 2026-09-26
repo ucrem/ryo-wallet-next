@@ -26,5 +26,15 @@ reopen the wallet to confirm the address remains in the list.
 
 The local node option does not start `ryod` yet. Creation and backup work with
 an empty wallet; balance or sync may be unavailable until a node is running.
+
+For a read-only Activity smoke test, keep the backed-up wallet open and select
+Activity from the sidebar. An empty wallet is a valid case: it should show
+"No transactions yet" without an error. If the local daemon is unavailable,
+the pool warning may appear while other history remains accessible. Use Refresh
+to check again, then lock the wallet and confirm Activity disappears and cannot
+be reopened until a backed-up wallet session is open. This test does not require
+or instruct sending funds. Transaction creation, signing, and broadcast are not
+part of alpha.6.
+
 This test does not validate packaged binaries, Windows ACLs, macOS support, or
-transactions.
+non-empty mainnet transaction history.

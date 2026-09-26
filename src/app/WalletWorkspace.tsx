@@ -212,9 +212,9 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
   return (
     <div className="flex min-h-full flex-col">
       {phase !== "open" ? (
-        <h1 className="mb-3 text-3xl font-semibold tracking-tight">
+        <h2 className="mb-3 text-xl font-semibold tracking-tight">
           {phase === "entry" ? mode === "create" ? "Create wallet" : "Open wallet" : "Back up your recovery phrase"}
-        </h1>
+        </h2>
       ) : null}
 
       {phase === "entry" ? (
@@ -406,22 +406,6 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
             </div>
           </section>
 
-          <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Transactions
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-100">
-                  Activity
-                </h2>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm text-slate-400">
-              Transaction history is not available yet.
-            </p>
-          </section>
         </>
       ) : null}
 

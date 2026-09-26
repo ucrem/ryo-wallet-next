@@ -1,6 +1,6 @@
 # Foundation implementation status
 
-Updated 2026-09-26. This follows the architecture investigation. Phase 1 is **in progress**. No transaction operation is exposed by the app.
+Updated 2026-09-26. This follows the architecture investigation. Phase 1 is **in progress**. Read-only transaction history is exposed; transaction creation, signing, and submission are not.
 
 ## Implemented
 
@@ -21,6 +21,7 @@ Updated 2026-09-26. This follows the architecture investigation. Phase 1 is **in
 - Create and restore are now queued through the same service actor and allocate a fresh app-owned wallet directory before their RPC call. Creation immediately retrieves only the mnemonic into a one-time non-serializable result for the dedicated backup flow; it is not stored by the actor. Any uncertain creation or restoration faults the session and preserves artifacts for recovery instead of silently retrying.
 - Narrowly scoped Tauri commands expose the service lifecycle, wallet creation, backup confirmation, saved receive addresses and an exact balance snapshot. Their permissions are explicit; there is no generic wallet-RPC bridge.
 - The service provides a typed, read-only `WalletOverview` for an open wallet: primary address and exact total/unlocked/locked atomic amounts are returned as non-floating strings, with the session generation for stale-response rejection. The UI formats balances in RYO without converting them through floating-point numbers.
+- A dedicated Activity screen reads account-zero `get_transfers` through the authenticated bundled wallet RPC after backup confirmation. Rust normalizes the incoming, outgoing, pending, failed, and pool groups into a session-bound, newest-first snapshot of at most 250 entries; atomic values cross IPC as decimal strings. Pool refresh may be unavailable without a reachable daemon, in which case other history remains visible with an explicit warning. No transaction creation, signing, or submission command is exposed.
 - Non-secret node, theme and idle-lock settings now validate before persistence and are written through a private temporary file before rename. Wallet passwords, seeds, RPC credentials and wallet paths are deliberately absent from the settings schema.
 - First-run storage selection is now a Rust-owned native folder picker. It canonicalizes the chosen directory, creates the private network/wallet/runtime directories before accepting it, and persists the selection atomically in the native app configuration. The WebView cannot submit a path; it receives the selected path only to display the user’s current configuration.
 - Read-only, typed Rust wallet RPC calls: `get_languages`, `get_height`, `get_balance`, `get_address`, and `parse_uri` address validation. A local daemon `get_info` health adapter is also present. These return domain data or redacted typed errors, not raw JSON-RPC objects.
@@ -39,11 +40,11 @@ Updated 2026-09-26. This follows the architecture investigation. Phase 1 is **in
 
 ## Verification performed here
 
-- `cargo test -p ryo-wallet-service --locked`: 50 tests (40 library and 10 RPC transport integration tests), covering lifecycle transitions, storage/import safety, missing versus malformed settings, sidecar verification and shutdown, generated login-file validation, request wire shapes, amount boundaries, malformed responses, loopback restriction and disposable Digest challenge/response handling.
+- `cargo test -p ryo-wallet-service --locked`: unit and RPC transport tests cover lifecycle transitions, storage/import safety, sidecar verification, authenticated request wire shapes, amount boundaries, malformed responses, and the bounded read-only Activity normalization for all five upstream transfer groups. A stale session is rejected before an Activity RPC call.
 - Opt-in `real_wallet_rpc` tests verify the signed and SHA-256-checked Linux 0.6.1.0 release. One starts a loopback RPC process, reads its generated login, completes authenticated `get_languages`, creates a disposable long-address wallet, retrieves the mnemonic without logging it, then restores a second temporary wallet and verifies the primary address matches. Another drives create → one-time backup handoff → lock → fresh-process wrong-password rejection → correct reopen → lock → restore → lock through `WalletService`, including lifecycle state checks. A third creates an authentic source wallet, copies it through the import boundary and opens only the copied pair, verifying the source files are not changed and the primary address matches. They run only when `RYO_WALLET_RPC_BIN` identifies that reviewed binary; they contact no daemon and use no funds.
 - `cargo fmt --all -- --check`: passed.
 - `pnpm install --frozen-lockfile`, `pnpm check:version`, `pnpm typecheck`, `pnpm lint`, and `pnpm build` passed with pnpm 12.6.0. CI pins Node 24.21.0; the current host has Node 22.23.1.
-- `pnpm test`: 16 frontend tests pass, including the manual updater states. Native wallet creation, backup, import and receive-address behavior are additionally exercised by five opt-in disposable wallet-RPC tests.
+- `pnpm test`: frontend tests cover the manual updater states, compact page titles, Activity filters and states, amount formatting, and transaction details. Native wallet creation, backup, import and receive-address behavior are additionally exercised by opt-in disposable wallet-RPC tests. An empty wallet Activity request also passes against the reviewed Linux wallet RPC binary without a daemon; pool history is explicitly marked unavailable in that case.
 - Local release builds of DEB and RPM contain the exact reviewed Linux wallet RPC; extracted files passed SHA-256, executable and dynamic-library checks. Future Linux packaging omits AppImage. The already published alpha.4 AppImage reproduced `EGL_BAD_ALLOC` on this Fedora/Wayland/NVIDIA host; existing AppImage users need a manual DEB/RPM migration. The new explicit, signed Linux package-update path still needs an installed-package and authorization test. Full installed-wallet and cross-platform tests remain outstanding.
 - `cargo clippy` is unavailable on the host's Fedora Rust installation. CI installs the pinned toolchain with clippy and runs the native Linux Tauri check with development packages.
 
@@ -55,7 +56,7 @@ GitHub's latest core release is [0.6.1.0](https://github.com/ryo-currency/ryo-cu
 
 1. Validate the new packaged Linux, macOS Intel and Windows wallet RPC flows on clean installations; add a disposable `ryod` fixture or auditable daemon binaries only when local-node mode is ready. The generated login, Digest challenge and create/open/restore methods pass Linux tests; node synchronization and remaining methods still need process-level evidence. Apple Silicon needs a reviewed native upstream binary or a separately reviewed build.
 2. Verify capability-denial behavior in the desktop host and repeat native graphics checks across supported Linux/Windows/macOS configurations.
-3. Complete typed RPC fixtures for account detection and history, then connect those read-only views to the desktop UI.
+3. Extend process-level compatibility coverage for non-empty account-zero history and daemon-connected pool activity; keep the UI read-only until spending has its own reviewed design and tests.
 4. Complete a full upstream binary dependency/notices inventory before any public binary distribution. The MIT license for original project code does not replace upstream notices or grant official status.
 
 Mock RPC and static source comparisons justify continued foundation work, not production compatibility. No mainnet funds are needed for these gates.

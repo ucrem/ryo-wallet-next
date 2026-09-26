@@ -4,9 +4,12 @@ The bundles are **development previews**, not production wallets. The already
 published alpha.4 installers omitted `ryo-wallet-rpc` and cannot use wallet
 flows. Builds from this source stage the reviewed upstream 0.6.1.0 wallet RPC
 binary inside each supported package. They can use the existing create, backup,
-open, lock, balance, receive-address and remote-node flows; `ryod` is not bundled,
-so local-node operation is still unavailable. Recovery from a phrase and
-transactions are not available in the UI. Do not use these artifacts with funds.
+open, lock, balance, receive-address, read-only transaction history and remote-node
+flows; `ryod` is not bundled, so local-node operation is still unavailable.
+Recovery from a phrase and transaction creation, signing, or submission are not
+available in the UI. The Activity screen shows at most the newest 250 entries;
+without a reachable daemon, pool history is marked unavailable while other
+history remains visible. Do not use these artifacts with funds.
 
 | Platform | CI runner | Preview bundle |
 | --- | --- | --- |

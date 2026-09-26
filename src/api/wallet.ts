@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { LifecycleStatus } from "@/api/generated/LifecycleStatus"
+import type { ActivitySnapshot } from "@/api/generated/ActivitySnapshot"
 
 export type WalletEntry = { id: string; backup_complete: boolean }
 export type ReceiveAddress = {
@@ -29,6 +30,13 @@ export const getWalletSyncStatus = () =>
 
 export const getReceiveAddresses = (sessionGeneration: string) =>
   invoke<ReceiveAddress[]>("wallet_receive_addresses", { sessionGeneration })
+export const getWalletActivity = async (sessionGeneration: string): Promise<ActivitySnapshot> => {
+  try {
+    return await invoke<ActivitySnapshot>("wallet_activity", { sessionGeneration })
+  } catch (cause) {
+    throw new Error(typeof cause === "string" ? cause : "transaction history is unavailable", { cause })
+  }
+}
 export const createReceiveAddress = (sessionGeneration: string) =>
   invoke<ReceiveAddress>("wallet_create_receive_address", { sessionGeneration })
 

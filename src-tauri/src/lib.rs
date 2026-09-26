@@ -10,7 +10,7 @@ use ryo_wallet_service::application::{
     LifecycleStatus, WalletOverview, WalletService, WalletServiceError,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
-use ryo_wallet_service::rpc::{DaemonRpcClient, ReceiveAddress, RpcError};
+use ryo_wallet_service::rpc::{ActivitySnapshot, DaemonRpcClient, ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
 };
@@ -194,6 +194,23 @@ async fn wallet_receive_addresses(
         .map_err(|error| match error {
             WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
             _ => "receive addresses are unavailable",
+        })
+}
+
+#[tauri::command]
+async fn wallet_activity(
+    session_generation: String,
+    state: tauri::State<'_, DataRootState>,
+    active: tauri::State<'_, ActiveWalletState>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<ActivitySnapshot, &'static str> {
+    require_completed_backup(&state, &active)?;
+    service
+        .activity(session_generation)
+        .await
+        .map_err(|error| match error {
+            WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
+            _ => "transaction history is unavailable",
         })
 }
 
@@ -698,6 +715,7 @@ pub fn run() {
             app_updates::app_update_install,
             wallet_overview,
             wallet_receive_addresses,
+            wallet_activity,
             wallet_create_receive_address,
             wallet_sync_status,
             wallet_runtime_ready,

@@ -25,13 +25,7 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
 
   return (
     <div className="min-w-0 pb-8">
-      <p className="text-xs font-semibold tracking-[0.16em] text-sky-300">PROJECT</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">About</h1>
-      <p className="mt-3 text-sm leading-6 text-slate-400">
-        An independent open-source desktop wallet project for Ryo.
-      </p>
-
-      <section aria-labelledby="about-app" className="mt-7 rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
+      <section aria-labelledby="about-app" className="rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
         <h2 id="about-app" className="text-xl font-semibold">Ryo Wallet Next</h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
           This is a development preview, not an official Ryo Currency wallet. Wallet operations are still in development.

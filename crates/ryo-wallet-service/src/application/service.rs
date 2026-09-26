@@ -7,7 +7,7 @@ use zeroize::Zeroizing;
 
 use crate::domain::{AtomicAmount, AtomicAmountDto, NodeConfig};
 use crate::process::{ProcessError, VerifiedBinary, WalletRpcSession, WalletRpcStartupError};
-use crate::rpc::{ReceiveAddress, RecoveryPhrase, RpcError};
+use crate::rpc::{ActivitySnapshot, ReceiveAddress, RecoveryPhrase, RpcError};
 use crate::storage::{AppPaths, PathError, WalletId};
 
 use super::{LifecycleMachine, LifecycleStatus, LifecycleTransitionError};
@@ -195,6 +195,19 @@ impl WalletService {
         reply.await.map_err(|_| WalletServiceError::Unavailable)?
     }
 
+    pub async fn activity(
+        &self,
+        session_generation: String,
+    ) -> Result<ActivitySnapshot, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::Activity {
+            session_generation,
+            response,
+        })
+        .await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
     pub async fn create_receive_address(
         &self,
         session_generation: String,
@@ -278,6 +291,10 @@ enum Command {
     ReceiveAddresses {
         session_generation: String,
         response: oneshot::Sender<Result<Vec<ReceiveAddress>, WalletServiceError>>,
+    },
+    Activity {
+        session_generation: String,
+        response: oneshot::Sender<Result<ActivitySnapshot, WalletServiceError>>,
     },
     CreateReceiveAddress {
         session_generation: String,
@@ -492,6 +509,22 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 };
                 let _ = response.send(result);
             }
+            Command::Activity {
+                session_generation,
+                response,
+            } => {
+                let result = require_current_session(&lifecycle, &session_generation)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+                let result = match result {
+                    Ok(session) => session
+                        .client()
+                        .activity()
+                        .await
+                        .map_err(WalletServiceError::Rpc),
+                    Err(error) => Err(error),
+                };
+                let _ = response.send(result);
+            }
             Command::CreateReceiveAddress {
                 session_generation,
                 response,
@@ -631,6 +664,29 @@ mod tests {
         );
         assert!(matches!(
             service.create_receive_address("0".to_owned()).await,
+            Err(WalletServiceError::Lifecycle(_))
+        ));
+        assert!(matches!(
+            service.activity("0".to_owned()).await,
+            Err(WalletServiceError::Lifecycle(_))
+        ));
+    }
+
+    #[test]
+    fn activity_rejects_an_old_session_before_any_rpc_call() {
+        let mut lifecycle = LifecycleMachine::new();
+        lifecycle.start().unwrap();
+        lifecycle.sidecar_ready().unwrap();
+        lifecycle.begin_open().unwrap();
+        lifecycle.opened().unwrap();
+        assert!(matches!(
+            require_current_session(&lifecycle, "0"),
+            Err(WalletServiceError::StaleSession)
+        ));
+        assert!(require_current_session(&lifecycle, "1").is_ok());
+        lifecycle.begin_lock().unwrap();
+        assert!(matches!(
+            require_current_session(&lifecycle, "1"),
             Err(WalletServiceError::Lifecycle(_))
         ));
     }

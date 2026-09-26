@@ -29,6 +29,13 @@ function html(overrides: Partial<AppUpdates>): string {
 }
 
 describe("installed update feedback", () => {
+  it("starts with the app card rather than a duplicated page title", () => {
+    const markup = html({})
+    expect(markup).not.toContain(">PROJECT<")
+    expect(markup).not.toContain("An independent open-source desktop wallet project for Ryo.")
+    expect(markup).not.toContain("<h1")
+    expect(markup).toContain("Ryo Wallet Next")
+  })
   it("disables update checks in development", () => {
     const markup = html({ result: { state: "development" } })
     expect(markup).toContain("Unavailable in development")
