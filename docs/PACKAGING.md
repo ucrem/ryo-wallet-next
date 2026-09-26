@@ -49,8 +49,8 @@ unresolved Linux libraries. For the RPM, CI verifies its payload digest and
 checks that its recorded wallet RPC file digest and mode match the reviewed
 binary. Tauri also produces detached
 updater signatures for both packages with the existing version-bound key; these
-are not native APT/DNF repository signatures. macOS and Windows workflows inspect
-their native bundles. The already published alpha.4 AppImage is historical;
+are not native APT/DNF repository signatures. The macOS workflow checks the app
+runtime and DMG checksum; Windows inspects the NSIS bundle. The already published alpha.4 AppImage is historical;
 users of that build must migrate manually to a DEB or RPM installation.
 
 Installed builds check the public update feed at startup, and About has a

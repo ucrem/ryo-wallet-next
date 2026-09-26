@@ -78,16 +78,19 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: pnpm exec tauri build --ci --bundles app,dmg --no-sign
-      - name: Verify macOS app and DMG contain the reviewed wallet runtime
+      - name: Verify macOS app runtime and DMG integrity
         run: |
           set -euo pipefail
           sidecar='Ryo Wallet Next.app/Contents/MacOS/ryo-wallet-rpc'
           python3 scripts/verify-packaged-runtime.py --target x86_64-apple-darwin --path "target/release/bundle/macos/$sidecar"
-          mountpoint="$(mktemp -d)"
-          trap 'hdiutil detach "$mountpoint" -quiet || true; rmdir "$mountpoint" || true' EXIT
-          hdiutil attach -readonly -nobrowse -quiet -mountpoint "$mountpoint" target/release/bundle/dmg/*.dmg
-          python3 scripts/verify-packaged-runtime.py --target x86_64-apple-darwin --path "$mountpoint/$sidecar"
-          otool -L "$mountpoint/$sidecar"
+          otool -L "target/release/bundle/macos/$sidecar"
+          shopt -s nullglob
+          dmgs=(target/release/bundle/dmg/*.dmg)
+          if (( ${#dmgs[@]} != 1 )); then
+            echo "Expected one macOS DMG, found ${#dmgs[@]}" >&2
+            exit 1
+          fi
+          hdiutil verify "${dmgs[0]}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: preview-macos-intel-dmg
