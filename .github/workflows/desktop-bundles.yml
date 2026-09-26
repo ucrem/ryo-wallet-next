@@ -42,13 +42,13 @@ jobs:
         run: pnpm exec tauri build --ci --bundles deb,rpm
       - name: Verify Linux package runtime digests
         run: bash scripts/verify-linux-bundles.sh
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-linux-x64-deb
           path: target/release/bundle/deb/*.deb*
           if-no-files-found: error
           retention-days: 30
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-linux-x64-rpm
           path: target/release/bundle/rpm/*.rpm*
@@ -91,13 +91,13 @@ jobs:
             exit 1
           fi
           hdiutil verify "${dmgs[0]}"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-macos-intel-dmg
           path: target/release/bundle/dmg/*.dmg
           if-no-files-found: error
           retention-days: 30
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-macos-intel-updater
           path: target/release/bundle/macos/*.app.tar.gz*
@@ -140,7 +140,7 @@ jobs:
           $sidecars = @(Get-ChildItem 'target/nsis-inspection' -Recurse -File -Filter 'ryo-wallet-rpc.exe')
           if ($sidecars.Count -ne 1) { throw "Expected one packaged wallet RPC, found $($sidecars.Count)" }
           python scripts/verify-packaged-runtime.py --target x86_64-pc-windows-msvc --path $sidecars[0].FullName
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-windows-x64-exe
           path: target/release/bundle/nsis/*-setup.exe*
