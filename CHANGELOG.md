@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.1.0-alpha.5] - 2026-09-26
+
+### Added
+
+- Bundled and verified Ryo wallet RPC runtime in supported desktop packages.
+
+### Changed
+
+- Hardened Linux DEB and RPM runtime verification.
+- Fixed signed macOS updater artifact generation.
+- Removed AppImage from future Linux builds in favor of DEB and RPM packages.
+- Improved installed-build update handling and release artifact verification.
+
+### Known limitations
+
+- macOS Apple Silicon packaging is paused until a reviewed native ARM64 Ryo wallet RPC runtime is available.
+- Transaction creation, signing, and submission are not yet implemented.
+- Restore-from-recovery-phrase UI is not yet complete.
+- Preview builds are not intended for use with funds.
+
+
 ## [0.1.0-alpha.4] - 2026-09-25
 
 ### Added
