@@ -43,9 +43,11 @@ the reviewed digest. The separate Tauri updater signature authenticates
 update downloads, but does not replace platform signing or installation tests.
 Production macOS signing needs a reviewed post-signing digest strategy.
 
-Future Linux releases provide only DEB and RPM packages. Both are extracted in
-CI; their wallet RPC sidecars are checked for regular-file status, executable
-mode, SHA-256 and unresolved Linux libraries. Tauri also produces detached
+Future Linux releases provide only DEB and RPM packages. CI extracts the DEB
+and checks its wallet RPC for regular-file status, executable mode, SHA-256 and
+unresolved Linux libraries. For the RPM, CI verifies its payload digest and
+checks that its recorded wallet RPC file digest and mode match the reviewed
+binary. Tauri also produces detached
 updater signatures for both packages with the existing version-bound key; these
 are not native APT/DNF repository signatures. macOS and Windows workflows inspect
 their native bundles. The already published alpha.4 AppImage is historical;
