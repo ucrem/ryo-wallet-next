@@ -1,0 +1,24 @@
+{
+  "version": "0.6.1.0",
+  "releaseBase": "https://github.com/ryo-currency/ryo-currency/releases/download/0.6.1.0",
+  "platforms": {
+    "x86_64-unknown-linux-gnu": {
+      "archive": "ryo-linux-x64-0.6.1.0.tar.xz",
+      "archiveSha256": "2b4de6e605735b2c2d7c851685bf858e6d0ba4132861147d1dfb3632e36b8b44",
+      "member": "ryo-linux-x64-0.6.1.0/ryo-wallet-rpc",
+      "binarySha256": "5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3"
+    },
+    "x86_64-apple-darwin": {
+      "archive": "ryo-macosx-x64-0.6.1.0.tar.xz",
+      "archiveSha256": "de84854ec25b7e43b4637964136cc364d82f253fe0268460ad2246e86252f326",
+      "member": "ryo-macosx-x64-0.6.1.0/ryo-wallet-rpc",
+      "binarySha256": "f9c2f07624b3105cf3684dfd55c20143de81876177581aaa67c79e6b36daff7c"
+    },
+    "x86_64-pc-windows-msvc": {
+      "archive": "ryo-win-x64-0.6.1.0.zip",
+      "archiveSha256": "fd7e031c255e2c4e89edb826b7a6a34bb91555001d4ad0495d320d0f6c621902",
+      "member": "ryo-wallet-rpc.exe",
+      "binarySha256": "26b18488c30e14f2e49eba87c89b9048c4b5493be7d23b8e5173be7d1a212721"
+    }
+  }
+}

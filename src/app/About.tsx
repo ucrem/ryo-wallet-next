@@ -8,8 +8,10 @@ import { Button } from "@/components/ui/button"
 
 export function About({ appVersion, updates }: { appVersion: AppVersionInfo; updates: AppUpdates }) {
   const [openError, setOpenError] = useState(false)
+  const [backupConfirmation, setBackupConfirmation] = useState({ version: "", confirmed: false })
   const url = appVersion.version ? releaseUrl(appVersion.version) : null
   const availableUpdate = updates.result?.state === "available" ? updates.result : null
+  const backupConfirmed = backupConfirmation.version === availableUpdate?.version && backupConfirmation.confirmed
 
   async function openRelease(target = url) {
     if (!target) return
@@ -74,7 +76,7 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
           type="button"
           variant="outline"
           className="mt-4"
-          onClick={() => void updates.checkNow()}
+          onClick={() => { setBackupConfirmation({ version: "", confirmed: false }); void updates.checkNow() }}
           disabled={
             !appVersion.isNative ||
             updates.checking ||
@@ -88,20 +90,43 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
               ? "Unavailable in development"
               : "Check for updates"}
         </Button>
-        {updates.result?.state === "development" ? (
+        {updates.checking ? (
+          <div className="mt-4 flex items-center gap-3 rounded-lg border border-sky-500/40 bg-sky-400/10 p-4 text-sm text-sky-100" role="status" aria-live="polite">
+            <span className="size-4 shrink-0 animate-spin rounded-full border-2 border-sky-300 border-t-transparent" aria-hidden="true" />
+            Checking for updates…
+          </div>
+        ) : updates.result?.state === "development" ? (
           <p className="mt-3 text-sm text-slate-400" role="status">Update checks and installation are available in installed builds.</p>
         ) : updates.result?.state === "current" ? (
-          <p className="mt-3 text-sm text-slate-300" role="status">You have the latest published version.</p>
+          <p className="mt-3 rounded-lg border border-slate-600 bg-slate-800/50 p-4 text-sm text-slate-200" role="status" aria-live="polite">
+            Ryo Wallet Next is already up to date{appVersion.label ? ` (${appVersion.label})` : ""}.
+          </p>
         ) : availableUpdate ? (
           <div className="mt-4 rounded-lg border border-sky-500/40 bg-sky-400/10 p-4" role="status">
             <p className="font-medium text-sky-100">Version v{availableUpdate.version} is available</p>
             {availableUpdate.notes ? <p className="mt-2 whitespace-pre-wrap text-sm text-slate-300">{availableUpdate.notes}</p> : null}
-            {availableUpdate.automatic_install ? (
+            <div className="mt-4 rounded-lg border border-amber-400/50 bg-amber-400/10 p-4 text-sm text-amber-100" role="alert">
+              Before updating, back up your wallet files and recovery phrase or other wallet secrets in a safe place. The wallet will be locked before installation.
+            </div>
+            {availableUpdate.install_in_app ? (
               <>
-                <Button type="button" className="mt-4 bg-sky-400 text-slate-950 hover:bg-sky-300"
-                  disabled={updates.installing} onClick={() => void updates.install(availableUpdate.version)}>
-                  {updates.installing ? "Downloading and installing…" : "Download and install"}
-                </Button>
+                <label className="mt-4 flex items-start gap-3 text-sm text-slate-200">
+                  <input type="checkbox" className="mt-0.5 size-4 accent-sky-400" checked={backupConfirmed}
+                    onChange={(event) => setBackupConfirmation({ version: availableUpdate.version, confirmed: event.target.checked })} disabled={updates.installing} />
+                  I have backed up my wallet files and recovery phrase.
+                </label>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <Button type="button" className="bg-sky-400 text-slate-950 hover:bg-sky-300"
+                    disabled={updates.installing || !backupConfirmed}
+                    onClick={() => { setBackupConfirmation({ version: "", confirmed: false }); void updates.install(availableUpdate.version) }}>
+                    {updates.installing ? "Downloading and installing…" : "Update"}
+                  </Button>
+                  <Button type="button" variant="outline"
+                    disabled={updates.installing} onClick={() => void openRelease(releaseUrl(availableUpdate.version))}>
+                    Open release page ↗
+                  </Button>
+                </div>
+                <p className="mt-2 text-xs text-slate-400">Your system may ask for authorization to install the update.</p>
                 {updates.installing && updates.progress ? (
                   <p className="mt-2 text-sm text-slate-300">
                     Downloaded {formatMegabytes(updates.progress.downloaded)}

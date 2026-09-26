@@ -4,7 +4,7 @@ Independent desktop wallet proposal by **ucrem**. Not an official Ryo Currency p
 
 Original code in this repository is licensed under [MIT](LICENSE). This permits the Ryo team to adopt or modify it while retaining the copyright and license notice. Only the Ryo team can designate a wallet as official; its name and branding need separate agreement. Upstream Ryo code and future bundled binaries remain subject to their own licenses and notices.
 
-This repository contains architecture research and an early Rust/Tauri/React foundation. Linux developers can test wallet creation, recovery-phrase backup, lock and reopen with a verified Ryo 0.6.1.0 wallet RPC binary. Public packages do not bundle that runtime, and there is no transaction flow: **do not use this preview for funds**. Upstream repositories were not modified.
+This repository contains architecture research and an early Rust/Tauri/React foundation. Linux developers can test wallet creation, recovery-phrase backup, lock and reopen with a verified Ryo 0.6.1.0 wallet RPC binary. The already published alpha.4 packages lack that runtime; the packaging code now includes it in supported target builds, pending staging and platform validation. There is no transaction flow: **do not use this preview for funds**. Upstream repositories were not modified.
 
 Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [architectural report](docs/REPORT.md). Supporting documents:
 
