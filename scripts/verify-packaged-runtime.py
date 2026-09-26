@@ -25,7 +25,7 @@ def verify(path: Path, target: str) -> None:
     if not os.access(path, os.X_OK) and target != "x86_64-pc-windows-msvc":
         raise ValueError("wallet RPC is not executable")
     with path.open("rb") as stream:
-        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+        actual = sha256_file(path)
     if actual != expected:
         raise ValueError(f"wallet RPC digest mismatch for {target}")
     if target == "x86_64-unknown-linux-gnu":
@@ -34,6 +34,12 @@ def verify(path: Path, target: str) -> None:
             raise ValueError("wallet RPC has unresolved Linux libraries")
     print(f"Verified packaged wallet RPC for {target}: {actual}")
 
+def sha256_file(path: Path) -> str:
+    hasher = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            hasher.update(chunk)
+    return hasher.hexdigest()
 
 def verify_rpm_package(path: Path, target: str) -> None:
     """Verify RPM payload integrity and the recorded wallet RPC file digest."""
