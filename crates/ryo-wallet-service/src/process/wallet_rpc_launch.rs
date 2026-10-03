@@ -15,6 +15,8 @@ pub enum WalletRpcLaunchError {
     InvalidNode(#[source] NodeConfigError),
     #[error("private runtime directories could not be prepared")]
     Paths(#[source] PathError),
+    #[error("data path is not supported by the bundled runtime")]
+    UnsupportedPath(#[source] std::io::Error),
 }
 
 /// Structured, non-secret arguments for a `ryo-wallet-rpc` sidecar. Passwords
@@ -44,10 +46,16 @@ impl WalletRpcLaunch {
             "--rpc-bind-port".into(),
             rpc_port.to_string().into(),
             "--wallet-dir".into(),
-            paths.wallets_root().into_os_string(),
+            super::upstream_path::upstream_path(&paths.wallets_root())
+                .map_err(WalletRpcLaunchError::UnsupportedPath)?
+                .into_os_string(),
             "--daemon-address".into(),
             daemon_address(node).into(),
         ];
+        args.extend([
+            "--log-file-level".into(),
+            node.options().wallet_log_level.to_string().into(),
+        ]);
         match node.network {
             Network::Mainnet => {}
             Network::Testnet => args.push("--testnet".into()),
@@ -55,7 +63,8 @@ impl WalletRpcLaunch {
         }
         Ok(Self {
             args,
-            working_directory: paths.runtime_root(),
+            working_directory: super::upstream_path::upstream_path(&paths.runtime_root())
+                .map_err(WalletRpcLaunchError::UnsupportedPath)?,
         })
     }
 }

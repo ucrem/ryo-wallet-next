@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useState, useCallback } from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type { NodeConfig } from "@/api/generated/NodeConfig"
 import { getNodeConfiguration } from "@/api/node"
@@ -9,14 +9,21 @@ import { getActiveWallet } from "@/api/wallet"
 import { NodeSetup } from "@/app/NodeSetup"
 import { WalletWorkspace } from "@/app/WalletWorkspace"
 import { About } from "@/app/About"
+import { Settings } from "@/app/Settings"
+import { useDesktopPreferences } from "@/lib/usePreferences"
 import ryoMark from "@/assets/ryo-mark.svg"
 import { Button } from "@/components/ui/button"
 import { useAppVersion } from "@/lib/useAppVersion"
 import { useAppUpdates } from "@/lib/useAppUpdates"
+import { formatDataFolderPath } from "@/lib/displayPath"
 import { WalletStatusBar } from "@/app/WalletStatusBar"
+import { useNodeStatus } from "@/lib/useNodeStatus"
+import { LayoutPreviewSwitch, TopNavigation } from "@/app/TopNavigation"
+import { navigation, type NavigationLayout, type Screen } from "@/app/navigation"
+
+import type { WalletSection } from "@/api/operations"
 
 type WalletAction = "create" | "restore" | "open"
-type Screen = "home" | "storage" | "node" | "summary" | "wallet" | "about"
 
 const actionDetails: Record<WalletAction, { title: string; description: string }> = {
   create: { title: "Create a new wallet", description: "Set up a new private Ryo wallet." },
@@ -24,20 +31,15 @@ const actionDetails: Record<WalletAction, { title: string; description: string }
   open: { title: "Open an existing wallet", description: "Import an existing wallet into private app storage." },
 }
 
-const navigation: { screen: Screen; label: string; number: string }[] = [
-  { screen: "home", label: "Start", number: "◆" },
-  { screen: "storage", label: "Data location", number: "01" },
-  { screen: "node", label: "Node", number: "02" },
-  { screen: "summary", label: "Summary", number: "03" },
-  { screen: "wallet", label: "Wallet", number: "04" },
-]
-
 export function App() {
+  const layoutPreview = import.meta.env.MODE === "layout-preview"
+  const [layout, setLayout] = useState<NavigationLayout>("top")
   const inDesktop = "__TAURI_INTERNALS__" in window
   const appVersion = useAppVersion()
   const updates = useAppUpdates(inDesktop)
   const queryClient = useQueryClient()
   const [screen, setScreen] = useState<Screen>("home")
+  const [walletSection, setWalletSection] = useState<WalletSection>("overview")
   const [walletAction, setWalletAction] = useState<WalletAction | null>(null)
   const status = useQuery({
     queryKey: ["foundation-status"],
@@ -50,6 +52,10 @@ export function App() {
     enabled: inDesktop && status.data?.state === "open",
   })
   const visibleScreen = screen
+  const autoLocked = useCallback(() => {
+    setWalletAction("open"); setWalletSection("overview"); setScreen((current) => current === "wallet" ? "home" : current)
+  }, [])
+  useDesktopPreferences(status.data?.state === "open" ? status.data.session_generation : null, autoLocked)
   const overview = useQuery({
     queryKey: ["wallet-overview", status.data?.session_generation],
     queryFn: getWalletOverview,
@@ -66,6 +72,8 @@ export function App() {
     queryFn: getNodeConfiguration,
     enabled: inDesktop && root !== null,
   })
+  const chain = useNodeStatus(node.data ?? null, root)
+  const setupBusy = (!!status.data && !["locked", "stopped"].includes(status.data.state)) || (node.data?.mode !== "remote" && chain.data?.state === "running")
   const chooseRoot = useMutation({
     mutationFn: chooseDataRoot,
     onSuccess: () => {
@@ -83,17 +91,18 @@ export function App() {
     const walletOpen = status.data?.state === "open"
     switch (destination) {
       case "home": return true
-      case "storage": return walletOpen || walletAction !== null
-      case "node": return walletOpen || (walletAction !== null && root !== null && !dataRoot.isFetching)
+      case "storage": return root !== null || walletOpen || walletAction !== null
+      case "node": return root !== null || walletOpen || (walletAction !== null && root !== null && !dataRoot.isFetching)
       case "summary": return walletOpen || (walletAction !== null && root !== null && !!node.data && !node.isFetching)
-      case "wallet": return walletOpen || (((walletAction === "create" || walletAction === "open") || !!activeWallet.data) && root !== null && !!node.data)
+      case "wallet": return walletOpen || (walletAction !== null && root !== null && !!node.data)
       case "about": return true
+      case "settings": return true
     }
   }
 
   return (
-    <div className="flex h-dvh min-h-0 overflow-hidden bg-[#0c1118] text-slate-100">
-      <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-[#101720] p-5">
+    <div className="flex h-dvh min-h-0 overflow-hidden bg-[var(--app-bg)] text-slate-100">
+      {layout === "sidebar" ? <aside className="flex w-56 shrink-0 flex-col border-r border-slate-800 bg-[var(--app-chrome)] p-5">
         <div className="flex items-center gap-3 border-b border-slate-800 pb-6">
           <img src={ryoMark} alt="Ryo Currency symbol" className="size-9 shrink-0" />
           <div className="min-w-0">
@@ -111,7 +120,7 @@ export function App() {
               disabled={!canVisit(item.screen)}
               aria-current={visibleScreen === item.screen ? "page" : undefined}
               className={"flex h-11 items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sky-400 disabled:cursor-not-allowed disabled:opacity-40 " +
-                (visibleScreen === item.screen ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}
+                (visibleScreen === item.screen ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-slate-100")}
             >
               <span className="w-6 shrink-0 text-center font-mono text-xs text-slate-400">{item.number}</span>
               {item.label}
@@ -120,10 +129,11 @@ export function App() {
         </nav>
         <nav aria-label="Project navigation" className="mt-6 border-t border-slate-800 pt-5">
           <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">Project</p>
+          <button type="button" onClick={() => setScreen("settings")} className="flex h-11 w-full items-center rounded-lg px-3 text-sm text-slate-300 hover:bg-slate-800">Settings</button>
           <button type="button" onClick={() => setScreen("about")}
             aria-current={visibleScreen === "about" ? "page" : undefined}
             className={"flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-sky-400 " +
-              (visibleScreen === "about" ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-white")}>
+              (visibleScreen === "about" ? "bg-sky-400/15 font-medium text-sky-200" : "text-slate-300 hover:bg-slate-800 hover:text-slate-100")}>
             <span aria-hidden="true" className="w-6 shrink-0 text-center text-base text-slate-400">ⓘ</span>
             About
           </button>
@@ -153,35 +163,50 @@ export function App() {
             disabled={!inDesktop || status.isFetching}
           >Check again</button>
         </div>
-      </aside>
+      </aside> : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-8">
+        {layout === "top" ? <TopNavigation screen={visibleScreen} canVisit={canVisit} onNavigate={setScreen}
+          walletOpen={status.data?.state === "open"} walletSection={walletSection} onWalletSection={(section) => { setWalletSection(section); setScreen("wallet") }} versionLabel={appVersion.label}
+          updateVersion={updates.result?.state === "available" ? updates.result.version : null}
+          networkLabel={(dataRoot.data?.network ?? "mainnet").replace(/^./, (letter) => letter.toUpperCase())}
+          comparison={layoutPreview ? <LayoutPreviewSwitch layout={layout} onChange={setLayout} /> : undefined} />
+          : <header className="flex h-16 shrink-0 items-center justify-between border-b border-slate-800 px-8">
           <span className="text-sm font-medium text-slate-400">Ryo Wallet Next</span>
-          <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">Mainnet · Preview</span>
-        </header>
-        <main className="min-h-0 flex-1 overflow-y-auto px-8 py-8">
-          <div className="mx-auto flex min-h-full max-w-3xl flex-col">
+          <div className="flex items-center gap-5">
+            {layoutPreview ? <LayoutPreviewSwitch layout={layout} onChange={setLayout} /> : null}
+            <span className="rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300">{(dataRoot.data?.network ?? "mainnet").replace(/^./, (letter) => letter.toUpperCase())} · Preview</span>
+          </div>
+        </header>}
+        <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
+          <div className="flex min-h-full w-full flex-col">
             {visibleScreen === "about" ? <About appVersion={appVersion} updates={updates} /> : null}
+            {visibleScreen === "settings" ? (root && node.isPending ? <p className="text-sm text-slate-400">Loading settings…</p> :
+              <Settings key={`${root}:${dataRoot.data?.network ?? "mainnet"}`} root={root} node={node.data ?? null} network={dataRoot.data?.network ?? "mainnet"} busy={setupBusy} />) : null}
             {visibleScreen === "home" ? (
               <>
                 <PageHeading eyebrow="GET STARTED" title="How would you like to use Ryo?"
                   description="Choose a wallet action. Storage and node settings follow in separate steps." />
-                <div className="mt-7 grid gap-3">
-                  {(["create", "restore", "open"] as const).map((action) => (
-                    <button
-                      key={action}
-                      type="button"
-                      onClick={() => start(action)}
-                      className="group flex min-h-20 items-center justify-between gap-4 rounded-xl border border-slate-700 bg-[#151d27] px-5 py-4 text-left transition-colors hover:border-sky-500 hover:bg-[#1a2633] focus-visible:outline-2 focus-visible:outline-sky-400"
-                    >
-                      <span>
-                        <span className="block font-medium text-slate-100">{actionDetails[action].title}</span>
-                        <span className="mt-1 block text-sm text-slate-400">{actionDetails[action].description}</span>
-                      </span>
-                      <span aria-hidden="true" className="text-xl text-sky-300 group-hover:translate-x-1">→</span>
-                    </button>
-                  ))}
+                <div className="mt-5 grid gap-3 md:grid-cols-3">
+                  <div className="grid content-start gap-3">
+                    {(["create", "restore", "open"] as const).map((action) => (
+                      <button
+                        key={action}
+                        type="button"
+                        onClick={() => start(action)}
+                        className="group flex min-h-20 items-center justify-between gap-4 rounded-xl border border-slate-700 bg-[var(--app-surface)] px-5 py-4 text-left transition-colors hover:border-sky-500 hover:bg-[var(--app-hover)] focus-visible:outline-2 focus-visible:outline-sky-400"
+                      >
+                        <span>
+                          <span className="block font-medium text-slate-100">{actionDetails[action].title}</span>
+                          <span className="mt-1 block text-sm text-slate-400">{actionDetails[action].description}</span>
+                        </span>
+                        <span aria-hidden="true" className="text-xl text-sky-300 group-hover:translate-x-1">→</span>
+                      </button>
+                    ))}
+                  </div>
+                  <div aria-hidden="true" className="pointer-events-none hidden items-center justify-center md:col-span-2 md:flex">
+                    <img src={ryoMark} alt="" className="home-ryo-mark" />
+                  </div>
                 </div>
                 <p className="mt-auto pt-6 text-xs text-slate-500">
                   An independent open-source project by ucrem. Wallet creation is available for local testing with a reviewed runtime.
@@ -193,21 +218,22 @@ export function App() {
               <>
                 <PageHeading eyebrow="SETUP · 1 OF 2" title="Choose a data location"
                   description={"For " + actionDetails[walletAction ?? "open"].title.toLowerCase() + ", choose where the app will keep its private wallet copy and runtime files."} />
-                <section className="mt-7 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Data location">
+                <section className="mt-7 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Data location">
                   <p className="text-sm font-medium">Wallet data folder</p>
                   <p className="mt-1 text-sm text-slate-400">Select a writable folder on this computer.</p>
                   {inDesktop && dataRoot.isPending ? <p className="mt-5 text-sm text-slate-400">Checking saved location…</p> : null}
                   {root ? (
-                    <div className="mt-5 min-w-0 rounded-lg border border-slate-700 bg-[#0d141c] p-3" role="status">
+                    <div className="mt-5 min-w-0 rounded-lg border border-slate-700 bg-[var(--app-input)] p-3" role="status">
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-400">Selected path</p>
-                      <p className="mt-1 break-all font-mono text-sm text-slate-100">{root}</p>
+                      <p className="mt-1 break-all font-mono text-sm text-slate-100">{formatDataFolderPath(root)}</p>
                     </div>
                   ) : null}
                   <Button type="button" className="mt-5 bg-sky-400 text-slate-950 hover:bg-sky-300"
                     onClick={() => { chooseRoot.reset(); chooseRoot.mutate() }}
-                    disabled={!inDesktop || chooseRoot.isPending}>
+                    disabled={!inDesktop || chooseRoot.isPending || setupBusy}>
                     {chooseRoot.isPending ? "Opening picker…" : root ? "Change folder" : "Choose folder"}
                   </Button>
+                  {setupBusy ? <p className="mt-3 text-xs text-slate-400">Lock the wallet and stop the local node before changing the data folder.</p> : null}
                   {chooseRoot.isError || dataRoot.isError ? (
                     <p className="mt-3 text-sm text-red-300" role="alert">
                       The location could not be configured. Choose a writable folder and try again.
@@ -230,8 +256,8 @@ export function App() {
             {visibleScreen === "node" ? (
               <>
                 <PageHeading eyebrow="SETUP · 2 OF 2" title="Choose a node"
-                  description="Use your own local daemon or enter a remote node. This choice is saved for the selected data location." />
-                <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Node settings">
+                  description="Run the bundled local node or enter a remote node. The local node keeps syncing when you lock the wallet and stops when you close the app." />
+                <section className="mt-6 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Node settings">
                   {!root ? (
                     <p className="text-sm text-slate-300">Choose a data location before selecting a node.</p>
                   ) : node.isPending ? (
@@ -240,7 +266,10 @@ export function App() {
                     <p className="text-sm text-red-300" role="alert">The saved node choice could not be read. No settings were changed.</p>
                   ) : (
                     <NodeSetup key={root + ":" + node.data?.mode + ":" + node.data?.host + ":" + node.data?.port}
-                      root={root} current={node.data ?? null} onSaved={() => setScreen("summary")} />
+                      root={root} current={node.data ?? null} disabled={setupBusy} onSaved={() => {
+                        if (walletAction === null) setWalletAction("open")
+                        setScreen("summary")
+                      }} />
                   )}
                 </section>
                 <div className="mt-auto pt-6">
@@ -253,16 +282,16 @@ export function App() {
               <>
                 <PageHeading eyebrow="SETUP SUMMARY" title="Your preferences are saved"
                   description="Review your setup before continuing." />
-                <section className="mt-7 grid gap-4 rounded-xl border border-slate-700 bg-[#151d27] p-5" aria-label="Setup summary">
+                <section className="mt-7 grid gap-4 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Setup summary">
                   <SummaryRow label="Wallet action" value={actionDetails[walletAction ?? "open"].title} />
-                  <SummaryRow label="Data location" value={root ?? "Not configured"} mono />
-                  <SummaryRow label="Mainnet node" value={node.data ? nodeDescription(node.data) : "Not configured"} />
+                  <SummaryRow label="Data location" value={root ? formatDataFolderPath(root) : "Not configured"} mono />
+                  <SummaryRow label="Node" value={node.data ? `${node.data.network} · ${nodeDescription(node.data)}` : "Not configured"} />
                 </section>
-                {walletAction === "restore" ? <p className="mt-5 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100">
-                  Recovery from a phrase is still in development. No wallet has been changed.
-                </p> : <p className="mt-5 text-sm text-slate-300">
-                  Continue to {walletAction === "create" ? "create a new wallet and back up its recovery phrase" : "unlock an app-owned wallet"}.
-                </p>}
+                <p className="mt-5 text-sm text-slate-300">
+                  Continue to {walletAction === "create" ? "create a new wallet and back up its recovery phrase"
+                    : walletAction === "restore" ? "restore from a recovery phrase and verify your backup"
+                      : "unlock an app-owned wallet"}.
+                </p>
                 {overview.data ? (
                   <section className="mt-5 rounded-xl border border-slate-700 p-5 text-sm" aria-label="Wallet overview">
                     <p className="text-slate-400">Primary address</p>
@@ -276,19 +305,22 @@ export function App() {
                 ) : null}
                 <div className="mt-auto flex justify-between gap-3 pt-6">
                   <Button type="button" variant="outline" onClick={() => setScreen("node")}>← Back to node</Button>
-                  {walletAction !== "restore" ? <Button type="button" className="bg-sky-400 text-slate-950 hover:bg-sky-300"
-                    onClick={() => setScreen("wallet")}>Continue to wallet →</Button> : null}
+                  <Button type="button" className="bg-sky-400 text-slate-950 hover:bg-sky-300"
+                    onClick={() => setScreen("wallet")}>Continue to wallet →</Button>
                 </div>
               </>
             ) : null}
-            {visibleScreen === "wallet" && (status.data?.state === "open" || walletAction === "create" || walletAction === "open" || activeWallet.data) ? (
+            {visibleScreen === "wallet" && (status.data?.state === "open" || walletAction !== null || activeWallet.data) ? (
               status.data?.state === "open" && activeWallet.isPending ? (
                 <p className="text-sm text-slate-400">Loading wallet…</p>
               ) : (
-                <WalletWorkspace mode={walletAction === "create" ? "create" : "open"}
+                <WalletWorkspace section={walletSection} onSection={setWalletSection} mode={walletAction ?? "open"}
                   activeWallet={status.data?.state === "open" ? activeWallet.data ?? null : null}
                   sessionGeneration={status.data?.state === "open" ? status.data.session_generation : null}
-                  onBack={() => setScreen("summary")} onLocked={() => setWalletAction("open")} />
+                  onBack={() => setScreen("summary")} onLocked={() => {
+                    setWalletAction("open"); setWalletSection("overview")
+                    queryClient.removeQueries({ predicate: (query) => ["wallet-operation", "receive-addresses", "send-contact", "wallet-send-sync", "wallet-read-sync", "wallet-overview"].includes(String(query.queryKey[0])) })
+                  }} />
               )
             ) : null}
           </div>
@@ -297,6 +329,7 @@ export function App() {
           serviceState={status.data?.state ?? null}
           sessionGeneration={status.data?.session_generation ?? null}
           node={node.data ?? null}
+          root={root}
         />
       </div>
     </div>
@@ -307,8 +340,8 @@ function PageHeading({ eyebrow, title, description }: { eyebrow: string; title: 
   return (
     <div>
       <p className="text-xs font-semibold tracking-[0.16em] text-sky-300">{eyebrow}</p>
-      <h1 className="mt-3 text-3xl font-semibold tracking-tight">{title}</h1>
-      <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight">{title}</h1>
+      <p className="mt-2 text-sm leading-6 text-slate-400">{description}</p>
     </div>
   )
 }
@@ -323,7 +356,7 @@ function SummaryRow({ label, value, mono = false }: { label: string; value: stri
 }
 
 function nodeDescription(node: NodeConfig): string {
-  return node.mode === "local" ? "Local daemon on this computer" : node.host + ":" + node.port
+  return node.mode === "hybrid" ? `Local daemon with bootstrap ${node.bootstrap?.host}:${node.bootstrap?.port}` : node.mode === "local" ? "Local daemon on this computer" : node.host + ":" + node.port
 }
 
 function Amount({ label, atomic }: { label: string; atomic: string }) {

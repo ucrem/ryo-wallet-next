@@ -9,7 +9,7 @@ use crate::domain::AtomicAmount;
 use crate::storage::WalletId;
 
 pub struct WalletRpcClient {
-    transport: JsonRpcTransport,
+    pub(crate) transport: JsonRpcTransport,
 }
 
 /// Secret recovery material returned after wallet creation. It intentionally
@@ -362,7 +362,7 @@ impl WalletRpcClient {
         Ok(())
     }
 
-    async fn empty_call(&self, method: &'static str) -> Result<(), RpcError> {
+    pub(crate) async fn empty_call(&self, method: &'static str) -> Result<(), RpcError> {
         #[derive(Deserialize)]
         struct Empty {}
         self.transport

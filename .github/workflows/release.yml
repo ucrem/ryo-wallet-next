@@ -205,8 +205,9 @@ jobs:
           set -euo pipefail
           python3 scripts/prepare_update_assets.py staging-artifacts release-assets "$VERSION"
 
-          cat > release-notes.md <<EOF
-          Ryo Wallet Next v$VERSION
+          node scripts/extract-release-changelog.mjs "$VERSION" > release-notes.md
+          cat >> release-notes.md <<EOF
+          ## Build provenance
 
           Development preview.
 

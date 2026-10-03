@@ -13,6 +13,7 @@ export type CreatedWallet = {
   status: LifecycleStatus
   recovery_phrase: string
 }
+export type RestoredWallet = { wallet_id: string; status: LifecycleStatus }
 
 export type WalletSyncStatus = {
   wallet_height: string | null
@@ -36,6 +37,8 @@ export const walletRuntimeReady = () => invoke<boolean>("wallet_runtime_ready")
 export const listWallets = () => invoke<WalletEntry[]>("wallet_list")
 export const getActiveWallet = () => invoke<WalletEntry | null>("wallet_active")
 export const createWallet = (password: string) => invoke<CreatedWallet>("wallet_create", { password })
+export const restoreWallet = (password: string, seed: string, refreshStartHeight: string) =>
+  invoke<RestoredWallet>("wallet_restore", { password, seed, refreshStartHeight })
 export const openWallet = (walletId: string, password: string) =>
   invoke<LifecycleStatus>("wallet_open", { walletId, password })
 export const lockWallet = () => invoke<LifecycleStatus>("wallet_lock")

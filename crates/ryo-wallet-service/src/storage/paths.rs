@@ -24,6 +24,9 @@ pub struct AppPaths {
 }
 
 impl AppPaths {
+    pub const fn network(&self) -> Network {
+        self.network
+    }
     pub fn new(root: PathBuf, network: Network) -> Result<Self, PathError> {
         if !root.is_absolute() {
             return Err(PathError::RelativeRoot);
@@ -37,6 +40,7 @@ impl AppPaths {
             self.network_root(),
             self.wallets_root(),
             self.runtime_root(),
+            self.chain_root(),
         ] {
             fs::create_dir_all(&path).map_err(PathError::Io)?;
             set_owner_only(&path).map_err(PathError::Io)?;
@@ -58,6 +62,11 @@ impl AppPaths {
 
     pub fn runtime_root(&self) -> PathBuf {
         self.network_root().join("runtime")
+    }
+
+    /// The daemon owns this directory; it contains no wallet keys.
+    pub fn chain_root(&self) -> PathBuf {
+        self.network_root().join("chain")
     }
 
     pub fn wallet_dir(&self, wallet_id: &WalletId) -> PathBuf {

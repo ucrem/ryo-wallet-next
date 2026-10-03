@@ -104,6 +104,9 @@ jobs:
             --path "$sidecar_path"
 
           otool -L "$sidecar_path"
+          daemon_path='target/release/bundle/macos/Ryo Wallet Next.app/Contents/MacOS/ryod'
+          python3 scripts/verify-packaged-runtime.py --target x86_64-apple-darwin --binary ryod --path "$daemon_path"
+          otool -L "$daemon_path"
 
           shopt -s nullglob
           dmgs=(target/release/bundle/dmg/*.dmg)
@@ -248,6 +251,9 @@ jobs:
           $sidecars = @(Get-ChildItem 'target/nsis-inspection' -Recurse -File -Filter 'ryo-wallet-rpc.exe')
           if ($sidecars.Count -ne 1) { throw "Expected one packaged wallet RPC, found $($sidecars.Count)" }
           python scripts/verify-packaged-runtime.py --target x86_64-pc-windows-msvc --path $sidecars[0].FullName
+          $daemons = @(Get-ChildItem 'target/nsis-inspection' -Recurse -File -Filter 'ryod.exe')
+          if ($daemons.Count -ne 1) { throw "Expected one packaged daemon, found $($daemons.Count)" }
+          python scripts/verify-packaged-runtime.py --target x86_64-pc-windows-msvc --binary ryod --path $daemons[0].FullName
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: preview-windows-x64-exe

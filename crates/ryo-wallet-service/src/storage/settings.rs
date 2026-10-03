@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
+use ts_rs::TS;
 
 use crate::domain::{NodeConfig, NodeConfigError};
 
@@ -12,7 +13,8 @@ use super::{AppPaths, PathError};
 const MIN_IDLE_LOCK_SECONDS: u16 = 60;
 const MAX_IDLE_LOCK_SECONDS: u16 = 3_600;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export)]
 #[serde(rename_all = "lowercase")]
 pub enum Theme {
     System,

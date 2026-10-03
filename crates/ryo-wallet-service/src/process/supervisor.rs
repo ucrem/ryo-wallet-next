@@ -4,6 +4,7 @@ use std::process::ExitStatus;
 use std::time::Duration;
 
 use thiserror::Error;
+use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, Command};
 use tokio::time::timeout;
 
@@ -37,6 +38,23 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
     ) -> Result<Self, ProcessError> {
+        Self::spawn(binary, args, working_directory, false).await
+    }
+
+    pub(crate) async fn start_daemon(
+        binary: &VerifiedBinary,
+        args: &[OsString],
+        working_directory: &Path,
+    ) -> Result<Self, ProcessError> {
+        Self::spawn(binary, args, working_directory, true).await
+    }
+
+    async fn spawn(
+        binary: &VerifiedBinary,
+        args: &[OsString],
+        working_directory: &Path,
+        console: bool,
+    ) -> Result<Self, ProcessError> {
         if !working_directory.is_absolute() || !working_directory.is_dir() {
             return Err(ProcessError::UnsafeWorkingDirectory);
         }
@@ -46,16 +64,43 @@ impl ManagedProcess {
             .current_dir(working_directory)
             .env_clear()
             .env("LANG", "C")
-            .stdin(std::process::Stdio::null())
+            .stdin(if console {
+                std::process::Stdio::piped()
+            } else {
+                std::process::Stdio::null()
+            })
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
+        #[cfg(windows)]
+        {
+            command.creation_flags(0x08000000); // CREATE_NO_WINDOW: sidecars never open a console.
+            // Windows DNS/system libraries require this OS directory. No other
+            // parent environment (including credentials or PATH) is inherited.
+            if let Some(system_root) = std::env::var_os("SystemRoot") {
+                command.env("SystemRoot", system_root);
+            }
+        }
         let child = command.spawn().map_err(ProcessError::Start)?;
         Ok(Self { child })
     }
 
     pub fn pid(&self) -> Option<u32> {
         self.child.id()
+    }
+
+    pub fn has_exited(&mut self) -> Result<bool, ProcessError> {
+        self.child
+            .try_wait()
+            .map(|status| status.is_some())
+            .map_err(ProcessError::Wait)
+    }
+
+    /// The fixed console command belongs to our child, never an arbitrary RPC endpoint.
+    pub(crate) async fn request_daemon_exit(&mut self) {
+        if let Some(mut stdin) = self.child.stdin.take() {
+            let _ = timeout(Duration::from_secs(1), stdin.write_all(b"exit\n")).await;
+        }
     }
 
     /// OS-level fallback after a graceful wallet RPC shutdown has failed.

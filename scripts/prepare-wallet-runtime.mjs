@@ -33,9 +33,9 @@ async function verifiedFile(path, expected) {
   }
 }
 
-async function stageDevelopmentSidecar(source, target, expected) {
+async function stageDevelopmentSidecar(source, name, target, expected) {
   const directory = join(projectRoot, "src-tauri", "binaries")
-  const destination = join(directory, `ryo-wallet-rpc-${target}${process.platform === "win32" ? ".exe" : ""}`)
+  const destination = join(directory, `${name}-${target}${process.platform === "win32" ? ".exe" : ""}`)
   await mkdir(directory, { recursive: true, mode: 0o700 })
   if (await verifiedFile(destination, expected)) return
   await rm(destination, { force: true })
@@ -46,10 +46,10 @@ async function stageDevelopmentSidecar(source, target, expected) {
 
 function extractMember(archive, member) {
   const zip = archive.endsWith(".zip")
-  const command = zip
-    ? process.platform === "win32" ? join(process.env.ProgramFiles ?? "C:\\Program Files", "7-Zip", "7z.exe") : "7z"
-    : "tar"
-  const args = zip ? ["e", "-so", archive, member] : ["-xJOf", archive, member]
+  const command = zip && process.platform !== "win32" ? "7z" : "tar"
+  const args = zip && process.platform !== "win32"
+    ? ["e", "-so", archive, member]
+    : [zip ? "-xOf" : "-xJOf", archive, member]
   const result = spawnSync(command, args, { maxBuffer: 128 * 1024 * 1024 })
   if (result.error || result.status !== 0 || !result.stdout?.length) {
     throw new Error("Could not extract the reviewed wallet RPC executable")
@@ -65,15 +65,18 @@ export async function prepareWalletRuntime(mode) {
   if (!reviewed) throw new Error(`No reviewed Ryo ${manifest.version} wallet RPC runtime for this platform`)
 
   const directory = join(projectRoot, "src-tauri", mode === "package" ? "binaries" : ".dev-runtime")
-  const filename = mode === "package"
-    ? `ryo-wallet-rpc-${target}${process.platform === "win32" ? ".exe" : ""}`
-    : `ryo-wallet-rpc${process.platform === "win32" ? ".exe" : ""}`
-  const destination = join(directory, filename)
+  const runtimes = [
+    { name: "ryo-wallet-rpc", member: reviewed.member, digest: reviewed.binarySha256 },
+    { name: "ryod", member: reviewed.daemonMember, digest: reviewed.daemonSha256 },
+  ].map((runtime) => {
+    const filename = `${runtime.name}${mode === "package" ? `-${target}` : ""}${process.platform === "win32" ? ".exe" : ""}`
+    return { ...runtime, filename, destination: join(directory, filename) }
+  })
   await mkdir(directory, { recursive: true, mode: 0o700 })
   // Development may reuse a verified copy. Package builds verify the archive
   // and extracted executable on every invocation.
-  if (mode === "development" && await verifiedFile(destination, reviewed.binarySha256)) {
-    await stageDevelopmentSidecar(destination, target, reviewed.binarySha256)
+  if (mode === "development" && (await Promise.all(runtimes.map((runtime) => verifiedFile(runtime.destination, runtime.digest)))).every(Boolean)) {
+    for (const runtime of runtimes) await stageDevelopmentSidecar(runtime.destination, runtime.name, target, runtime.digest)
     return
   }
 
@@ -81,22 +84,24 @@ export async function prepareWalletRuntime(mode) {
   try {
     const archive = join(temporary, reviewed.archive)
     const url = `${manifest.releaseBase}/${reviewed.archive}`
-    process.stdout.write(`Preparing verified Ryo ${manifest.version} wallet runtime for ${mode}…\n`)
+    process.stdout.write(`Preparing verified Ryo ${manifest.version} wallet and node runtimes for ${mode}…\n`)
     const response = await fetch(url)
     if (!response.ok || !response.body) throw new Error(`Ryo release download failed (HTTP ${response.status})`)
     await pipeline(Readable.fromWeb(response.body), createWriteStream(archive, { mode: 0o600 }))
     if (!await verifiedFile(archive, reviewed.archiveSha256)) {
       throw new Error("Ryo release archive SHA-256 did not match the reviewed manifest")
     }
-    const extracted = join(temporary, filename)
-    await writeFile(extracted, extractMember(archive, reviewed.member), { mode: 0o700 })
-    if (!await verifiedFile(extracted, reviewed.binarySha256)) {
-      throw new Error("Ryo wallet RPC SHA-256 did not match the reviewed manifest")
+    for (const runtime of runtimes) {
+      const extracted = join(temporary, runtime.filename)
+      await writeFile(extracted, extractMember(archive, runtime.member), { mode: 0o700 })
+      if (!await verifiedFile(extracted, runtime.digest)) {
+        throw new Error(`Ryo ${runtime.name} SHA-256 did not match the reviewed manifest`)
+      }
+      if (process.platform !== "win32") await chmod(extracted, 0o755)
+      await rm(runtime.destination, { force: true })
+      await rename(extracted, runtime.destination)
+      if (mode === "development") await stageDevelopmentSidecar(runtime.destination, runtime.name, target, runtime.digest)
     }
-    if (process.platform !== "win32") await chmod(extracted, 0o755)
-    await rm(destination, { force: true })
-    await rename(extracted, destination)
-    if (mode === "development") await stageDevelopmentSidecar(destination, target, reviewed.binarySha256)
   } finally {
     await rm(temporary, { recursive: true, force: true })
   }

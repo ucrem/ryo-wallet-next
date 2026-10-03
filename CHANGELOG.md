@@ -1,10 +1,61 @@
 # Changelog
 
-## [0.1.0-alpha.5] - 2026-09-26
+## [0.1.0-alpha.6] - 2026-10-03
+
+### Added
+
+- Settings with General and Preferences tabs in the top menu, available while the wallet is locked.
+- Local, remote and local-with-remote-bootstrap node selection; advanced peer/bandwidth limits, log levels, private ports and isolated network selection.
+- Persistent light/dark/system themes, minimize-to-tray with Open/Lock/Exit controls, optional startup launch and native session-aware inactivity locking.
+- Configurable missing Payment ID and weak-password warnings in the send review and create/restore forms.
+- Verified, bundled Ryo 0.6.1.0 local node on Windows x64, Linux x64 and macOS Intel.
+- Independent local-node start and stop controls available with the wallet locked.
+- Separate blockchain and wallet scan progress in the persistent status bar.
+- Local-node storage isolated from wallet files and other Ryo applications.
+- Wallet, Receive, Send, Address Book and TX History sections in the compact top menu.
+- Receive address labels, per-address balances, QR codes, SVG image exports and exact-amount payment requests.
+- Wallet contacts with names, notes, payment IDs, editing, deletion and recipient selection.
+- Recent activity and filterable transaction history with details, confirmations, notes and explicit explorer links.
+- Send and sweep-all preparation with priority/ring-size controls, actual-fee review, expiring immutable drafts and one-shot confirmation.
+- Persistent send outcome journal with per-transaction partial/unknown results and read-only reconciliation.
+- Wallet rename, password change, password-protected private key display, spent/full rescan, and native key image import/export.
+- Recoverable wallet removal after password authentication and explicit backup/removal confirmation.
+
+### Changed
+
+- The desktop uses a top menu with contextual setup navigation; the original sidebar remains available in the layout comparison preview.
+- Locking the wallet terminates its key-bearing process while the local node continues synchronizing.
+- Opening a wallet in local mode starts or reuses the app-owned node without requiring a separate daemon installation.
+- App exit and update installation stop the app-owned node; node and data-location changes require stopped processes.
+- Desktop package checks verify both the wallet RPC and daemon hashes.
+- Windows sidecars receive the system directory required by native DNS libraries and run without console windows.
+- Canonical Windows data-folder paths are converted for compatibility with the bundled Ryo runtime.
+- Selected data-folder paths and the setup summary display familiar Windows drive and network paths without the extended-path prefix.
+- Node status distinguishes a stopped node or peer discovery from blockchain synchronization; starting the node reloads the selected folder's saved chain.
+- Setup can continue with the saved node configuration while the local node is syncing or a wallet is open; editing active node settings still requires stopped processes.
+- Compact desktop navigation and content spanning the available width, with setup steps shown only in setup screens.
+- One-line status bar with separate inline node and wallet heights, percentages and progress indicators.
+- A reachable node still downloading the chain no longer labels wallet synchronization as "Node connecting".
+- Changing wallet tabs closes Wallet actions and its menu, discards the previous form and keeps the balance visibility preference.
+- Receive, Send and Address Book use a compact wallet summary and denser forms that fit the minimum desktop window; long address/contact lists scroll independently.
+- Receive shows the selected address once, with a compact label/status selector and its QR, balance, label and payment request together.
+- Home wallet choices stack at their previous single-card width, alongside a decorative Ryo symbol fading from left to right.
+
+### Known limitations
+
+- The local node runs while the app is open; continuing after app exit is not supported.
+- Tray/autostart and bootstrap handover still require clean-install checks on all supported platforms.
+- macOS Apple Silicon packaging remains paused pending reviewed native Ryo binaries.
+- Transaction preparation and submission require a synchronized node and wallet. Real signing/relay with funded test-chain outputs and failure recovery remain unverified; this release stays a development preview.
+- Clean-install and full-chain synchronization validation on all platforms remain outstanding.
+- Preview builds are not intended for use with funds.
+
+## [0.1.0-alpha.5] - 2026-10-02
 
 ### Added
 
 - Bundled and verified Ryo wallet RPC runtime in supported desktop packages.
+- Recovery-phrase restoration form with an optional scan start height and backup verification.
 
 ### Changed
 
@@ -17,7 +68,7 @@
 
 - macOS Apple Silicon packaging is paused until a reviewed native ARM64 Ryo wallet RPC runtime is available.
 - Transaction creation, signing, and submission are not yet implemented.
-- Restore-from-recovery-phrase UI is not yet complete.
+- Recovery-phrase restoration needs packaged validation and does not yet offer a full genesis rescan.
 - Preview builds are not intended for use with funds.
 
 

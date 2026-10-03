@@ -20,10 +20,11 @@ test("only reviewed host targets can prepare a wallet runtime", () => {
 
 test("reviewed archive and executable digests are complete", () => {
   for (const runtime of Object.values(manifest.platforms)) {
-    for (const key of ["archiveSha256", "binarySha256"]) {
+    for (const key of ["archiveSha256", "binarySha256", "daemonSha256"]) {
       assert.match(runtime[key], /^[0-9a-f]{64}$/)
     }
     assert.ok(runtime.archive)
     assert.ok(runtime.member)
+    assert.ok(runtime.daemonMember)
   }
 })

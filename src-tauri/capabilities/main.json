@@ -7,10 +7,12 @@
   ],
   "permissions": [
     "allow-app-status",
+    "allow-app-settings",
     "allow-app-updates",
     "allow-wallet-overview",
     "allow-wallet-receive",
     "allow-wallet-lifecycle",
+    "allow-wallet-operations",
     "allow-data-root",
     "allow-node-configuration",
     "core:app:allow-version",
@@ -19,7 +21,7 @@
     "clipboard-manager:allow-write-text",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "https://github.com/ucrem/ryo-wallet-next/releases/tag/v*" }]
+      "allow": [{ "url": "https://github.com/ucrem/ryo-wallet-next/releases/tag/v*" }, { "url": "https://explorer.ryo-currency.com/tx/*" }]
     }
   ]
 }

@@ -6,19 +6,25 @@
       "archive": "ryo-linux-x64-0.6.1.0.tar.xz",
       "archiveSha256": "2b4de6e605735b2c2d7c851685bf858e6d0ba4132861147d1dfb3632e36b8b44",
       "member": "ryo-linux-x64-0.6.1.0/ryo-wallet-rpc",
-      "binarySha256": "5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3"
+      "binarySha256": "5ef7395ce822a02905e68a63abf6f3a9d75654c8a9773c23777902b5522169e3",
+      "daemonMember": "ryo-linux-x64-0.6.1.0/ryod",
+      "daemonSha256": "22c656b7a3db529378b1e83d751946cc93c76742d87b12232a9113fdf5447e23"
     },
     "x86_64-apple-darwin": {
       "archive": "ryo-macosx-x64-0.6.1.0.tar.xz",
       "archiveSha256": "de84854ec25b7e43b4637964136cc364d82f253fe0268460ad2246e86252f326",
       "member": "ryo-macosx-x64-0.6.1.0/ryo-wallet-rpc",
-      "binarySha256": "f9c2f07624b3105cf3684dfd55c20143de81876177581aaa67c79e6b36daff7c"
+      "binarySha256": "f9c2f07624b3105cf3684dfd55c20143de81876177581aaa67c79e6b36daff7c",
+      "daemonMember": "ryo-macosx-x64-0.6.1.0/ryod",
+      "daemonSha256": "5530bdfcf24c67411626595944c15c5540010ee1a63e8256e4cada8994a7311e"
     },
     "x86_64-pc-windows-msvc": {
       "archive": "ryo-win-x64-0.6.1.0.zip",
       "archiveSha256": "fd7e031c255e2c4e89edb826b7a6a34bb91555001d4ad0495d320d0f6c621902",
       "member": "ryo-wallet-rpc.exe",
-      "binarySha256": "26b18488c30e14f2e49eba87c89b9048c4b5493be7d23b8e5173be7d1a212721"
+      "binarySha256": "26b18488c30e14f2e49eba87c89b9048c4b5493be7d23b8e5173be7d1a212721",
+      "daemonMember": "ryod.exe",
+      "daemonSha256": "a60f8db0ff0e7fd258f7a74c5ec975ca54b732b011c6b5bf706584c2785d3590"
     }
   }
 }

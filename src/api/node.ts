@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { NodeConfig } from "@/api/generated/NodeConfig"
+import type { NodeStatus } from "@/api/generated/NodeStatus"
 
 export type NodeSelection =
   | { mode: "local" }
-  | { mode: "remote"; host: string; port: number }
+  | { mode: "remote" | "hybrid"; host: string; port: number }
 
 export async function getNodeConfiguration(): Promise<NodeConfig | null> {
   return invoke<NodeConfig | null>("node_configuration")
@@ -12,3 +13,7 @@ export async function getNodeConfiguration(): Promise<NodeConfig | null> {
 export async function saveNodeSelection(selection: NodeSelection): Promise<NodeConfig> {
   return invoke<NodeConfig>("save_node_selection", { selection })
 }
+
+export const getNodeStatus = () => invoke<NodeStatus>("node_status")
+export const startNode = () => invoke<void>("node_start")
+export const stopNode = () => invoke<void>("node_stop")
