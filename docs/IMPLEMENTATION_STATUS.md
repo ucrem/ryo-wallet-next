@@ -83,6 +83,8 @@ GitHub's latest core release is [0.6.1.0](https://github.com/ryo-currency/ryo-cu
 
 ## Required next gates
 
+The next release now has a [testnet validation milestone](TESTNET_VALIDATION.md). The new real two-node funded suite passes locally on Windows, including subaddress receipt, actual fees, no early/duplicate relay, lost reply after acceptance with persisted journal reconciliation, funded seed recovery, key images, sweep and chain restart. This short fixture uses the genesis-era testnet fork; current-fork, installed-desktop and platform security gates remain open. CI is being extended to Linux and macOS Intel. Public peers tested from this host did not provide synchronization.
+
 1. Validate alpha.6 local-node and wallet flows on clean Linux, macOS Intel and Windows installations, including full-chain synchronization. Windows live-node lock/unlock/stop/restart passes the disposable process test. Apple Silicon needs reviewed native upstream binaries or a separately reviewed build.
 2. Verify capability-denial behavior in the desktop host and repeat native graphics checks across supported Linux/Windows/macOS configurations.
 3. Validate funded prepare/sign/relay and sweep on an isolated deterministic test chain, including actual partial/unknown outcomes, restart reconciliation, rescan and key image import with mature outputs. Verify history field compatibility on native instances with transactions.
