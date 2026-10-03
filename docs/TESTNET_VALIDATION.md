@@ -7,8 +7,10 @@ Updated 2026-10-03. This milestone validates the existing wallet rather than dec
 - The unchanged reviewed Windows daemon and wallet RPC (0.6.1.0, manifest SHA-256 checks) run in two fresh, isolated testnet nodes with exclusive loopback peers and disposable wallets.
 - The funded fixture passes real block validation, mature mined outputs, actual signed preparation, actual fees and a nine-decimal amount, cancellation, no relay before confirmation, one-shot submission, daemon pool acceptance, subaddress receipt and confirmed history.
 - A transparent fault proxy drops a reply only after the real daemon accepted the transaction. The service reports `unknown`, blocks a replacement, persists the journal, and reconciles it after a fresh wallet-service owner and a real chain scan. It never sends the same draft again.
+- A real three-transaction split sweep with ring size 100 produces `relayed`, `unknown`, and `not_sent` after losing the second acceptance reply. A fresh service owner reconciles the accepted transaction and does not relay the unsubmitted remainder; the real daemon's pool and chain are checked for every hash.
 - Funded seed restoration recovers the primary address and balance. Rescan, encrypted key image export/import, sweep to zero sender balance, continuing the chain with the wallet locked, peer chain propagation and persisted-chain restart pass.
 - Test passwords and the recovery phrase are checked against the disposable raw logs. The receipt contains only the profile, platform, time, height and passed checks. No phrase, password, credentials, addresses or signed metadata are uploaded.
+- The initial funded suite passed all six checks in [CI run 37150606231](https://github.com/ucrem/ryo-wallet-next/actions/runs/37150606231), including native Windows, Linux and macOS Intel integrations. The expanded partial split-send case passed locally on Windows; its cross-platform result is recorded by the PR's current CI receipts.
 
 ### Critical profile limit
 
@@ -21,6 +23,8 @@ However, the short chain has **not reached the current testnet fork**. In the re
 The Windows probe on 2026-10-03 observed no reachable TCP peer at `185.134.22.134:13310`, `81.19.208.43:13310`, `149.56.44.109:13310` (core seeds), or `45.77.68.151:13310` (Atom's explicit testnet peer). The daemon stayed at height 1 with no outgoing connections during both 45-second observations. These are observations from this host, not proof that all public testnet infrastructure is offline.
 
 The explorer DNS resolves; HTTPS to its network API failed TLS negotiation. Testnet RPC attempts to `wallet-node.ryo-currency.com:13311` and `tnexp.ryo-currency.com:13311` were refused. Neither endpoint has been adopted as a functioning testnet node. Local detailed receipts are under `target/testnet-validation/probe-*`.
+
+The same four TCP probes and 30-second daemon observations also found no peers and no chain progress from the Windows, Linux and macOS Intel GitHub runners in the linked CI run. This reproduces the availability problem beyond our host, without proving that no unlisted public peer exists. Port 13310 is P2P, not a wallet RPC endpoint.
 
 Sources: [core seeds](https://github.com/ryo-currency/ryo-currency/blob/166cf188bf351e3eecff904450eda2785f9d0357/src/p2p/net_node.inl), [Atom testnet peer](https://github.com/ryo-currency/ryo-wallet/blob/6c8d0aa68245271fe0e781084b38583abf758869/src-electron/main-process/modules/daemon.js).
 
@@ -61,10 +65,10 @@ The probe contacts public testnet peers, creates a separate chain under `target/
 
 | Gate | Windows | Linux | macOS Intel | Stable requirement |
 | --- | --- | --- | --- | --- |
-| Funded isolated genesis-fork wallet suite | Passed locally | CI pending | CI pending | Foundation evidence only |
+| Funded isolated genesis-fork wallet suite | Passed locally and in initial CI | Initial CI passed; receipt required per revision | Initial CI passed; receipt required per revision | Foundation evidence only |
 | Current-fork funded signing / relay / sweep | Blocked: usable current-fork testnet/fixture needed | Not verified | Not verified | Required |
-| Real partial split-send failure | Not verified; mock coverage exists | Not verified | Not verified | Required |
-| Funded recovery / real unknown reply / chain restart in short fixture | Passed locally | CI pending | CI pending | Repeat on current fork |
+| Real partial split-send failure | Passed locally in short fixture | Current CI receipt required | Current CI receipt required | Repeat on current fork |
+| Funded recovery / real unknown reply / chain restart in short fixture | Passed locally and in initial CI | Initial CI passed; receipt required per revision | Initial CI passed; receipt required per revision | Repeat on current fork |
 | Clean installed desktop, receive/send/recovery | Not verified | Not verified | Not verified | Required for each supported stable platform |
 | Native tray, autostart, inactivity and OS suspend/resume | Not verified end to end | Not verified | Not verified | Required |
 | Hybrid bootstrap handover to a complete local chain | Not verified | Not verified | Not verified | Required if hybrid is included |

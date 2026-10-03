@@ -3,7 +3,7 @@
 use reqwest::Client;
 use serde_json::Value;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>
 
 pub struct LossyDaemon {
     pub port: u16,
-    drop_next: Arc<AtomicBool>,
+    replies_before_loss: Arc<AtomicUsize>,
     pub accepted_dropped: Arc<AtomicUsize>,
     task: JoinHandle<()>,
 }
@@ -22,9 +22,9 @@ impl LossyDaemon {
     pub async fn start(daemon_port: u16) -> Result<Self> {
         let listener = TcpListener::bind((std::net::Ipv4Addr::LOCALHOST, 0)).await?;
         let port = listener.local_addr()?.port();
-        let drop_next = Arc::new(AtomicBool::new(false));
+        let replies_before_loss = Arc::new(AtomicUsize::new(usize::MAX));
         let accepted_dropped = Arc::new(AtomicUsize::new(0));
-        let drop_flag = drop_next.clone();
+        let drop_flag = replies_before_loss.clone();
         let drop_count = accepted_dropped.clone();
         let client = Client::builder()
             .no_proxy()
@@ -47,13 +47,17 @@ impl LossyDaemon {
         });
         Ok(Self {
             port,
-            drop_next,
+            replies_before_loss,
             accepted_dropped,
             task,
         })
     }
     pub fn lose_next_send_reply(&self) {
-        self.drop_next.store(true, Ordering::Release);
+        self.lose_send_reply_after(0);
+    }
+    pub fn lose_send_reply_after(&self, successful_replies: usize) {
+        self.replies_before_loss
+            .store(successful_replies, Ordering::Release);
     }
 }
 impl Drop for LossyDaemon {
@@ -66,7 +70,7 @@ async fn forward(
     mut socket: TcpStream,
     daemon_port: u16,
     client: Client,
-    flag: Arc<AtomicBool>,
+    flag: Arc<AtomicUsize>,
     count: Arc<AtomicUsize>,
 ) -> Result<()> {
     let mut request = Vec::new();
@@ -126,13 +130,26 @@ async fn forward(
     let status = response.status();
     let body = response.bytes().await?;
     if ["/sendrawtransaction", "/send_raw_transaction"].contains(&path.as_str())
-        && flag.load(Ordering::Acquire)
+        && flag.load(Ordering::Acquire) != usize::MAX
     {
         let value: Value = serde_json::from_slice(&body)?;
-        if status.is_success() && value["status"] == "OK" && flag.swap(false, Ordering::AcqRel) {
-            count.fetch_add(1, Ordering::AcqRel);
-            socket.shutdown().await?;
-            return Ok(());
+        if status.is_success() && value["status"] == "OK" {
+            // Only accepted transactions consume the countdown. One drop disarms it.
+            let previous =
+                flag.fetch_update(
+                    Ordering::AcqRel,
+                    Ordering::Acquire,
+                    |remaining| match remaining {
+                        usize::MAX => None,
+                        0 => Some(usize::MAX),
+                        n => Some(n - 1),
+                    },
+                );
+            if previous == Ok(0) {
+                count.fetch_add(1, Ordering::AcqRel);
+                socket.shutdown().await?;
+                return Ok(());
+            }
         }
     }
     socket.write_all(format!("HTTP/1.1 {} OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", status.as_u16(), body.len()).as_bytes()).await?;

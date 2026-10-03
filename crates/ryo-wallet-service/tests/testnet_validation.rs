@@ -379,7 +379,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
         },
     )
     .await?;
-    node_a.mine(&sender_address, 40).await?;
+    node_a.mine(&sender_address, 64).await?;
     node_a.mine(&recipient_address, 80).await?;
     node_b.match_tip(&node_a).await?;
     scan(&sender).await?;
@@ -389,7 +389,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
         return Err("fixture did not produce mature spendable outputs".into());
     }
     println!(
-        "120 validated blocks; sender has mature outputs. Preparing an actual signed transfer."
+        "144 validated blocks; sender has mature outputs. Preparing an actual signed transfer."
     );
     let prepare = || WalletOperation::PrepareSend {
         address: receive_address.address.clone(),
@@ -576,7 +576,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
         )
         .await?;
     sender
-        .open_imported_wallet(sender_id, Zeroizing::new(PASSWORD.into()))
+        .open_imported_wallet(sender_id.clone(), Zeroizing::new(PASSWORD.into()))
         .await?;
     scan(&sender).await?;
     let restored_paths = AppPaths::new(temporary.path().join("restored"), Network::Testnet)?;
@@ -619,6 +619,114 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
     )
     .await?;
     operation(&sender, WalletOperation::Rescan { spent_only: true }).await?;
+    let split = operation(
+        &sender,
+        WalletOperation::PrepareSend {
+            address: receive_address.address.clone(),
+            amount: String::new(),
+            sweep: true,
+            payment_id: String::new(),
+            priority: 1,
+            ring_size: 100,
+        },
+    )
+    .await?;
+    let split_hashes: Vec<String> = serde_json::from_value(split["transactions"].clone())?;
+    println!(
+        "Split sweep prepared {} real transactions.",
+        split_hashes.len()
+    );
+    assert!(
+        split_hashes.len() >= 3,
+        "fixture did not force a real split send"
+    );
+    assert_eq!(node_a.pool_count().await?, 0);
+    proxy.lose_send_reply_after(1);
+    let split_token = split["token"].as_str().unwrap().to_owned();
+    let split_result = operation(
+        &sender,
+        WalletOperation::ConfirmSend {
+            token: split_token.clone(),
+        },
+    )
+    .await?;
+    let outcomes = split_result["transactions"].as_array().unwrap();
+    assert_eq!(outcomes.len(), split_hashes.len());
+    assert_eq!(outcomes[0]["state"], "relayed");
+    assert_eq!(outcomes[1]["state"], "unknown");
+    assert!(outcomes[2..].iter().all(|row| row["state"] == "not_sent"));
+    assert_eq!(
+        proxy
+            .accepted_dropped
+            .load(std::sync::atomic::Ordering::Acquire),
+        2
+    );
+    let accepted = node_a.transactions(&split_hashes).await?;
+    assert!(split_hashes[..2].iter().all(|hash| {
+        accepted
+            .iter()
+            .any(|row| row["tx_hash"] == *hash && row["in_pool"] == true)
+    }));
+    assert!(
+        split_hashes[2..]
+            .iter()
+            .all(|hash| { !accepted.iter().any(|row| row["tx_hash"] == *hash) })
+    );
+    assert!(operation(&sender, prepare()).await.is_err());
+    assert!(
+        operation(&sender, WalletOperation::ConfirmSend { token: split_token })
+            .await
+            .is_err()
+    );
+    sender.lock(Duration::from_secs(5)).await?;
+    sender = WalletService::new();
+    sender
+        .start_wallet_rpc(
+            reviewed_binary(BinaryKind::WalletRpc),
+            paths_a.clone(),
+            NodeConfig::remote(Network::Testnet, "127.0.0.1".into(), wallet_node_port)?,
+            free_port(),
+        )
+        .await?;
+    sender
+        .open_imported_wallet(sender_id, Zeroizing::new(PASSWORD.into()))
+        .await?;
+    node_a.mine(&recipient_address, 12).await?;
+    node_b.match_tip(&node_a).await?;
+    scan(&sender).await?;
+    let reconciled = operation(&sender, WalletOperation::SendJournal).await?;
+    for (index, hash) in split_hashes.iter().enumerate() {
+        let row = reconciled
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|row| row["txid"] == *hash)
+            .unwrap();
+        let expected = match index {
+            0 => "relayed",
+            1 => "confirmed",
+            _ => "not_sent",
+        };
+        assert_eq!(row["state"], expected);
+    }
+    assert_eq!(
+        node_a.pool_count().await?,
+        0,
+        "reopen relayed an unsent split transaction"
+    );
+    let after_restart = node_a.transactions(&split_hashes).await?;
+    assert!(split_hashes[..2].iter().all(|hash| {
+        after_restart
+            .iter()
+            .any(|row| row["tx_hash"] == *hash && row["in_pool"] == false)
+    }));
+    assert!(
+        split_hashes[2..]
+            .iter()
+            .all(|hash| { !after_restart.iter().any(|row| row["tx_hash"] == *hash) }),
+        "restart sent a previously unsubmitted split transaction"
+    );
+    assert!(sender.overview().await?.unlocked.atomic.parse::<u64>()? > 0);
     let sweep_balance = sender.overview().await?.unlocked.atomic.parse::<u64>()?;
     let sweep = operation(
         &sender,
@@ -642,6 +750,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
         "sweep relayed during preparation"
     );
     let sweep_hashes: Vec<String> = serde_json::from_value(sweep["transactions"].clone())?;
+    println!("Sweep prepared {} real transactions.", sweep_hashes.len());
     let sweep_result = operation(
         &sender,
         WalletOperation::ConfirmSend {
@@ -670,7 +779,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
             .any(|row| row["txid"] == *hash && row["type"] == "in")
     }));
     println!(
-        "Actual fee, no early relay, cancel, one-shot relay, subaddress receive, history, lost reply after real acceptance, fresh-owner journal reconciliation, funded seed recovery, key images and sweep passed."
+        "Actual fee, no early relay, cancel, one-shot relay, subaddress receive, history, lost reply after real acceptance, fresh-owner journal reconciliation, real partial split send, funded seed recovery, key images and sweep passed."
     );
     restored.lock(Duration::from_secs(5)).await?;
     sender.lock(Duration::from_secs(5)).await?;
@@ -694,7 +803,7 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
             "checks":["two real exclusive peers and chain propagation","mature mined outputs","actual fee and exact nine-decimal amount",
                 "cancel and no relay before confirmation","one-shot relay and pool acceptance","subaddress receipt and confirmed history",
                 "reply lost after daemon acceptance","persisted unknown journal and fresh-owner reconciliation",
-                "wallet lock leaves nodes active","funded seed recovery","rescan and encrypted key images","sweep and zero sender balance","persisted chain restart","no test password or recovery phrase in raw logs"]});
+                "wallet lock leaves nodes active","funded seed recovery","rescan and encrypted key images","real partial split send and no automatic unsent relay after restart","sweep and zero sender balance","persisted chain restart","no test password or recovery phrase in raw logs"]});
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
