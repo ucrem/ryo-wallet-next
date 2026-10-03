@@ -28,12 +28,12 @@ def sha256_file(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def expected_digest(target: str) -> str:
+def expected_digest(target: str, binary: str = "ryo-wallet-rpc") -> str:
     """Return the reviewed wallet RPC SHA-256 for a target."""
     manifest = json.loads(MANIFEST.read_text())
 
     try:
-        digest = manifest["platforms"][target]["binarySha256"]
+        digest = manifest["platforms"][target]["daemonSha256" if binary == "ryod" else "binarySha256"]
     except KeyError as error:
         raise ValueError(
             f"unsupported wallet RPC target: {target}"
@@ -47,9 +47,9 @@ def expected_digest(target: str) -> str:
     return digest
 
 
-def verify(path: Path, target: str) -> None:
+def verify(path: Path, target: str, binary: str = "ryo-wallet-rpc") -> None:
     """Verify an extracted packaged wallet RPC binary."""
-    expected = expected_digest(target)
+    expected = expected_digest(target, binary)
 
     try:
         metadata = path.lstat()
@@ -100,11 +100,11 @@ def verify(path: Path, target: str) -> None:
             )
 
     print(
-        f"Verified packaged wallet RPC for {target}: {actual}"
+        f"Verified packaged {binary} for {target}: {actual}"
     )
 
 
-def verify_rpm_package(path: Path, target: str) -> None:
+def verify_rpm_package(path: Path, target: str, binary: str = "ryo-wallet-rpc") -> None:
     """
     Verify RPM integrity and the wallet RPC digest recorded in its file metadata.
 
@@ -112,7 +112,7 @@ def verify_rpm_package(path: Path, target: str) -> None:
     RPM v4 packages. The wallet RPC itself is checked through RPM's per-file
     digest metadata against the reviewed SHA-256 in runtime-manifest.json.
     """
-    expected = expected_digest(target)
+    expected = expected_digest(target, binary)
 
     if not path.is_file():
         raise ValueError(f"RPM package is missing: {path}")
@@ -189,14 +189,14 @@ def verify_rpm_package(path: Path, target: str) -> None:
 
         if (
             len(parts) == 3
-            and parts[0] == "/usr/bin/ryo-wallet-rpc"
+            and parts[0] == f"/usr/bin/{binary}"
         ):
             matches.append(parts)
 
     if len(matches) != 1:
         raise ValueError(
             "RPM must contain exactly one "
-            "/usr/bin/ryo-wallet-rpc binary"
+            f"/usr/bin/{binary} binary"
         )
 
     _, actual, mode_text = matches[0]
@@ -230,12 +230,13 @@ def verify_rpm_package(path: Path, target: str) -> None:
         )
 
     print(
-        f"Verified RPM wallet RPC for {target}: {actual}"
+        f"Verified RPM {binary} for {target}: {actual}"
     )
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--binary", choices=["ryo-wallet-rpc", "ryod"], default="ryo-wallet-rpc")
 
     parser.add_argument(
         "--target",
@@ -262,11 +263,13 @@ def main() -> None:
         verify_rpm_package(
             args.rpm_package,
             args.target,
+            args.binary,
         )
     else:
         verify(
             args.path,
             args.target,
+            args.binary,
         )
 
 

@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-app-settings"
+description = "Read and save validated preferences and node options; record activity for native idle locking"
+commands.allow = ["app_preferences", "save_app_preferences", "save_general_settings", "app_activity"]

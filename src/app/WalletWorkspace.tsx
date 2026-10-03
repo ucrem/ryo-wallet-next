@@ -1,20 +1,22 @@
-import { useEffect, useState, type FormEvent, type ReactNode } from "react"
+import { useEffect, useState, type FormEvent } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { writeText } from "@tauri-apps/plugin-clipboard-manager"
-import { getWalletOverview } from "@/api/overview"
 import {
-  acknowledgeBackup, createReceiveAddress, createWallet, getBackupPhrase, getReceiveAddresses,
-  listWallets, lockWallet, openWallet, walletRuntimeReady,
-  type ReceiveAddress, type WalletEntry,
+  acknowledgeBackup, createWallet, getBackupPhrase,
+  listWallets, lockWallet, openWallet, restoreWallet, walletRuntimeReady,
+  type WalletEntry,
 } from "@/api/wallet"
 import { challengePositions, verifyBackupWords } from "./backupChallenge"
 import { Button } from "@/components/ui/button"
+import { WalletDashboard } from "./WalletDashboard"
+import type { WalletSection } from "@/api/operations"
+import { usePreferences } from "@/lib/usePreferences"
+import { isWeakPassword } from "@/lib/passwordStrength"
 
 type Phase = "entry" | "backup" | "verify" | "open"
 
-export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack, onLocked }: {
-  mode: "create" | "open"; activeWallet: WalletEntry | null; sessionGeneration: string | null;
-  onBack: () => void; onLocked: () => void
+export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack, onLocked, section = "overview", onSection = () => {} }: {
+  mode: "create" | "restore" | "open"; activeWallet: WalletEntry | null; sessionGeneration: string | null;
+  onBack: () => void; onLocked: () => void; section?: WalletSection; onSection?: (section: WalletSection) => void
 }) {
   const queryClient = useQueryClient()
   const [phase, setPhase] = useState<Phase>(activeWallet ? activeWallet.backup_complete ? "open" : "backup" : "entry")
@@ -23,39 +25,12 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const preferences = usePreferences()
+  const [weakWarning, setWeakWarning] = useState(false)
+  const [weakAccepted, setWeakAccepted] = useState(false)
   const runtime = useQuery({ queryKey: ["wallet-runtime-ready"], queryFn: walletRuntimeReady })
   const wallets = useQuery({ queryKey: ["wallet-list"], queryFn: listWallets })
-  const overview = useQuery({
-    queryKey: ["wallet-overview", walletId],
-    queryFn: getWalletOverview,
-    enabled: phase === "open",
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1_000 * 2 ** attempt, 4_000),
-    refetchInterval: phase === "open" ? 10_000 : false,
-    refetchIntervalInBackground: false,
-  })
   const selectedId = walletId || wallets.data?.[0]?.id || ""
-  const [hideBalances, setHideBalances] = useState(false)
-  const [copyStatus, setCopyStatus] = useState<"idle" | "copied" | "error">("idle")
-  const [selectedAddressIndex, setSelectedAddressIndex] = useState(0)
-  const [creatingAddress, setCreatingAddress] = useState(false)
-  const [addressError, setAddressError] = useState<string | null>(null)
-  const addressQueryKey = ["receive-addresses", walletId, sessionGeneration] as const
-  const receiveAddresses = useQuery({
-    queryKey: addressQueryKey,
-    queryFn: () => getReceiveAddresses(sessionGeneration!),
-    enabled: phase === "open" && sessionGeneration !== null && activeWallet?.backup_complete === true,
-    retry: false,
-  })
-  const selectedAddress = selectedAddressIndex === 0
-    ? overview.data?.primary_address ?? ""
-    : receiveAddresses.data?.find((entry) => entry.address_index === selectedAddressIndex)?.address ?? ""
-
-  useEffect(() => {
-    if (copyStatus === "idle") return
-    const timeout = window.setTimeout(() => setCopyStatus("idle"), 2_000)
-    return () => window.clearTimeout(timeout)
-  }, [copyStatus])
 
   useEffect(() => {
     if (!activeWallet || activeWallet.backup_complete || phase !== "backup" || phrase) return
@@ -89,16 +64,61 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
       setError("Use a password of at least 12 bytes.")
       return
     }
+    if ((preferences.data?.notify_weak_password ?? true) && isWeakPassword(password) && !weakAccepted) {
+      setWeakWarning(true); return
+    }
     setError(null)
     setBusy(true)
     form.reset()
     try {
       const created = await createWallet(password)
       setWalletId(created.wallet_id)
-      setSelectedAddressIndex(0)
       setPhrase(created.recovery_phrase)
       setPhase("backup")
       await refreshWalletState()
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitRestore(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy) return
+    const form = event.currentTarget
+    const values = new FormData(form)
+    const password = String(values.get("password") ?? "")
+    const seed = String(values.get("seed") ?? "")
+    const height = String(values.get("height") ?? "").trim() || "0"
+    if (password !== values.get("confirmation")) {
+      setError("Passwords do not match.")
+      return
+    }
+    if (new TextEncoder().encode(password).length < 12) {
+      setError("Use a password of at least 12 bytes.")
+      return
+    }
+    if ((preferences.data?.notify_weak_password ?? true) && isWeakPassword(password) && !weakAccepted) {
+      setWeakWarning(true); return
+    }
+    if (!seed.trim()) {
+      setError("Enter your recovery phrase.")
+      return
+    }
+    if (!/^\d+$/.test(height)) {
+      setError("Scan start height must be a non-negative whole number.")
+      return
+    }
+    setError(null)
+    setBusy(true)
+    form.reset()
+    try {
+      const restored = await restoreWallet(password, seed, height)
+      setWalletId(restored.wallet_id)
+      setPhase("backup")
+      await refreshWalletState()
+      setPhrase((await getBackupPhrase(restored.wallet_id)).recovery_phrase)
     } catch (cause) {
       setError(String(cause))
     } finally {
@@ -117,7 +137,6 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
     try {
       await openWallet(selectedId, password)
       setWalletId(selectedId)
-      setSelectedAddressIndex(0)
       const needsBackup = !wallets.data?.find((entry) => entry.id === selectedId)?.backup_complete
       setPhase(needsBackup ? "backup" : "open")
       await refreshWalletState()
@@ -162,8 +181,6 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
       setPhrase(null)
       setAnswers({})
       setPhase("entry")
-      setSelectedAddressIndex(0)
-      setAddressError(null)
       await refreshWalletState()
       onLocked()
     } catch (cause) {
@@ -173,47 +190,11 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
     }
   }
 
-  async function copyAddress() {
-    if (!selectedAddress) return
-    try {
-      await writeText(selectedAddress)
-      setCopyStatus("copied")
-    } catch {
-      setCopyStatus("error")
-    }
-  }
-
-  async function addReceiveAddress() {
-    if (creatingAddress || !receiveAddresses.data || sessionGeneration === null) return
-    setCreatingAddress(true)
-    setAddressError(null)
-    try {
-      const created = await createReceiveAddress(sessionGeneration)
-      queryClient.setQueryData<ReceiveAddress[]>(addressQueryKey, (current) =>
-        current?.some((entry) => entry.address_index === created.address_index)
-          ? current.map((entry) => entry.address_index === created.address_index ? created : entry)
-          : current ? [...current, created] : current)
-      setSelectedAddressIndex(created.address_index)
-      setCopyStatus("idle")
-    } catch (cause) {
-      setAddressError(String(cause))
-    } finally {
-      void queryClient.invalidateQueries({ queryKey: addressQueryKey })
-      setCreatingAddress(false)
-    }
-  }
-
-  function renderBalance(atomic: string | undefined, hidden: boolean): string {
-    if (hidden) return "••••"
-    if (!atomic) return "—"
-    return `${formatAtomicRyo(atomic)} RYO`
-  }
-
   return (
     <div className="flex min-h-full flex-col">
       {phase !== "open" ? (
         <h1 className="mb-3 text-3xl font-semibold tracking-tight">
-          {phase === "entry" ? mode === "create" ? "Create wallet" : "Open wallet" : "Back up your recovery phrase"}
+          {phase === "entry" ? mode === "create" ? "Create wallet" : mode === "restore" ? "Restore wallet" : "Open wallet" : "Back up your recovery phrase"}
         </h1>
       ) : null}
 
@@ -221,7 +202,8 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
         <>
           <p className="mt-3 text-sm leading-6 text-slate-400">
             {mode === "create" ? "A new wallet will be saved in the private data folder you selected."
-              : "Choose a wallet previously created in this app, then enter its password."}
+              : mode === "restore" ? "Enter your recovery phrase to create a separate wallet in the private data folder. Your original wallet files are not changed."
+                : "Choose a wallet previously created in this app, then enter its password."}
           </p>
           {runtime.data === false ? (
             <p className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100" role="status">
@@ -230,12 +212,34 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
             </p>
           ) : null}
           {mode === "create" ? (
-            <form onSubmit={(event) => void submitCreate(event)} className="mt-6 grid max-w-lg gap-4">
+            <form onChange={(event) => { if (event.target instanceof HTMLInputElement && event.target.type === "password") { setWeakAccepted(false); setWeakWarning(false) } }} onSubmit={(event) => void submitCreate(event)} className="mt-6 grid gap-4 md:grid-cols-2">
               <PasswordField name="password" label="New wallet password" autoComplete="new-password" />
               <PasswordField name="confirmation" label="Confirm password" autoComplete="new-password" />
-              <p className="text-xs text-slate-400">At least 12 bytes. Keep it separate from your recovery phrase.</p>
-              <Button type="submit" disabled={busy || runtime.data !== true} className="bg-sky-400 text-slate-950 hover:bg-sky-300">
+              <p className="text-xs text-slate-400 md:col-span-2">At least 12 bytes. Keep it separate from your recovery phrase.</p>
+              {weakWarning ? <WeakPasswordNotice accepted={weakAccepted} onChange={setWeakAccepted} /> : null}
+              <Button type="submit" disabled={busy || runtime.data !== true} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300 md:col-span-2">
                 {busy ? "Creating…" : "Create wallet"}
+              </Button>
+            </form>
+          ) : mode === "restore" ? (
+            <form onChange={(event) => { if (event.target instanceof HTMLInputElement && event.target.type === "password") { setWeakAccepted(false); setWeakWarning(false) } }} onSubmit={(event) => void submitRestore(event)} className="mt-6 grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm md:col-span-2"><span>Recovery phrase</span>
+                <textarea name="seed" required rows={4} autoComplete="off" autoCapitalize="off" spellCheck={false}
+                  className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2" />
+              </label>
+              <p className="text-xs text-slate-400 md:col-span-2">Enter all words in order, including any checksum word. Spaces and line breaks are normalized before restoration.</p>
+              <PasswordField name="password" label="New wallet password" autoComplete="new-password" />
+              <PasswordField name="confirmation" label="Confirm password" autoComplete="new-password" />
+              <p className="text-xs text-slate-400 md:col-span-2">At least 12 bytes. Keep it separate from your recovery phrase.</p>
+              {weakWarning ? <WeakPasswordNotice accepted={weakAccepted} onChange={setWeakAccepted} /> : null}
+              <label className="grid gap-2 text-sm"><span>Scan start height (optional)</span>
+                <input name="height" type="text" inputMode="numeric" pattern="[0-9]*" placeholder="0"
+                  autoComplete="off" spellCheck={false}
+                  className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2" />
+              </label>
+              <p className="text-xs text-slate-400">Leave blank to use the height embedded in the phrase, if present. An explicit height may skip earlier transactions. A full scan from genesis can be requested from Wallet actions after restoration.</p>
+              <Button type="submit" disabled={busy || runtime.data !== true} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300 md:col-span-2">
+                {busy ? "Restoring…" : "Restore wallet"}
               </Button>
             </form>
           ) : wallets.isError ? (
@@ -243,17 +247,17 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
           ) : wallets.data?.length === 0 ? (
             <p className="mt-6 text-sm text-slate-300">No app-owned wallets were found in this data folder.</p>
           ) : (
-            <form onSubmit={(event) => void submitOpen(event)} className="mt-6 grid max-w-lg gap-4">
+            <form onSubmit={(event) => void submitOpen(event)} className="mt-6 grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm"><span>Wallet</span>
                 <select value={selectedId} onChange={(event) => setWalletId(event.target.value)}
-                  className="rounded-md border border-slate-600 bg-[#0d141c] px-3 py-2">
+                  className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2">
                   {wallets.data?.map((entry) => <option key={entry.id} value={entry.id}>
                     Wallet {entry.id.slice(0, 8)}{entry.backup_complete ? "" : " · backup pending"}
                   </option>)}
                 </select>
               </label>
               <PasswordField name="password" label="Wallet password" autoComplete="current-password" />
-              <Button type="submit" disabled={busy || runtime.data !== true || !selectedId} className="bg-sky-400 text-slate-950 hover:bg-sky-300">
+              <Button type="submit" disabled={busy || runtime.data !== true || !selectedId} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300 md:col-span-2">
                 {busy ? "Opening…" : "Open wallet"}
               </Button>
             </form>
@@ -268,7 +272,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
             Write these words on paper in order and store them privately. Anyone with the words can recover the wallet.
             The app will ask for three words after you hide this view.
           </p>
-          <div className="mt-6 grid grid-cols-3 gap-3 rounded-xl border border-sky-500/40 bg-[#151d27] p-5 sm:grid-cols-5" aria-label="Recovery phrase">
+          <div className="mt-6 grid grid-cols-3 gap-3 rounded-xl border border-sky-500/40 bg-[var(--app-surface)] p-5 sm:grid-cols-5" aria-label="Recovery phrase">
             {phrase.trim().split(/\s+/).map((word, index) => (
               <div key={index} className="min-w-0 text-sm"><span className="mr-2 font-mono text-slate-500">{index + 1}.</span>
                 <span className="break-all font-medium text-slate-100">{word}</span></div>
@@ -288,7 +292,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
             <label key={index} className="grid gap-2 text-sm"><span>Word {index + 1}</span>
               <input type="text" value={answers[index] ?? ""} onChange={(event) => setAnswers({ ...answers, [index]: event.target.value })}
                 autoComplete="off" autoCapitalize="off" spellCheck={false} required
-                className="rounded-md border border-slate-600 bg-[#0d141c] px-3 py-2" />
+                className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2" />
             </label>
           ))}
           <div className="flex gap-3">
@@ -306,123 +310,11 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
         </Button>
       ) : null}
 
-      {phase === "open" ? (
-        <>
-          <section className="rounded-xl border border-slate-700 bg-[#151d27] p-5">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <div className="min-w-0 flex-1">
-                {receiveAddresses.data && receiveAddresses.data.length > 1 ? (
-                  <label className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-wide text-slate-400">
-                    Receive address
-                    <select
-                      value={selectedAddressIndex}
-                      onChange={(event) => { setSelectedAddressIndex(Number(event.target.value)); setCopyStatus("idle") }}
-                      className="rounded-md border border-slate-600 bg-[#0d141c] px-2 py-1 text-xs text-slate-100"
-                    >
-                      {receiveAddresses.data.map((entry) => (
-                        <option key={entry.address_index} value={entry.address_index}>
-                          {entry.address_index === 0 ? "Primary address" : `Address #${entry.address_index}`}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : <p className="text-xs uppercase tracking-wide text-slate-400">Primary address</p>}
-
-                <p className="mt-2 break-all font-mono text-sm text-slate-100">
-                  {selectedAddress || "—"}
-                </p>
-                <p className="mt-2 text-xs text-slate-400">These addresses share one recovery phrase. After seed recovery, recreate them in the same order to show them again.</p>
-              </div>
-
-              <div className="flex shrink-0 flex-wrap gap-2">
-                <WalletIconButton
-                  label={copyStatus === "copied" ? "Copied" : copyStatus === "error" ? "Copy failed" : "Copy address"}
-                  onClick={() => void copyAddress()}
-                  disabled={!selectedAddress}
-                >
-                  {copyStatus === "copied" ? <CheckIcon /> : <CopyIcon />}
-                </WalletIconButton>
-
-                <WalletIconButton
-                  label={creatingAddress ? "Creating address…" : "New receive address"}
-                  onClick={() => void addReceiveAddress()}
-                  disabled={creatingAddress || !receiveAddresses.data || !activeWallet?.backup_complete}
-                >
-                  <NewAddressIcon />
-                </WalletIconButton>
-
-                <WalletIconButton
-                  label={hideBalances ? "Show balances" : "Hide balances"}
-                  onClick={() => setHideBalances((value) => !value)}
-                >
-                  {hideBalances ? <EyeOffIcon /> : <EyeIcon />}
-                </WalletIconButton>
-
-                <WalletIconButton
-                  label={busy ? "Locking…" : "Lock wallet"}
-                  onClick={() => void lock()}
-                  disabled={busy}
-                >
-                  <LockIcon />
-                </WalletIconButton>
-              </div>
-            </div>
-
-            <span className="sr-only" role="status">
-              {copyStatus === "copied" ? "Address copied to clipboard" : copyStatus === "error" ? "Address could not be copied" : ""}
-            </span>
-            {receiveAddresses.isError ? (
-              <p className="mt-3 text-sm text-red-300" role="alert">Receive addresses could not be loaded. Reopen the wallet to try again.</p>
-            ) : null}
-            {addressError ? <p className="mt-3 text-sm text-red-300" role="alert">{addressError}</p> : null}
-
-            <div className="mt-5 grid gap-4 border-t border-slate-700 pt-5 sm:grid-cols-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Total
-                </p>
-                <p className="mt-1 font-mono text-lg text-slate-100">
-                  {renderBalance(overview.data?.total.atomic, hideBalances)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Unlocked
-                </p>
-                <p className="mt-1 font-mono text-lg text-slate-100">
-                  {renderBalance(overview.data?.unlocked.atomic, hideBalances)}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Locked
-                </p>
-                <p className="mt-1 font-mono text-lg text-slate-100">
-                  {renderBalance(overview.data?.locked.atomic, hideBalances)}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          <section className="mt-6 rounded-xl border border-slate-700 bg-[#151d27] p-5">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs uppercase tracking-wide text-slate-400">
-                  Transactions
-                </p>
-                <h2 className="mt-1 text-lg font-semibold text-slate-100">
-                  Activity
-                </h2>
-              </div>
-            </div>
-
-            <p className="mt-4 text-sm text-slate-400">
-              Transaction history is not available yet.
-            </p>
-          </section>
-        </>
+      {phase === "open" && sessionGeneration !== null ? (
+        <WalletDashboard key={sessionGeneration} generation={sessionGeneration} section={section} onSection={onSection}
+          onLock={() => void lock()} locking={busy} onRemoved={() => {
+            setPhase("entry"); void refreshWalletState(); onLocked()
+          }} />
       ) : null}
 
       {error ? <p className="mt-5 rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200" role="alert">{error}</p> : null}
@@ -430,77 +322,16 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
   )
 }
 
-function WalletIconButton({ label, onClick, disabled, children }: {
-  label: string; onClick: () => void; disabled?: boolean; children: ReactNode
-}) {
-  return (
-    <span className="group relative inline-flex">
-      <Button type="button" variant="outline" size="icon" aria-label={label} onClick={onClick} disabled={disabled}>
-        {children}
-      </Button>
-      <span aria-hidden="true" className="pointer-events-none invisible absolute left-1/2 top-full z-50 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-slate-600 bg-slate-900 px-2.5 py-1.5 text-xs text-slate-100 opacity-0 shadow-lg transition-opacity group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100">
-        {label}
-      </span>
-    </span>
-  )
-}
-
-function CopyIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="8" y="8" width="12" height="12" rx="2" />
-    <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
-  </svg>
-}
-
-function CheckIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="m5 12 4 4L19 6" />
-  </svg>
-}
-
-function NewAddressIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="5" width="11" height="14" rx="2" />
-    <path d="M18 8v8m-4-4h8" />
-  </svg>
-}
-
-function EyeIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
-    <circle cx="12" cy="12" r="3" />
-  </svg>
-}
-
-function EyeOffIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 3 21 21M10.6 5.1A11 11 0 0 1 12 5c6.5 0 10 7 10 7a15 15 0 0 1-3.1 3.8M6.1 6.1C3.4 8 2 12 2 12s3.5 7 10 7a10.5 10.5 0 0 0 4.2-.9" />
-    <path d="M10.1 10.1a3 3 0 0 0 3.8 3.8" />
-  </svg>
-}
-
-function LockIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="5" y="10" width="14" height="11" rx="2" />
-    <path d="M8 10V7a4 4 0 0 1 8 0v3" />
-  </svg>
-}
-
 function PasswordField({ name, label, autoComplete }: { name: string; label: string; autoComplete: string }) {
   return <label className="grid gap-2 text-sm"><span>{label}</span>
     <input name={name} type="password" autoComplete={autoComplete} required minLength={12}
-      className="rounded-md border border-slate-600 bg-[#0d141c] px-3 py-2" />
+      className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2" />
   </label>
 }
 
-function formatAtomicRyo(atomic: string): string {
-  const value = BigInt(atomic)
-  const scale = 1_000_000_000n
-  const whole = value / scale
-  const fraction = (value % scale)
-    .toString()
-    .padStart(9, "0")
-    .replace(/0+$/, "")
-
-  return fraction ? `${whole}.${fraction}` : whole.toString()
+function WeakPasswordNotice({ accepted, onChange }: { accepted: boolean; onChange: (value: boolean) => void }) {
+  return <div role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-200 md:col-span-2">
+    <p>This password may be easy to guess. Use a longer unique password, preferably at least 16 characters.</p>
+    <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={accepted} onChange={(event) => onChange(event.target.checked)} />I understand and want to use this password.</label>
+  </div>
 }

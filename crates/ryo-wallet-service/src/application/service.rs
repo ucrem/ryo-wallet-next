@@ -10,6 +10,7 @@ use crate::process::{ProcessError, VerifiedBinary, WalletRpcSession, WalletRpcSt
 use crate::rpc::{ReceiveAddress, RecoveryPhrase, RpcError};
 use crate::storage::{AppPaths, PathError, WalletId};
 
+use super::operations::{OperationError, OperationsState, WalletOperation, WalletOperationOutput};
 use super::{LifecycleMachine, LifecycleStatus, LifecycleTransitionError};
 
 const COMMAND_QUEUE_CAPACITY: usize = 8;
@@ -32,6 +33,8 @@ pub enum WalletServiceError {
     Unavailable,
     #[error("wallet session has changed")]
     StaleSession,
+    #[error(transparent)]
+    Operation(#[from] OperationError),
 }
 
 /// Async handle for the single-owner wallet actor. The actor serializes every
@@ -172,7 +175,27 @@ impl WalletService {
 
     pub async fn lock(&self, deadline: Duration) -> Result<LifecycleStatus, WalletServiceError> {
         let (response, reply) = oneshot::channel();
-        self.send(Command::Lock { deadline, response }).await?;
+        self.send(Command::Lock {
+            deadline,
+            response,
+            generation: None,
+        })
+        .await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
+
+    pub async fn lock_current(
+        &self,
+        deadline: Duration,
+        generation: String,
+    ) -> Result<LifecycleStatus, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::Lock {
+            deadline,
+            response,
+            generation: Some(generation),
+        })
+        .await?;
         reply.await.map_err(|_| WalletServiceError::Unavailable)?
     }
 
@@ -228,6 +251,21 @@ impl WalletService {
             .await
             .map_err(|_| WalletServiceError::Unavailable)
     }
+
+    pub async fn operation(
+        &self,
+        session_generation: String,
+        operation: WalletOperation,
+    ) -> Result<WalletOperationOutput, WalletServiceError> {
+        let (response, reply) = oneshot::channel();
+        self.send(Command::Operation {
+            session_generation,
+            operation,
+            response,
+        })
+        .await?;
+        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+    }
 }
 
 impl Default for WalletService {
@@ -237,6 +275,11 @@ impl Default for WalletService {
 }
 
 enum Command {
+    Operation {
+        session_generation: String,
+        operation: WalletOperation,
+        response: oneshot::Sender<Result<WalletOperationOutput, WalletServiceError>>,
+    },
     Status {
         response: oneshot::Sender<LifecycleStatus>,
     },
@@ -270,6 +313,7 @@ enum Command {
     },
     Lock {
         deadline: Duration,
+        generation: Option<String>,
         response: oneshot::Sender<Result<LifecycleStatus, WalletServiceError>>,
     },
     Overview {
@@ -295,8 +339,44 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
     let mut lifecycle = LifecycleMachine::new();
     let mut session: Option<WalletRpcSession> = None;
     let mut app_paths: Option<AppPaths> = None;
-    while let Some(command) = receiver.recv().await {
+    let mut selected_node: Option<NodeConfig> = None;
+    let mut active_id: Option<WalletId> = None;
+    let mut operations = OperationsState::default();
+    loop {
+        let command = tokio::select! {
+            command = receiver.recv() => match command { Some(command) => command, None => break },
+            _ = tokio::time::sleep(Duration::from_secs(1)) => { operations.expire(); continue; }
+        };
+        operations.expire();
         match command {
+            Command::Operation {
+                session_generation,
+                operation,
+                response,
+            } => {
+                let result = require_current_session(&lifecycle, &session_generation)
+                    .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
+                let result = match (
+                    result,
+                    app_paths.as_ref(),
+                    active_id.as_ref(),
+                    selected_node.as_ref(),
+                ) {
+                    (Ok(session), Some(paths), Some(id), Some(node)) => operations
+                        .execute(
+                            session.client(),
+                            node,
+                            &paths.wallet_dir(id),
+                            &session_generation,
+                            operation,
+                        )
+                        .await
+                        .map_err(WalletServiceError::Operation),
+                    (Err(error), _, _, _) => Err(error),
+                    _ => Err(WalletServiceError::Unavailable),
+                };
+                let _ = response.send(result);
+            }
             Command::Status { response } => {
                 let _ = response.send(lifecycle.status());
             }
@@ -334,6 +414,7 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                     .map_err(WalletServiceError::Startup)
                 {
                     Ok(started) => {
+                        selected_node = Some(node);
                         session = Some(started);
                         app_paths = Some(paths);
                         let _ = response.send(
@@ -372,6 +453,10 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 };
                 if result.is_err() && lifecycle.status().state == super::LifecycleState::Opening {
                     let _ = lifecycle.opening_failed();
+                }
+                if result.is_ok() {
+                    active_id = Some(wallet_id);
+                    operations.invalidate();
                 }
                 let _ = response.send(result);
             }
@@ -412,6 +497,10 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 if result.is_err() && lifecycle.status().state == super::LifecycleState::Opening {
                     lifecycle.fault();
                 }
+                if result.is_ok() {
+                    active_id = Some(wallet_id);
+                    operations.invalidate();
+                }
                 let _ = response.send(result);
             }
             Command::Restore {
@@ -440,9 +529,25 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 if result.is_err() && lifecycle.status().state == super::LifecycleState::Opening {
                     lifecycle.fault();
                 }
+                if result.is_ok() {
+                    active_id = Some(wallet_id);
+                    operations.invalidate();
+                }
                 let _ = response.send(result);
             }
-            Command::Lock { deadline, response } => {
+            Command::Lock {
+                deadline,
+                response,
+                generation,
+            } => {
+                if let Some(generation) = generation
+                    && let Err(error) = require_current_session(&lifecycle, &generation)
+                {
+                    let _ = response.send(Err(error));
+                    continue;
+                }
+                operations.invalidate();
+                active_id = None;
                 let result = match lifecycle.begin_lock() {
                     Ok(_) => match session.take() {
                         Some(session) => session

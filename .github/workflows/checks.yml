@@ -79,3 +79,8 @@ jobs:
           node scripts/prepare-dev-runtime.mjs
       - name: Check Tauri host
         run: cargo check -p ryo-wallet-next --locked
+      - name: Verify independent local-node lifecycle with disposable wallet
+        env:
+          RYO_TEST_DAEMON: ${{ github.workspace }}/src-tauri/.dev-runtime/ryod
+          RYO_TEST_WALLET_RPC: ${{ github.workspace }}/src-tauri/.dev-runtime/ryo-wallet-rpc
+        run: cargo test -p ryo-wallet-service --test locked_node --locked -- --ignored

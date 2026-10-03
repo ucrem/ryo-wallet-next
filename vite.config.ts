@@ -7,5 +7,10 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { "@": path.resolve(import.meta.dirname, "src") } },
   clearScreen: false,
-  server: { host: "127.0.0.1", port: 1420, strictPort: true },
+  server: {
+    host: "127.0.0.1",
+    port: 1420,
+    strictPort: true,
+    watch: { ignored: ["**/target/**", "**/src-tauri/.dev-runtime/**", "**/src-tauri/binaries/**"] },
+  },
 })

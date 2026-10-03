@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Ryo Wallet Next Layout Preview",
+  "identifier": "io.github.ucrem.ryowalletnext.layoutpreview",
+  "build": {
+    "beforeBuildCommand": "node scripts/prepare-dev-runtime.mjs && pnpm build:layout-preview",
+    "frontendDist": "../target/layout-preview/dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Ryo Wallet Next — Navigation preview",
+        "width": 1400,
+        "height": 800,
+        "minWidth": 1400,
+        "minHeight": 800
+      }
+    ]
+  },
+  "bundle": {
+    "active": false,
+    "createUpdaterArtifacts": false
+  }
+}

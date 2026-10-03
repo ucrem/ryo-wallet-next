@@ -10,6 +10,7 @@ use serde::Deserialize;
 #[serde(rename_all = "camelCase")]
 struct ReviewedRuntime {
     binary_sha256: String,
+    daemon_sha256: String,
 }
 
 #[derive(Deserialize)]
@@ -70,6 +71,23 @@ pub fn reviewed_wallet_rpc() -> Option<VerifiedBinary> {
     return VerifiedBinary::verify(BinaryKind::WalletRpc, &path, digest).ok();
 }
 
+pub fn reviewed_daemon() -> Option<VerifiedBinary> {
+    let manifest: RuntimeManifest =
+        serde_json::from_str(include_str!("../runtime-manifest.json")).ok()?;
+    let expected = manifest.platforms.get(target()?)?;
+    let digest = BinaryDigest::parse_hex(&expected.daemon_sha256).ok()?;
+    #[cfg(debug_assertions)]
+    let directory = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".dev-runtime");
+    #[cfg(not(debug_assertions))]
+    let directory = std::env::current_exe().ok()?.parent()?.to_owned();
+    let path = directory.join(if cfg!(target_os = "windows") {
+        "ryod.exe"
+    } else {
+        "ryod"
+    });
+    VerifiedBinary::verify(BinaryKind::Daemon, &path, digest).ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -81,6 +99,7 @@ mod tests {
         if let Some(target) = target() {
             let entry = manifest.platforms.get(target).unwrap();
             BinaryDigest::parse_hex(&entry.binary_sha256).unwrap();
+            BinaryDigest::parse_hex(&entry.daemon_sha256).unwrap();
         }
         assert!(!manifest.platforms.contains_key("aarch64-apple-darwin"));
     }

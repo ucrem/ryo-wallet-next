@@ -1,4 +1,52 @@
 @import "tailwindcss";
 
-:root { color-scheme: dark; }
+:root {
+  color-scheme: dark;
+  --app-bg: #0c1118;
+  --app-chrome: #101720;
+  --app-surface: #151d27;
+  --app-input: #0d141c;
+  --app-hover: #1a2633;
+  --app-primary: #0284c7;
+  --app-primary-fg: #fff;
+}
+@theme inline {
+  --color-background: var(--app-input);
+  --color-primary: var(--app-primary);
+  --color-primary-foreground: var(--app-primary-fg);
+  --color-accent: var(--app-hover);
+  --color-accent-foreground: var(--color-slate-100);
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --app-bg: #f3f6fa;
+  --app-chrome: #fff;
+  --app-surface: #fff;
+  --app-input: #f8fafc;
+  --app-hover: #e8f0f8;
+  --color-slate-100: #0f172a;
+  --color-slate-200: #1e293b;
+  --color-slate-300: #334155;
+  --color-slate-400: #475569;
+  --color-slate-500: #64748b;
+  --color-slate-600: #94a3b8;
+  --color-slate-700: #cbd5e1;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #f1f5f9;
+  --color-sky-100: #0c4a6e;
+  --color-sky-200: #075985;
+  --color-amber-100: #78350f;
+  --color-amber-200: #92400e;
+  --color-red-200: #991b1b;
+  --color-red-300: #b91c1c;
+  --color-emerald-200: #065f46;
+  --color-emerald-300: #047857;
+}
+:root[data-theme="light"] [class~="text-sky-300"] { color: #0369a1; }
 body { margin: 0; font-family: ui-sans-serif, system-ui, sans-serif; }
+
+.home-ryo-mark {
+  width: min(70%, 26rem);
+  opacity: 0.3;
+  mask-image: linear-gradient(to right, #000 15%, transparent 95%);
+}

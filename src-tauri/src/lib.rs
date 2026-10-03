@@ -1,16 +1,16 @@
 use std::fs::{self, OpenOptions};
 use std::io::{BufWriter, Write};
 use std::net::{Ipv4Addr, TcpListener};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
 use ryo_wallet_service::application::{
-    LifecycleStatus, WalletOverview, WalletService, WalletServiceError,
+    LifecycleStatus, NodeService, NodeStatus, WalletOverview, WalletService, WalletServiceError,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
-use ryo_wallet_service::rpc::{DaemonRpcClient, ReceiveAddress, RpcError};
+use ryo_wallet_service::rpc::{ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
 };
@@ -19,7 +19,9 @@ use tauri::{Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
 
+mod app_settings;
 mod app_updates;
+mod wallet_operations;
 mod wallet_runtime;
 
 const DATA_ROOT_SELECTION_FILE: &str = "wallet-data-root.json";
@@ -30,6 +32,12 @@ struct CreatedWalletResponse {
     wallet_id: String,
     status: LifecycleStatus,
     recovery_phrase: Zeroizing<String>,
+}
+
+#[derive(serde::Serialize)]
+struct RestoredWalletResponse {
+    wallet_id: String,
+    status: LifecycleStatus,
 }
 
 struct SecretPhraseResponse(Zeroizing<String>);
@@ -57,11 +65,24 @@ impl serde::Serialize for CreatedWalletResponse {
 #[derive(serde::Serialize, serde::Deserialize)]
 struct PersistedDataRoot {
     root: PathBuf,
+    #[serde(default = "mainnet")]
+    network: Network,
+}
+
+fn mainnet() -> Network {
+    Network::Mainnet
 }
 
 struct DataRootState(Mutex<Option<AppPaths>>);
 struct ActiveWalletState(Mutex<Option<WalletId>>);
 struct SyncMonitorState(AtomicU64);
+#[derive(Default)]
+struct SetupState(tokio::sync::Mutex<()>);
+#[derive(Default)]
+struct ShutdownState {
+    closing: AtomicBool,
+    ready: AtomicBool,
+}
 
 #[derive(serde::Serialize)]
 struct WalletEntry {
@@ -83,6 +104,7 @@ fn backup_complete(paths: &AppPaths, id: &WalletId) -> bool {
 #[derive(serde::Serialize)]
 struct DataRootConfiguration {
     root: Option<PathBuf>,
+    network: Network,
 }
 
 #[derive(serde::Deserialize)]
@@ -90,6 +112,7 @@ struct DataRootConfiguration {
 enum NodeSelection {
     Local,
     Remote { host: String, port: u16 },
+    Hybrid { host: String, port: u16 },
 }
 
 impl DataRootState {
@@ -104,7 +127,7 @@ impl DataRootState {
         };
         let persisted: PersistedDataRoot =
             serde_json::from_slice(&bytes).map_err(|_| "data location configuration is invalid")?;
-        let paths = AppPaths::new(persisted.root, Network::Mainnet)
+        let paths = AppPaths::new(persisted.root, persisted.network)
             .map_err(|_| "data location configuration is invalid")?;
         Ok(Self(Mutex::new(Some(paths))))
     }
@@ -117,15 +140,22 @@ fn data_root_selection_path(app: &tauri::AppHandle) -> Result<PathBuf, &'static 
         .map_err(|_| "data location configuration is unavailable")
 }
 
-fn persist_data_root(app: &tauri::AppHandle, root: &PathBuf) -> Result<(), &'static str> {
+fn persist_data_root(
+    app: &tauri::AppHandle,
+    root: &Path,
+    network: Network,
+) -> Result<(), &'static str> {
     let final_path = data_root_selection_path(app)?;
     let parent = final_path
         .parent()
         .ok_or("data location configuration is unavailable")?;
     fs::create_dir_all(parent).map_err(|_| "data location configuration is unavailable")?;
     let temporary_path = parent.join("wallet-data-root.json.new");
-    let bytes = serde_json::to_vec(&PersistedDataRoot { root: root.clone() })
-        .map_err(|_| "data location configuration is unavailable")?;
+    let bytes = serde_json::to_vec(&PersistedDataRoot {
+        root: root.to_path_buf(),
+        network,
+    })
+    .map_err(|_| "data location configuration is unavailable")?;
     let file = OpenOptions::new()
         .create_new(true)
         .write(true)
@@ -235,36 +265,33 @@ fn require_completed_backup(
 async fn wallet_sync_status(
     state: tauri::State<'_, DataRootState>,
     service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
 ) -> Result<WalletSyncStatusResponse, &'static str> {
     let paths = selected_paths(&state)?;
     let node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?
         .node;
-    let daemon = DaemonRpcClient::configured(&node).map_err(|_| "node configuration is invalid")?;
-    Ok(collect_wallet_sync_status(service.inner(), &daemon).await)
+    Ok(collect_wallet_sync_status(service.inner(), nodes.inner(), &node).await)
 }
 
 async fn collect_wallet_sync_status(
     service: &WalletService,
-    daemon: &DaemonRpcClient,
+    nodes: &NodeService,
+    node: &NodeConfig,
 ) -> WalletSyncStatusResponse {
     let wallet_height = service.height().await.ok().map(|height| height.to_string());
 
-    match daemon.health().await {
-        Ok(health) => {
-            let network_height = health.height.max(health.target_height);
-
-            WalletSyncStatusResponse {
-                wallet_height,
-                daemon_height: Some(health.height.to_string()),
-                network_height: Some(network_height.to_string()),
-                node_reachable: true,
-                node_ready: health.ready,
-                node_offline: health.offline,
-                node_untrusted: health.untrusted,
-            }
-        }
+    match nodes.status(node).await {
+        Ok(health) => WalletSyncStatusResponse {
+            wallet_height,
+            daemon_height: health.rpc_height.or(health.height),
+            network_height: health.target_height,
+            node_reachable: health.reachable,
+            node_ready: health.ready,
+            node_offline: health.offline,
+            node_untrusted: health.untrusted,
+        },
         Err(_) => WalletSyncStatusResponse {
             wallet_height,
             daemon_height: None,
@@ -284,21 +311,19 @@ fn stop_wallet_sync_monitor(monitor: &SyncMonitorState) {
 fn start_wallet_sync_monitor(
     app: tauri::AppHandle,
     service: WalletService,
+    nodes: NodeService,
     node: NodeConfig,
     monitor: &SyncMonitorState,
 ) {
     let generation = monitor.0.fetch_add(1, Ordering::AcqRel).wrapping_add(1);
     tauri::async_runtime::spawn(async move {
-        let Ok(daemon) = DaemonRpcClient::configured(&node) else {
-            return;
-        };
         let mut previous: Option<WalletSyncStatusResponse> = None;
 
         loop {
             if app.state::<SyncMonitorState>().0.load(Ordering::Acquire) != generation {
                 break;
             }
-            let snapshot = collect_wallet_sync_status(&service, &daemon).await;
+            let snapshot = collect_wallet_sync_status(&service, &nodes, &node).await;
             // A lock or a new wallet can invalidate this task while RPC is in flight.
             if app.state::<SyncMonitorState>().0.load(Ordering::Acquire) != generation {
                 break;
@@ -315,6 +340,7 @@ fn start_wallet_sync_monitor(
 fn start_wallet_sync_monitor_for_current_node(
     app: tauri::AppHandle,
     service: &WalletService,
+    nodes: &NodeService,
     state: &DataRootState,
     monitor: &SyncMonitorState,
 ) {
@@ -324,7 +350,7 @@ fn start_wallet_sync_monitor_for_current_node(
     let Ok(Some(settings)) = load_settings_if_present(&paths) else {
         return;
     };
-    start_wallet_sync_monitor(app, service.clone(), settings.node, monitor);
+    start_wallet_sync_monitor(app, service.clone(), nodes.clone(), settings.node, monitor);
 }
 
 #[tauri::command]
@@ -355,13 +381,13 @@ fn wallet_list(state: tauri::State<'_, DataRootState>) -> Result<Vec<WalletEntry
         let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
             continue;
         };
-        if let Ok(id) = WalletId::parse(name) {
-            if wallet_file_pair_exists(&paths, &id) {
-                wallets.push(WalletEntry {
-                    id: id.to_string(),
-                    backup_complete: backup_complete(&paths, &id),
-                });
-            }
+        if let Ok(id) = WalletId::parse(name)
+            && wallet_file_pair_exists(&paths, &id)
+        {
+            wallets.push(WalletEntry {
+                id: id.to_string(),
+                backup_complete: backup_complete(&paths, &id),
+            });
         }
     }
     wallets.sort_by(|left, right| left.id.cmp(&right.id));
@@ -395,19 +421,45 @@ fn free_loopback_port() -> Result<u16, &'static str> {
         .map_err(|_| "local wallet RPC port is unavailable")
 }
 
+fn wallet_rpc_port(node: &NodeConfig) -> Result<u16, &'static str> {
+    let port = node.options().wallet_rpc_port;
+    if port == 0 {
+        return free_loopback_port();
+    }
+    TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+        .map_err(|_| "selected wallet RPC port is already in use")?;
+    Ok(port)
+}
+
 async fn ready_wallet_service(
     service: &WalletService,
     state: &DataRootState,
+    app: &tauri::AppHandle,
+    nodes: &NodeService,
 ) -> Result<(), &'static str> {
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_app_running(app)?;
     let paths = selected_paths(state)?;
     let binary =
         wallet_runtime::reviewed_wallet_rpc().ok_or(wallet_runtime::MISSING_RUNTIME_MESSAGE)?;
-    let node = load_settings_if_present(&paths)
+    let mut node = load_settings_if_present(&paths)
         .map_err(|_| "node configuration is unavailable")?
         .ok_or("choose a node first")?
         .node;
+    if node.uses_local() {
+        node = nodes
+            .start(
+                wallet_runtime::reviewed_daemon()
+                    .ok_or("verified local node runtime is unavailable")?,
+                paths.clone(),
+                node,
+            )
+            .await
+            .map_err(|_| "local node could not be started; check the data folder and retry")?;
+    }
     service
-        .start_wallet_rpc(binary, paths, node, free_loopback_port()?)
+        .start_wallet_rpc(binary, paths, node.clone(), wallet_rpc_port(&node)?)
         .await
         .map_err(
             |_| "wallet runtime could not be started; check the selected node and restart the app",
@@ -422,13 +474,14 @@ async fn wallet_create(
     state: tauri::State<'_, DataRootState>,
     active: tauri::State<'_, ActiveWalletState>,
     service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
     monitor: tauri::State<'_, SyncMonitorState>,
 ) -> Result<CreatedWalletResponse, &'static str> {
     if !(12..=1024).contains(&password.len()) {
         return Err("wallet password must contain 12 to 1024 bytes");
     }
     let password = Zeroizing::new(password);
-    ready_wallet_service(&service, &state).await?;
+    ready_wallet_service(&service, &state, &app, &nodes).await?;
     let wallet_id = WalletId::parse(uuid::Uuid::new_v4().simple().to_string())
         .map_err(|_| "wallet identifier could not be created")?;
     let created = service
@@ -439,7 +492,13 @@ async fn wallet_create(
         )?;
     let status = created.status().clone();
     *active.0.lock().map_err(|_| "wallet state is unavailable")? = Some(wallet_id.clone());
-    start_wallet_sync_monitor_for_current_node(app, service.inner(), &state, monitor.inner());
+    start_wallet_sync_monitor_for_current_node(
+        app,
+        service.inner(),
+        nodes.inner(),
+        &state,
+        monitor.inner(),
+    );
     Ok(CreatedWalletResponse {
         wallet_id: wallet_id.to_string(),
         status,
@@ -447,6 +506,63 @@ async fn wallet_create(
     })
 }
 
+fn restore_height(value: &str) -> Result<u64, &'static str> {
+    if value.is_empty() || !value.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("scan start height must be a non-negative whole number");
+    }
+    value.parse().map_err(|_| "scan start height is too large")
+}
+
+#[allow(clippy::too_many_arguments)] // Tauri injects each scoped service state.
+#[tauri::command]
+async fn wallet_restore(
+    password: String,
+    seed: String,
+    refresh_start_height: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DataRootState>,
+    active: tauri::State<'_, ActiveWalletState>,
+    service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
+    monitor: tauri::State<'_, SyncMonitorState>,
+) -> Result<RestoredWalletResponse, &'static str> {
+    let password = Zeroizing::new(password);
+    let seed = Zeroizing::new(seed);
+    if !(12..=1024).contains(&password.len()) {
+        return Err("wallet password must contain 12 to 1024 bytes");
+    }
+    if seed.is_empty() || seed.len() > 4096 {
+        return Err("recovery phrase is empty or too long");
+    }
+    let seed = Zeroizing::new(seed.split_whitespace().collect::<Vec<_>>().join(" "));
+    if seed.is_empty() {
+        return Err("enter a recovery phrase");
+    }
+    let height = restore_height(&refresh_start_height)?;
+    ready_wallet_service(&service, &state, &app, &nodes).await?;
+    let wallet_id = WalletId::parse(uuid::Uuid::new_v4().simple().to_string())
+        .map_err(|_| "wallet identifier could not be created")?;
+    let status = service
+        .restore_wallet(wallet_id.clone(), password, seed, height)
+        .await
+        .map_err(|_| {
+            "wallet restoration failed; keep the data folder and restart the app before retrying"
+        })?;
+    *active.0.lock().map_err(|_| "wallet state is unavailable")? = Some(wallet_id.clone());
+    start_wallet_sync_monitor_for_current_node(
+        app,
+        service.inner(),
+        nodes.inner(),
+        &state,
+        monitor.inner(),
+    );
+    Ok(RestoredWalletResponse {
+        wallet_id: wallet_id.to_string(),
+        status,
+    })
+}
+
+#[allow(clippy::too_many_arguments)] // Tauri injects each scoped service state.
 #[tauri::command]
 async fn wallet_open(
     wallet_id: String,
@@ -455,6 +571,7 @@ async fn wallet_open(
     state: tauri::State<'_, DataRootState>,
     active: tauri::State<'_, ActiveWalletState>,
     service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
     monitor: tauri::State<'_, SyncMonitorState>,
 ) -> Result<LifecycleStatus, &'static str> {
     let id = WalletId::parse(wallet_id).map_err(|_| "wallet identifier is invalid")?;
@@ -466,7 +583,7 @@ async fn wallet_open(
         return Err("enter the wallet password");
     }
     let password = Zeroizing::new(password);
-    ready_wallet_service(&service, &state).await?;
+    ready_wallet_service(&service, &state, &app, &nodes).await?;
     let status = service
         .open_imported_wallet(id.clone(), password)
         .await
@@ -475,7 +592,13 @@ async fn wallet_open(
             _ => "wallet could not be opened; files were not changed",
         })?;
     *active.0.lock().map_err(|_| "wallet state is unavailable")? = Some(id);
-    start_wallet_sync_monitor_for_current_node(app, service.inner(), &state, monitor.inner());
+    start_wallet_sync_monitor_for_current_node(
+        app,
+        service.inner(),
+        nodes.inner(),
+        &state,
+        monitor.inner(),
+    );
     Ok(status)
 }
 
@@ -571,6 +694,9 @@ fn data_root_configuration(
         .lock()
         .map(|paths| DataRootConfiguration {
             root: paths.as_ref().map(|paths| paths.root().to_path_buf()),
+            network: paths
+                .as_ref()
+                .map_or(Network::Mainnet, |paths| paths.network()),
         })
         .map_err(|_| "data location configuration is unavailable")
 }
@@ -582,6 +708,7 @@ async fn choose_data_root(
     app: tauri::AppHandle,
     state: tauri::State<'_, DataRootState>,
     service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
 ) -> Result<bool, &'static str> {
     require_stopped(&service).await?;
     let picker = app.clone();
@@ -597,17 +724,27 @@ async fn choose_data_root(
     let Some(selected) = selected else {
         return Ok(false);
     };
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_app_running(&app)?;
     require_stopped(&service).await?;
+    require_node_stopped(&nodes).await?;
     let root = selected
         .into_path()
         .map_err(|_| "selected data location is invalid")?;
     let root = fs::canonicalize(root).map_err(|_| "selected data location is unavailable")?;
-    let paths = AppPaths::new(root.clone(), Network::Mainnet)
-        .map_err(|_| "selected data location is invalid")?;
+    let network = state
+        .0
+        .lock()
+        .map_err(|_| "data location configuration is unavailable")?
+        .as_ref()
+        .map_or(Network::Mainnet, |paths| paths.network());
+    let paths =
+        AppPaths::new(root.clone(), network).map_err(|_| "selected data location is invalid")?;
     paths
         .ensure_private_dirs()
         .map_err(|_| "selected data location cannot be secured")?;
-    persist_data_root(&app, &root)?;
+    persist_data_root(&app, &root, network)?;
     let mut saved = state
         .0
         .lock()
@@ -629,20 +766,33 @@ fn node_configuration(
 #[tauri::command]
 async fn save_node_selection(
     selection: NodeSelection,
+    app: tauri::AppHandle,
     state: tauri::State<'_, DataRootState>,
     service: tauri::State<'_, WalletService>,
+    nodes: tauri::State<'_, NodeService>,
 ) -> Result<NodeConfig, &'static str> {
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_app_running(&app)?;
     require_stopped(&service).await?;
+    require_node_stopped(&nodes).await?;
     let paths = selected_paths(&state)?;
-    let node = match selection {
-        NodeSelection::Local => NodeConfig::managed_local(Network::Mainnet),
+    let mut node = match selection {
+        NodeSelection::Local => NodeConfig::managed_local(paths.network()),
         NodeSelection::Remote { host, port } => {
-            NodeConfig::remote(Network::Mainnet, host.trim().to_owned(), port)
+            NodeConfig::remote(paths.network(), host.trim().to_owned(), port)
                 .map_err(|_| "remote node host or port is invalid")?
+        }
+        NodeSelection::Hybrid { host, port } => {
+            NodeConfig::hybrid(paths.network(), host.trim().to_owned(), port)
+                .map_err(|_| "bootstrap node host or port is invalid")?
         }
     };
     let previous = load_settings_if_present(&paths)
         .map_err(|_| "saved node configuration is unavailable or invalid")?;
+    node.advanced = previous
+        .as_ref()
+        .and_then(|settings| settings.node.advanced.clone());
     let settings = AppSettings {
         node: node.clone(),
         idle_lock_seconds: previous
@@ -652,6 +802,92 @@ async fn save_node_selection(
     };
     save_settings(&paths, &settings).map_err(|_| "node configuration could not be saved")?;
     Ok(node)
+}
+
+fn current_node(state: &DataRootState) -> Result<NodeConfig, &'static str> {
+    load_settings_if_present(&selected_paths(state)?)
+        .map_err(|_| "node configuration is unavailable")?
+        .map(|settings| settings.node)
+        .ok_or("choose a node first")
+}
+
+fn require_app_running(app: &tauri::AppHandle) -> Result<(), &'static str> {
+    if app.state::<ShutdownState>().closing.load(Ordering::Acquire) {
+        Err("the application is closing")
+    } else if app.state::<app_updates::InstallState>().is_installing() {
+        Err("an application update is being installed")
+    } else {
+        Ok(())
+    }
+}
+
+async fn require_node_stopped(nodes: &NodeService) -> Result<(), &'static str> {
+    if nodes
+        .is_idle()
+        .await
+        .map_err(|_| "node state is unavailable")?
+    {
+        Ok(())
+    } else {
+        Err("stop the local node before changing the data location or node selection")
+    }
+}
+
+#[tauri::command]
+async fn node_status(
+    state: tauri::State<'_, DataRootState>,
+    nodes: tauri::State<'_, NodeService>,
+) -> Result<NodeStatus, &'static str> {
+    nodes
+        .status(&current_node(&state)?)
+        .await
+        .map_err(|_| "node status is unavailable")
+}
+
+#[tauri::command]
+async fn node_start(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, DataRootState>,
+    nodes: tauri::State<'_, NodeService>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<(), &'static str> {
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_app_running(&app)?;
+    require_wallet_idle_for_node_control(&service).await?;
+    let node = current_node(&state)?;
+    if !node.uses_local() {
+        return Err("remote nodes are managed by their operator");
+    }
+    let binary =
+        wallet_runtime::reviewed_daemon().ok_or("verified local node runtime is unavailable")?;
+    nodes
+        .start(binary, selected_paths(&state)?, node)
+        .await
+        .map(|_| ())
+        .map_err(|_| "local node could not be started; check the data folder and retry")
+}
+
+#[tauri::command]
+async fn node_stop(
+    app: tauri::AppHandle,
+    nodes: tauri::State<'_, NodeService>,
+    service: tauri::State<'_, WalletService>,
+) -> Result<(), &'static str> {
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_wallet_idle_for_node_control(&service).await?;
+    nodes
+        .stop()
+        .await
+        .map_err(|_| "local node could not be stopped; close the app before retrying")
+}
+
+async fn require_wallet_idle_for_node_control(service: &WalletService) -> Result<(), &'static str> {
+    match service.is_idle().await {
+        Ok(true) => Ok(()),
+        _ => Err("lock the wallet before starting or stopping the local node"),
+    }
 }
 
 fn selected_paths(state: &DataRootState) -> Result<AppPaths, &'static str> {
@@ -675,28 +911,77 @@ pub fn run() {
     #[cfg(debug_assertions)]
     let context = {
         let mut context = context;
-        context.config_mut().identifier = "io.github.ucrem.ryowalletnext.dev".to_owned();
-        context.config_mut().product_name = Some("Ryo Wallet Next Dev".to_owned());
+        if context.config().identifier == "io.github.ucrem.ryowalletnext" {
+            context.config_mut().identifier = "io.github.ucrem.ryowalletnext.dev".to_owned();
+            context.config_mut().product_name = Some("Ryo Wallet Next Dev".to_owned());
+        }
         context
     };
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            app_settings::show_main(app)
+        }))
+        .plugin(tauri_plugin_autostart::init(
+            tauri_plugin_autostart::MacosLauncher::LaunchAgent,
+            None,
+        ))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             app.manage(WalletService::new());
-            app.manage(DataRootState::load(&app.handle())?);
+            app.manage(NodeService::new());
+            app.manage(SetupState::default());
+            app.manage(ShutdownState::default());
+            app.manage(DataRootState::load(app.handle())?);
+            app.manage(app_settings::PreferencesState::load(app.handle())?);
+            app.manage(app_settings::ActivityState(AtomicU64::new(0)));
             app.manage(ActiveWalletState(Mutex::new(None)));
             app.manage(SyncMonitorState(AtomicU64::new(0)));
             app.manage(app_updates::InstallState::default());
+            app_settings::setup_tray(app.handle())?;
+            app_settings::apply_window_theme(
+                app.handle(),
+                app.state::<app_settings::PreferencesState>()
+                    .snapshot()?
+                    .theme,
+            );
+            app_settings::start_idle_monitor(app.handle().clone());
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            let app = window.app_handle();
+            let tray_enabled = app
+                .try_state::<app_settings::PreferencesState>()
+                .and_then(|state| state.snapshot().ok())
+                .is_some_and(|prefs| prefs.minimize_to_tray);
+            if tray_enabled && !app.state::<ShutdownState>().closing.load(Ordering::Acquire) {
+                match event {
+                    tauri::WindowEvent::CloseRequested { api, .. } => {
+                        api.prevent_close();
+                        let _ = window.hide();
+                    }
+                    tauri::WindowEvent::Resized(_) if window.is_minimized().unwrap_or(false) => {
+                        let _ = window.hide();
+                    }
+                    _ => {}
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler![
             app_status,
+            app_settings::app_preferences,
+            app_settings::save_app_preferences,
+            app_settings::save_general_settings,
+            app_settings::app_activity,
             app_updates::app_update_check,
             app_updates::app_update_install,
             wallet_overview,
+            wallet_operations::wallet_operation,
+            wallet_operations::wallet_key_images,
+            wallet_operations::wallet_export_artwork,
+            wallet_operations::wallet_remove,
             wallet_receive_addresses,
             wallet_create_receive_address,
             wallet_sync_status,
@@ -704,6 +989,7 @@ pub fn run() {
             wallet_list,
             wallet_active,
             wallet_create,
+            wallet_restore,
             wallet_open,
             wallet_lock,
             wallet_backup_phrase,
@@ -711,10 +997,40 @@ pub fn run() {
             data_root_configuration,
             choose_data_root,
             node_configuration,
-            save_node_selection
+            save_node_selection,
+            node_status,
+            node_start,
+            node_stop,
         ])
-        .run(context)
-        .expect("failed to start Ryo Wallet Next");
+        .build(context)
+        .expect("failed to build Ryo Wallet Next")
+        .run(|app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                let shutdown = app.state::<ShutdownState>();
+                if shutdown.ready.load(Ordering::Acquire) {
+                    return;
+                }
+                api.prevent_exit();
+                if shutdown.closing.swap(true, Ordering::AcqRel) {
+                    return;
+                }
+                let app = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    let setup = app.state::<SetupState>();
+                    let _guard = setup.0.lock().await;
+                    stop_wallet_sync_monitor(&app.state::<SyncMonitorState>());
+                    let _ = app
+                        .state::<WalletService>()
+                        .lock(Duration::from_secs(5))
+                        .await;
+                    let _ = app.state::<NodeService>().stop().await;
+                    app.state::<ShutdownState>()
+                        .ready
+                        .store(true, Ordering::Release);
+                    app.exit(0);
+                });
+            }
+        });
 }
 
 #[cfg(test)]
@@ -737,6 +1053,16 @@ mod tests {
         assert_eq!(value["wallet_id"], "0123456789abcdef0123456789abcdef");
         assert_eq!(value["status"]["state"], "open");
         assert_eq!(value["recovery_phrase"], "disposable words");
+    }
+
+    #[test]
+    fn restore_height_rejects_invalid_or_overflowing_values() {
+        assert_eq!(restore_height("0"), Ok(0));
+        assert_eq!(restore_height("18446744073709551615"), Ok(u64::MAX));
+        assert!(restore_height("").is_err());
+        assert!(restore_height("-1").is_err());
+        assert!(restore_height("1.5").is_err());
+        assert!(restore_height("18446744073709551616").is_err());
     }
 
     #[test]

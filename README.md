@@ -4,7 +4,9 @@ Independent desktop wallet proposal by **ucrem**. Not an official Ryo Currency p
 
 Original code in this repository is licensed under [MIT](LICENSE). This permits the Ryo team to adopt or modify it while retaining the copyright and license notice. Only the Ryo team can designate a wallet as official; its name and branding need separate agreement. Upstream Ryo code and future bundled binaries remain subject to their own licenses and notices.
 
-This repository contains architecture research and an early Rust/Tauri/React foundation. Linux developers can test wallet creation, recovery-phrase backup, lock and reopen with a verified Ryo 0.6.1.0 wallet RPC binary. The already published alpha.4 packages lack that runtime; the packaging code now includes it in supported target builds, pending staging and platform validation. There is no transaction flow: **do not use this preview for funds**. Upstream repositories were not modified.
+This repository contains architecture research and a Rust/Tauri/React desktop development preview. Alpha.6 includes wallet creation/restoration/backup, receive, send review/confirmation, contacts, history and wallet actions with verified Ryo 0.6.1.0 runtimes. Funded signing/relay and production gates remain unverified: **do not use this preview for funds**. The previous alpha.5 release bundled wallet RPC; alpha.6 also bundles the local daemon. Published installers are promoted from the exact verified staging build. Upstream repositories were not modified. See [wallet operations and remaining gates](docs/WALLET_OPERATIONS.md).
+
+Version **0.1.0-alpha.6** adds a bundled local Ryo node with independent Start/Stop controls. The node downloads and verifies the blockchain while the wallet is locked; wallet scanning resumes after password unlock. The status bar displays node and wallet progress separately. Settings exposes General and Preferences, including explicit remote bootstrap, advanced node options, appearance, tray/startup behavior and inactivity locking. Exiting the app stops both owned processes; with the tray preference enabled, closing the window hides it while the app keeps running. A disposable Windows test verified actual chain progress after the wallet process exited, reopening without a second node, and clean node stop/restart. Full-chain and clean-install validation on all supported platforms remain pending.
 
 Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [architectural report](docs/REPORT.md). Supporting documents:
 
@@ -18,7 +20,9 @@ Start with the [implementation status](docs/IMPLEMENTATION_STATUS.md) and [archi
 - [Visual asset provenance](docs/ASSETS.md)
 - [Desktop packaging](docs/PACKAGING.md)
 - [Local wallet creation test](docs/LOCAL_WALLET_TEST.md)
+- [Local node and locked-wallet test](docs/LOCAL_NODE_TEST.md)
 - [Changelog](CHANGELOG.md)
+- [Settings and validation](docs/SETTINGS.md)
 - [Contributing](CONTRIBUTING.md)
 
 Research baseline: 22 September 2026. Source conclusions are pinned to commits; runtime compatibility remains to be demonstrated. The local directory name `ryo-currency` is incidental: this was an empty Git repository without remotes when research began. The project repository is `github.com/ucrem/ryo-wallet-next`.
