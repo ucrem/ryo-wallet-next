@@ -1,14 +1,14 @@
 {
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "notes": "Development preview. See the release notes for details.",
   "platforms": {
     "darwin-x86_64": {
-      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.5/ryo-wallet-next_0.1.0-alpha.5_darwin_x86_64.app.tar.gz",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MFZLOXhtZllXL3lhWjdjNmxuQWpWdlhNbCtWQURiRTB3R1I1cVU3VE4xUXdpaU4zVHpFR0NHOTBIeVR0bk0ycklqNTgyUnkybVA5NlBwaEc0ZGdHbnc0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDM2ODAwCWZpbGU6UnlvIFdhbGxldCBOZXh0LmFwcC50YXIuZ3oJdmVyc2lvbjowLjEuMC1hbHBoYS41CmZUeG85YmtsTUhsZFBCQjNZeE5ja0lkNXd5ODgxeFVURWxQUkcwaVh0WkI0bU5BeURuWUNqOHNBb2pOMm1Rb24yZHpmcjd4emJpRHpIUktnZXA3b0JBPT0K"
+      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.6/ryo-wallet-next_0.1.0-alpha.6_darwin_x86_64.app.tar.gz",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MGNpQXJ3blJqcGhGWkhhcXRsNCtrY0VKTVR0aCtHektOOTY4L3pLazNYSUdtTEJmcU9YVVBXLy9kWDlaSXJzeTVsSk9Pb0gybzQrQW1Xc1FWd1VLbVE0PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDUzNDc4CWZpbGU6UnlvIFdhbGxldCBOZXh0LmFwcC50YXIuZ3oJdmVyc2lvbjowLjEuMC1hbHBoYS42CnE5YW5HWDZmOFBwZlRpK0dmcmJ1a0hnVkt2c2VBd3U4MTVTNlRzckhpVUVaeDVpNmxjQUFadTQ3MTBSbDBtQTB5ekwydVRHY216dzdtZjUxcFhOM0JRPT0K"
     },
     "windows-x86_64": {
-      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.5/ryo-wallet-next_0.1.0-alpha.5_windows_x86_64-setup.exe",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MFJSVDV6bHlsaFVVQThnSzNkd1JQaDVGa0dDQVNYWnFVWUZwQWo0L0o3U3NqOCs5ZlY4SHdzQXBIOURKZ2JRaXo2ZjMyZFo2UmtJQ3AxMlpSTWdxZUFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDM2ODQ0CWZpbGU6UnlvIFdhbGxldCBOZXh0XzAuMS4wLWFscGhhLjVfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMS4wLWFscGhhLjUKSmg0cmYzUUtZbk9jc1p4L254U0xxNnVaZzczemIvNFJtZXR3blhHZmZFMkhrNTRmOG12RWxIc1B4WXhwNktUZkZQWldpM1JBZ3RPTEhGZjJ5RkxEQ0E9PQo="
+      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.6/ryo-wallet-next_0.1.0-alpha.6_windows_x86_64-setup.exe",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MGMrMTZYZ1BnYXllcW1TNStFVm5hV2V5WlNhN1F1cDE3ZENwcysxR0dCYWlIUGhjYzBnQ1VUZzVmK2NIejNwcU5vd2lxS1BIRzIrTzlNNDJTRWgzNmdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDUzMTcxCWZpbGU6UnlvIFdhbGxldCBOZXh0XzAuMS4wLWFscGhhLjZfeDY0LXNldHVwLmV4ZQl2ZXJzaW9uOjAuMS4wLWFscGhhLjYKbk1xSENVSlR1cjBRYzJSSXJtd3RPbi9Vc2haaG8zMWRSbTJ0YmcvN3pJTHFvMURuajBBdDVFMkZvNDRXV1dPNjY2eWlJdENpTE03WmplUnkxZDhyQ1E9PQo="
     }
   }
 }
