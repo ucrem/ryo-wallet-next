@@ -1,10 +1,10 @@
 {
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "notes": "Development preview. See the release notes for details.",
   "platforms": {
     "linux-x86_64": {
-      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.5/ryo-wallet-next-0.1.0-alpha.5-1.x86_64.rpm",
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MFM5U25LZVJ6WjFnZWgxVTUxaVdjNm5Ud2FYUEF2b0UvZm5VY2x4dGh4TnpvUjVKRFZsaWJkYUJ3WDM2bnZiVFNoZjlmOWRQS0gwcHR1dUNrc29KVFF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDM2NjU1CWZpbGU6UnlvIFdhbGxldCBOZXh0LTAuMS4wLWFscGhhLjUtMS54ODZfNjQucnBtCXZlcnNpb246MC4xLjAtYWxwaGEuNQpWd1FmdUxzQTVaS20rVlVYcmg5eG1sRGE0eFc5SVpIWVVHT0tKY1RIbDJNcFJPbDJvZnYxSk1HdENjNDB0QzcwNGpMNFJKd2JES2srOVh2SUp4bjFCQT09Cg=="
+      "url": "https://github.com/ucrem/ryo-wallet-next/releases/download/v0.1.0-alpha.6/ryo-wallet-next-0.1.0-alpha.6-1.x86_64.rpm",
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVUQ3loLzdmck02MFo5bktQLzZaVEowUXAxcnJDeGMrV2w4U3YvVlRBWUJucGhTNi9Wdkx3eVBmcDl6NTl3SnRHZ09SUS80QnNiNTJtendWZ3QwUktIZ2FLTzVWRVpwM2dJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDUyODYzCWZpbGU6UnlvIFdhbGxldCBOZXh0LTAuMS4wLWFscGhhLjYtMS54ODZfNjQucnBtCXZlcnNpb246MC4xLjAtYWxwaGEuNgp4WFI1aHV0b2sxNXFXdjhnUThub3dRUkdnOEpJMWppaVcremdJVUVGaEZmU01GQVJZNGQ1VTd6Wkd0RlB2OWs0VGJoYnRVN2xwRU9JWXhyM2o1SlNDZz09Cg=="
     }
   }
 }
