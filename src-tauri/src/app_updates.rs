@@ -4,13 +4,19 @@ use std::time::Duration;
 use serde::Serialize;
 #[cfg(target_os = "linux")]
 use tauri::utils::{config::BundleType, platform::bundle_type};
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 
 use crate::{ActiveWalletState, SyncMonitorState, WalletService, stop_wallet_sync_monitor};
 
 #[derive(Default)]
 pub struct InstallState(AtomicBool);
+
+impl InstallState {
+    pub(crate) fn is_installing(&self) -> bool {
+        self.0.load(Ordering::Acquire)
+    }
+}
 
 #[derive(Serialize)]
 #[serde(tag = "state", rename_all = "snake_case")]
@@ -144,6 +150,7 @@ pub async fn app_update_install(
     service: State<'_, WalletService>,
     active: State<'_, ActiveWalletState>,
     monitor: State<'_, SyncMonitorState>,
+    nodes: State<'_, ryo_wallet_service::application::NodeService>,
 ) -> Result<(), &'static str> {
     if cfg!(debug_assertions) {
         return Err("installation is unavailable in development");
@@ -184,6 +191,8 @@ pub async fn app_update_install(
         return Err("the signed update is not a valid package for this installation");
     }
 
+    let setup = app.state::<crate::SetupState>();
+    let _setup_guard = setup.0.lock().await;
     if !service
         .is_idle()
         .await
@@ -197,6 +206,10 @@ pub async fn app_update_install(
         *active.0.lock().map_err(|_| "wallet state is unavailable")? = None;
     }
 
+    nodes
+        .stop()
+        .await
+        .map_err(|_| "stop the local node before installing the update")?;
     #[cfg(target_os = "linux")]
     install_linux_package(package, &bytes).await?;
     #[cfg(not(target_os = "linux"))]
@@ -251,7 +264,7 @@ async fn install_linux_package(package: LinuxPackage, bytes: &[u8]) -> Result<()
     Ok(())
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 mod tests {
     use super::*;
 

@@ -31,7 +31,7 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
         An independent open-source desktop wallet project for Ryo.
       </p>
 
-      <section aria-labelledby="about-app" className="mt-7 rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
+      <section aria-labelledby="about-app" className="mt-7 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5 sm:p-6">
         <h2 id="about-app" className="text-xl font-semibold">Ryo Wallet Next</h2>
         <p className="mt-2 text-sm leading-6 text-slate-300">
           This is a development preview, not an official Ryo Currency wallet. Wallet operations are still in development.
@@ -69,7 +69,7 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
         ) : null}
       </section>
 
-      <section aria-labelledby="updates-title" className="mt-5 rounded-xl border border-slate-700 bg-[#151d27] p-5 sm:p-6">
+      <section aria-labelledby="updates-title" className="mt-5 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5 sm:p-6">
         <h2 id="updates-title" className="text-xl font-semibold">App updates</h2>
         <p className="mt-2 text-sm text-slate-400">The installed app checks for new releases when it opens. You can also check here.</p>
         <Button
@@ -156,7 +156,7 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
           {bundledChangelog.map((release) => {
             const current = appVersion.isNative && release.version === appVersion.version
             return (
-              <article key={release.version} className={"min-w-0 rounded-xl border bg-[#151d27] p-5 sm:p-6 " +
+              <article key={release.version} className={"min-w-0 rounded-xl border bg-[var(--app-surface)] p-5 sm:p-6 " +
                 (current ? "border-sky-500/70" : "border-slate-700")}>
                 <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
                   <h3 className="font-mono text-base font-semibold text-slate-100">v{release.version}</h3>

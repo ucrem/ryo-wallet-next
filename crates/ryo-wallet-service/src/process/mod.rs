@@ -6,6 +6,8 @@
 mod binary;
 mod credentials;
 mod supervisor;
+mod upstream_path;
+pub use upstream_path::upstream_path;
 mod wallet_rpc_launch;
 mod wallet_rpc_session;
 
@@ -14,3 +16,5 @@ pub use credentials::{CredentialFileError, login_path, read_generated_login};
 pub use supervisor::{ManagedProcess, ProcessError};
 pub use wallet_rpc_launch::{WalletRpcLaunch, WalletRpcLaunchError};
 pub use wallet_rpc_session::{WalletRpcSession, WalletRpcStartupError};
+mod daemon_session;
+pub use daemon_session::{DaemonError, DaemonSession};

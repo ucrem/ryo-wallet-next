@@ -4,9 +4,14 @@ The bundles are **development previews**, not production wallets. The already
 published alpha.4 installers omitted `ryo-wallet-rpc` and cannot use wallet
 flows. Builds from this source stage the reviewed upstream 0.6.1.0 wallet RPC
 binary inside each supported package. They can use the existing create, backup,
-open, lock, balance, receive-address and remote-node flows; `ryod` is not bundled,
-so local-node operation is still unavailable. Recovery from a phrase and
-transactions are not available in the UI. Do not use these artifacts with funds.
+restore, open, lock, balance, receive-address and remote-node flows. Alpha.6 also
+bundles verified `ryod` with independent node start/stop and synchronization while
+the wallet is locked. The app stops its node on exit; minimizing or closing
+the window with the tray preference enabled keeps the application running.
+The restore UI still needs packaged validation. Receive, Send, Address Book,
+TX History, wallet actions and Settings are available in alpha.6. Funded
+signing/relay, tray/startup lifecycle and complete-chain bootstrap handover
+still need end-to-end validation. Do not use these artifacts with funds.
 
 | Platform | CI runner | Preview bundle |
 | --- | --- | --- |
@@ -19,9 +24,9 @@ native arm64 macOS wallet RPC binary. An Intel executable under Rosetta is not
 treated as a verified native runtime. The reviewed archive and executable hashes
 for supported targets live in [one runtime manifest](../src-tauri/runtime-manifest.json).
 `prepare-package-runtime.mjs` verifies the official archive and executable on
-each build, then stages only the wallet RPC sidecar for Tauri `externalBin`.
-Rust resolves that sidecar next to the installed application executable and
-verifies its SHA-256 again before `WalletService` may launch it. `pnpm tauri dev`
+each build, then stages wallet RPC and daemon sidecars for Tauri `externalBin`.
+Rust resolves both next to the installed application executable and verifies
+their SHA-256 again before their separate services may launch them. `pnpm tauri dev`
 keeps a separate `.dev-runtime` preparation path.
 
 The [desktop installer workflow](../.github/workflows/desktop-bundles.yml)
@@ -44,13 +49,13 @@ update downloads, but does not replace platform signing or installation tests.
 Production macOS signing needs a reviewed post-signing digest strategy.
 
 Future Linux releases provide only DEB and RPM packages. CI extracts the DEB
-and checks its wallet RPC for regular-file status, executable mode, SHA-256 and
+and checks both runtimes for regular-file status, executable mode, SHA-256 and
 unresolved Linux libraries. For the RPM, CI verifies its payload digest and
-checks that its recorded wallet RPC file digest and mode match the reviewed
-binary. Tauri also produces detached
+checks that both recorded runtime file digests and modes match the reviewed
+binaries. Tauri also produces detached
 updater signatures for both packages with the existing version-bound key; these
 are not native APT/DNF repository signatures. The macOS workflow checks the app
-runtime and DMG checksum; Windows inspects the NSIS bundle. The already published alpha.4 AppImage is historical;
+runtimes and DMG checksum; Windows inspects both runtimes in the NSIS bundle. The already published alpha.4 AppImage is historical;
 users of that build must migrate manually to a DEB or RPM installation.
 
 Installed builds check the public update feed at startup, and About has a
@@ -87,6 +92,12 @@ from `src-tauri/icons/icon.png`; the [asset provenance](ASSETS.md) applies to
 all of them. Tauri uses the Ryo icon for the Linux package launchers, the macOS
 app inside each DMG, and the Windows app executable. The NSIS setup and
 uninstaller executables explicitly use the same `.ico` file.
+
+The local Windows alpha.6 NSIS build was generated on 2026-10-03 with a temporary
+`createUpdaterArtifacts: false` override. Both extracted runtimes matched the
+reviewed hashes. This local installer has neither platform signing nor an
+updater signature; it is for manual testing. The committed CI configuration
+still requires signed updater artifacts for staging and release promotion.
 
 Before a user-facing release, each platform still needs dependency and license
 notices, platform signing (and Apple notarization), installation tests, and

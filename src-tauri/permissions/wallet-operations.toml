@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-wallet-operations"
+description = "Account-zero wallet operations with session checks, immutable sends, and host-selected exports"
+commands.allow = ["wallet_operation", "wallet_key_images", "wallet_export_artwork", "wallet_remove"]

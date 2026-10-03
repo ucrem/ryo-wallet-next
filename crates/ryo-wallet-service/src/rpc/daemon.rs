@@ -14,6 +14,7 @@ pub struct DaemonRpcClient {
 pub struct NodeHealth {
     pub network: Network,
     pub height: u64,
+    pub local_height: u64,
     pub target_height: u64,
     pub ready: bool,
     pub offline: bool,
@@ -34,7 +35,9 @@ impl DaemonRpcClient {
         node.validate().map_err(|_| RpcError::InvalidEndpoint)?;
 
         match node.mode {
-            NodeMode::Local => Self::local(SocketAddrV4::new(Ipv4Addr::LOCALHOST, node.port), None),
+            NodeMode::Local | NodeMode::Hybrid => {
+                Self::local(SocketAddrV4::new(Ipv4Addr::LOCALHOST, node.port), None)
+            }
             NodeMode::Remote => Ok(Self {
                 transport: JsonRpcTransport::remote(node)?,
             }),
@@ -47,6 +50,8 @@ impl DaemonRpcClient {
         #[derive(Deserialize)]
         struct Info {
             height: u64,
+            #[serde(default)]
+            height_without_bootstrap: Option<u64>,
             target_height: u64,
             mainnet: bool,
             testnet: bool,
@@ -65,6 +70,7 @@ impl DaemonRpcClient {
         Ok(NodeHealth {
             network,
             height: info.height,
+            local_height: info.height_without_bootstrap.unwrap_or(info.height),
             target_height: info.target_height,
             ready: info.is_ready,
             offline: info.offline,

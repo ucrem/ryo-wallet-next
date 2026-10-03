@@ -1,6 +1,6 @@
 {
   "name": "ryo-wallet-next",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "license": "MIT",
   "private": true,
   "type": "module",
@@ -11,7 +11,9 @@
     "lint": "eslint .",
     "test": "vitest run --passWithNoTests",
     "check:version": "node scripts/check-version-consistency.mjs",
-    "build": "pnpm typecheck && vite build"
+    "build": "pnpm typecheck && vite build",
+    "build:layout-preview": "pnpm typecheck && vite build --mode layout-preview --outDir target/layout-preview/dist",
+    "build:desktop-layout-preview": "tauri build --debug --no-bundle --config src-tauri/tauri.layout-preview.conf.json"
   },
   "dependencies": {
     "@tanstack/react-query": "5.103.2",
@@ -20,6 +22,7 @@
     "@tauri-apps/plugin-opener": "2.5.5",
     "class-variance-authority": "0.7.1",
     "cn": "0.3.2",
+    "qrcode": "1.5.4",
     "radix-ui": "1.6.7",
     "react": "19.3.0",
     "react-dom": "19.3.0"
@@ -29,11 +32,14 @@
     "@tailwindcss/vite": "4.3.3",
     "@tauri-apps/cli": "2.11.5",
     "@types/node": "26.6.2",
+    "@types/qrcode": "1.5.6",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.1.1",
     "eslint": "10.11.0",
     "eslint-plugin-react-hooks": "7.1.1",
+    "jsdom": "30.1.1",
+    "jsqr": "1.4.0",
     "shadcn": "4.21.0",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",

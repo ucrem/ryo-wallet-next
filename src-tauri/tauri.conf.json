@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Ryo Wallet Next",
-  "version": "0.1.0-alpha.5",
+  "version": "0.1.0-alpha.6",
   "identifier": "io.github.ucrem.ryowalletnext",
   "build": {
     "beforeDevCommand": "node scripts/prepare-dev-runtime.mjs && pnpm dev",
@@ -23,8 +23,8 @@
     "publisher": "ucrem",
     "homepage": "https://github.com/ucrem/ryo-wallet-next",
     "shortDescription": "Independent Ryo desktop wallet prototype",
-    "longDescription": "Development preview of an independent Ryo desktop wallet with a verified bundled wallet RPC runtime.",
-    "externalBin": ["binaries/ryo-wallet-rpc"],
+    "longDescription": "Development preview of an independent Ryo desktop wallet with verified wallet RPC and local node runtimes. The local node can synchronize while the wallet is locked.",
+    "externalBin": ["binaries/ryo-wallet-rpc", "binaries/ryod"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -5,11 +5,13 @@
 
 mod import;
 mod paths;
+mod preferences;
 mod settings;
 mod wallet_id;
 
 pub use import::{ImportError, ImportedWallet, copy_wallet_pair};
 pub use paths::{AppPaths, PathError};
+pub use preferences::{Preferences, idle_expired};
 pub use settings::{
     AppSettings, SettingsError, Theme, load_settings, load_settings_if_present, save_settings,
 };

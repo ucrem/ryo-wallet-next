@@ -37,9 +37,12 @@ fi
 target=x86_64-unknown-linux-gnu
 python3 scripts/verify-packaged-runtime.py --target "$target" --path "$inspection/deb/usr/bin/ryo-wallet-rpc"
 python3 scripts/verify-packaged-runtime.py --target "$target" --rpm-package "$rpm_path"
+python3 scripts/verify-packaged-runtime.py --target "$target" --binary ryod --path "$inspection/deb/usr/bin/ryod"
+python3 scripts/verify-packaged-runtime.py --target "$target" --binary ryod --rpm-package "$rpm_path"
 if find "$inspection" -name .dev-runtime | grep -q .; then
   echo 'Development runtime path leaked into an installer' >&2
   exit 1
 fi
 # The verified binary is now safe to invoke for a minimal loader/version smoke test.
 "$inspection/deb/usr/bin/ryo-wallet-rpc" --version >/dev/null
+"$inspection/deb/usr/bin/ryod" --version >/dev/null
