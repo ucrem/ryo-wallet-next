@@ -35,6 +35,18 @@ function useWalletData<T>(generation: string, type: "contacts" | "history" | "in
 
 function walletRpcBusy(error: unknown) { return String(error) === "wallet RPC busy" }
 
+function SyncIndicator({ subject, hasSnapshot }: { subject: "balances" | "history"; hasSnapshot: boolean }) {
+  const detail = `Wallet sync in progress. ${hasSnapshot ? `Showing the last available ${subject}. ` : ""}${subject === "history" ? "Transactions" : "Balances"} update automatically.`
+  return <span role="status" title={detail} aria-label={detail}
+    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-xs font-normal text-amber-200">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+      className="size-3 animate-spin [animation-duration:3s] motion-reduce:animate-none">
+      <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M17.9 17.9A8 8 0 0 1 4 12" />
+    </svg>
+    Syncing
+  </span>
+}
+
 type DashboardProps = SessionProps & {
   section: WalletSection; onSection: (section: WalletSection) => void; onLock: () => void; onRemoved: () => void; locking: boolean
 }
@@ -64,7 +76,10 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
         <div className={`flex min-w-0 gap-3 ${compact ? "items-center" : "items-start"}`}>
           {address ? <WalletArtwork artwork={identiconArtwork(address)} label="Wallet address identicon" className={`${compact ? "size-9" : "size-14"} shrink-0 rounded-md`} /> : null}
           <div className="min-w-0">
-            <h1 className={`${compact ? "max-w-64 truncate text-lg" : "text-xl"} font-semibold`}>{info.data?.name || "My wallet"}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className={`${compact ? "max-w-64 truncate text-lg" : "text-xl"} font-semibold`}>{info.data?.name || "My wallet"}</h1>
+              {overview.isError && walletRpcBusy(overview.error) ? <SyncIndicator subject="balances" hasSnapshot={overview.data !== undefined} /> : null}
+            </div>
             {!compact ? <p className="mt-1 break-all font-mono text-xs text-slate-300">{address || "Loading address…"}</p> : null}
           </div>
         </div>
@@ -85,13 +100,13 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
         </div>
       </div>
       {!compact ? <div className="mt-4 grid grid-cols-3 gap-4 border-t border-slate-700 pt-3">{balances}</div> : null}
-      {overview.isError && walletRpcBusy(overview.error) ? <p role="status" className="mt-3 text-sm text-slate-400">
-        Wallet is scanning. Balances will update automatically.{overview.data ? " Showing the last available balances." : ""}
-      </p> : <Alert message={overview.isError ? `Balances could not be updated. Retrying automatically.${overview.data ? " Showing the last available balances." : ""}` : null} />}
+      <Alert message={overview.isError && !walletRpcBusy(overview.error) ? `Balances could not be updated. Retrying automatically.${overview.data ? " Showing the last available balances." : ""}` : null} />
     </section>
     {action ? <WalletActions key={action} generation={generation} action={action} name={info.data?.name ?? ""} onClose={() => setAction(null)} onRemoved={onRemoved} /> : null}
     {section === "overview" ? <section className={cardClass}>
-      <div className="flex justify-between"><h2 className="text-lg font-semibold">Recent transactions</h2><Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
+      <div className="flex items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Recent transactions</h2>
+        {history.isError && walletRpcBusy(history.error) ? <SyncIndicator subject="history" hasSnapshot={history.data !== undefined} /> : null}
+      </div><Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
       <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} hidden={hidden} />
     </section> : null}
     {section === "receive" ? <ReceivePanel generation={generation} /> : null}
@@ -338,7 +353,8 @@ function HistoryPanel({ generation, entries, loading, failed, busy }: SessionPro
   const [page, setPage] = useState(0)
   const journal = useWalletData<SendEntry[]>(generation, "send_journal")
   const filtered = entries?.filter((entry) => (type === "all" || entry.type === type) && entry.txid.toLowerCase().includes(search.toLowerCase()))
-  return <section className={cardClass}><div className="flex justify-between"><h2 className="text-lg font-semibold">Transaction history</h2>
+  return <section className={cardClass}><div className="flex items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Transaction history</h2>
+    {failed && busy ? <SyncIndicator subject="history" hasSnapshot={entries !== undefined} /> : null}</div>
     <Button variant="outline" size="sm" onClick={() => void journal.refetch()} disabled={journal.isFetching}>Check send outcomes</Button></div>
     {journal.data?.some((entry) => entry.state === "unknown" || entry.state === "not_sent") ? <SendResults entries={journal.data.filter((entry) => entry.state === "unknown" || entry.state === "not_sent")} /> : null}
     <div className="mt-4 flex gap-3"><input aria-label="Filter by transaction ID" placeholder="Filter by transaction ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} className={`${inputClass} flex-1`} />
@@ -354,9 +370,8 @@ function Transactions({ generation, entries, loading, failed, busy, hidden }: Se
   const [selected, setSelected] = useState<string | null>(null)
   return <div className="mt-3">
     {loading ? <p className="py-4 text-sm text-slate-400">Loading transactions…</p>
-      : failed && busy ? <p role="status" className="py-4 text-sm text-slate-400">Wallet is scanning. Transactions will update automatically.{entries ? " Showing the last available history." : ""}</p>
-        : failed ? <Alert message="Transaction history could not be updated. Retrying automatically." />
-          : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
+      : failed ? busy ? null : <Alert message="Transaction history could not be updated. Retrying automatically." />
+        : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
     {entries?.map((entry) => <div key={`${entry.type}-${entry.txid}-${entry.address}`} className="border-t border-slate-700 first:border-t-0">
       <button type="button" onClick={() => setSelected(selected === entry.txid ? null : entry.txid)} aria-expanded={selected === entry.txid} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-slate-800/40">
         <div className="min-w-0"><p className="truncate font-mono text-sm text-sky-200">{entry.txid}</p><p className="mt-1 text-xs text-slate-400">{entry.type} · {entry.height !== "0" ? `Height ${entry.height} · ` : ""}{transactionDate(entry.timestamp)}</p></div>
