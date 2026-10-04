@@ -8,6 +8,7 @@ import { getFoundationStatus } from "@/api/status"
 import { getActiveWallet } from "@/api/wallet"
 import { NodeSetup } from "@/app/NodeSetup"
 import { WalletWorkspace } from "@/app/WalletWorkspace"
+import { SavedWallets } from "@/app/SavedWallets"
 import { About } from "@/app/About"
 import { Settings } from "@/app/Settings"
 import { useDesktopPreferences } from "@/lib/usePreferences"
@@ -186,15 +187,19 @@ export function App() {
             {visibleScreen === "home" ? (
               <>
                 <PageHeading eyebrow="GET STARTED" title="How would you like to use Ryo?"
-                  description="Choose a wallet action. Storage and node settings follow in separate steps." />
+                  description={root && node.data ? "Unlock a saved wallet, or choose an action to add another wallet." : "Choose a wallet action. Storage and node settings follow in separate steps."} />
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
                   <div className="grid content-start gap-3">
+                    {inDesktop && root ? <SavedWallets key={`${root}:${dataRoot.data?.network ?? "mainnet"}`} root={root} network={dataRoot.data?.network ?? "mainnet"}
+                      nodeConfigured={!!node.data} disabled={!status.data || !["locked", "stopped"].includes(status.data.state)}
+                      onOpened={() => { setWalletAction("open"); setWalletSection("overview"); setScreen("wallet") }}
+                      onConfigure={() => { setWalletAction("open"); setScreen("node") }} /> : null}
                     {(["create", "restore", "open"] as const).map((action) => (
                       <button
                         key={action}
                         type="button"
                         onClick={() => start(action)}
-                        className="group flex min-h-20 items-center justify-between gap-4 rounded-xl border border-slate-700 bg-[var(--app-surface)] px-5 py-4 text-left transition-colors hover:border-sky-500 hover:bg-[var(--app-hover)] focus-visible:outline-2 focus-visible:outline-sky-400"
+                        className="group flex min-h-16 items-center justify-between gap-4 rounded-xl border border-slate-700 bg-[var(--app-surface)] px-4 py-3 text-left transition-colors hover:border-sky-500 hover:bg-[var(--app-hover)] focus-visible:outline-2 focus-visible:outline-sky-400"
                       >
                         <span>
                           <span className="block font-medium text-slate-100">{actionDetails[action].title}</span>
@@ -318,7 +323,7 @@ export function App() {
                   activeWallet={status.data?.state === "open" ? activeWallet.data ?? null : null}
                   sessionGeneration={status.data?.state === "open" ? status.data.session_generation : null}
                   onBack={() => setScreen("summary")} onLocked={() => {
-                    setWalletAction("open"); setWalletSection("overview")
+                    setWalletAction("open"); setWalletSection("overview"); setScreen("home")
                     queryClient.removeQueries({ predicate: (query) => ["wallet-operation", "receive-addresses", "send-contact", "wallet-send-sync", "wallet-read-sync", "wallet-overview"].includes(String(query.queryKey[0])) })
                   }} />
               )
