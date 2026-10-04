@@ -548,6 +548,15 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 }
                 operations.invalidate();
                 active_id = None;
+                if session.is_none()
+                    && matches!(
+                        lifecycle.status().state,
+                        super::LifecycleState::Locked | super::LifecycleState::Stopped
+                    )
+                {
+                    let _ = response.send(Ok(lifecycle.status()));
+                    continue;
+                }
                 let result = match lifecycle.begin_lock() {
                     Ok(_) => match session.take() {
                         Some(session) => session

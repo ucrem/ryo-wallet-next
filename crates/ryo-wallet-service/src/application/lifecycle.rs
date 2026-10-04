@@ -109,9 +109,14 @@ impl LifecycleMachine {
         self.transition(LifecycleState::Opening, LifecycleState::Locked)
     }
 
-    /// Invalidates UI work before stopping the key-bearing process.
+    /// Stops an open wallet or a ready RPC child left locked after an unsuccessful open.
     pub fn begin_lock(&mut self) -> Result<LifecycleStatus, LifecycleTransitionError> {
-        self.transition(LifecycleState::Open, LifecycleState::Closing)
+        if matches!(self.state, LifecycleState::Open | LifecycleState::Locked) {
+            self.state = LifecycleState::Closing;
+            Ok(self.status())
+        } else {
+            Err(LifecycleTransitionError { from: self.state })
+        }
     }
 
     /// Called only after the wallet process exits or has been force-stopped.
@@ -190,6 +195,25 @@ mod tests {
             LifecycleState::Locked
         );
         assert_eq!(lifecycle.begin_open().unwrap().session_generation, "2");
+    }
+
+    #[test]
+    fn a_locked_rpc_child_can_be_stopped_after_a_failed_open() {
+        let mut lifecycle = LifecycleMachine::new();
+        lifecycle.start().unwrap();
+        lifecycle.sidecar_ready().unwrap();
+        lifecycle.begin_open().unwrap();
+        lifecycle.opening_failed().unwrap();
+        assert_eq!(
+            lifecycle.begin_lock().unwrap().state,
+            LifecycleState::Closing
+        );
+        assert_eq!(lifecycle.locked().unwrap().state, LifecycleState::Locked);
+        assert_eq!(
+            lifecycle.restart_after_lock().unwrap().session_generation,
+            "1"
+        );
+        assert!(lifecycle.begin_lock().is_err());
     }
 
     #[test]

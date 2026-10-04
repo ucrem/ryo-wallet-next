@@ -121,6 +121,8 @@ jobs:
           node scripts/prepare-dev-runtime.mjs
       - name: Check Tauri host
         run: cargo check -p ryo-wallet-next --locked
+      - name: Verify wallet-file import with disposable copied wallets
+        run: cargo test -p ryo-wallet-next --lib wallet_import --locked -- --ignored --nocapture
       - name: Verify independent local-node lifecycle with disposable wallet
         env:
           RYO_TEST_DAEMON: ${{ github.workspace }}/src-tauri/.dev-runtime/ryod

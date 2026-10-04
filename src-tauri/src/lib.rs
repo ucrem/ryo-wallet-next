@@ -21,6 +21,7 @@ use zeroize::Zeroizing;
 
 mod app_settings;
 mod app_updates;
+mod wallet_import;
 mod wallet_operations;
 mod wallet_runtime;
 
@@ -439,6 +440,16 @@ async fn ready_wallet_service(
 ) -> Result<(), &'static str> {
     let setup = app.state::<SetupState>();
     let _guard = setup.0.lock().await;
+    ready_wallet_service_under_setup(service, state, app, nodes).await
+}
+
+// The caller owns SetupState while importing or changing runtime configuration.
+async fn ready_wallet_service_under_setup(
+    service: &WalletService,
+    state: &DataRootState,
+    app: &tauri::AppHandle,
+    nodes: &NodeService,
+) -> Result<(), &'static str> {
     require_app_running(app)?;
     let paths = selected_paths(state)?;
     let binary =
@@ -657,11 +668,15 @@ fn wallet_acknowledge_backup(
     if !wallet_file_pair_exists(&paths, &id) {
         return Err("wallet files are unavailable");
     }
-    let path = backup_ack_path(&paths, &id);
-    if backup_complete(&paths, &id) {
+    save_backup_acknowledgement(&paths, &id)
+}
+
+fn save_backup_acknowledgement(paths: &AppPaths, id: &WalletId) -> Result<(), &'static str> {
+    let path = backup_ack_path(paths, id);
+    if backup_complete(paths, id) {
         return Ok(());
     }
-    let temporary = paths.wallet_dir(&id).join(format!(
+    let temporary = paths.wallet_dir(id).join(format!(
         "backup-acknowledged.{}.new",
         uuid::Uuid::new_v4().simple()
     ));
@@ -991,6 +1006,7 @@ pub fn run() {
             wallet_create,
             wallet_restore,
             wallet_open,
+            wallet_import::wallet_import,
             wallet_lock,
             wallet_backup_phrase,
             wallet_acknowledge_backup,

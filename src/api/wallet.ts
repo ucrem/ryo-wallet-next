@@ -41,6 +41,8 @@ export const restoreWallet = (password: string, seed: string, refreshStartHeight
   invoke<RestoredWallet>("wallet_restore", { password, seed, refreshStartHeight })
 export const openWallet = (walletId: string, password: string) =>
   invoke<LifecycleStatus>("wallet_open", { walletId, password })
+export const importWallet = (password: string, backupConfirmed: boolean) =>
+  invoke<RestoredWallet | null>("wallet_import", { password, backupConfirmed })
 export const lockWallet = () => invoke<LifecycleStatus>("wallet_lock")
 export const getBackupPhrase = (walletId: string) =>
   invoke<{ recovery_phrase: string }>("wallet_backup_phrase", { walletId })

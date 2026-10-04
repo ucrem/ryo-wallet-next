@@ -4,6 +4,7 @@ Updated 2026-10-03. Inventory: [Atom wallet screens at 6c8d0aa](https://github.c
 
 | Operation | Local alpha.6 implementation |
 | --- | --- |
+| Import (next release) | Native wallet-file selection, matching `.keys` copy, existing-password validation, backup acknowledgement and opening an app-owned copy; see [Wallet import](WALLET_IMPORT.md) |
 | Wallet | Name, address, balances, recent activity, copy, hide balances and lock |
 | Receive | Primary/subaddresses, used status, labels, balances, QR/identicon SVG export, payment request |
 | Send | Address/contact/request, exact amount, all unlocked coins, payment ID, priority, ring size, optional contact save |
