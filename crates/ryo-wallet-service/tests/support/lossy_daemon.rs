@@ -2,8 +2,8 @@
 //! It forwards all bytes unchanged and never logs transaction/request bodies.
 use reqwest::Client;
 use serde_json::Value;
-use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
@@ -15,7 +15,16 @@ pub struct LossyDaemon {
     pub port: u16,
     replies_before_loss: Arc<AtomicUsize>,
     pub accepted_dropped: Arc<AtomicUsize>,
+    observations: Arc<Mutex<Vec<SendObservation>>>,
     task: JoinHandle<()>,
+}
+
+/// Non-sensitive diagnostics: no transaction bytes, addresses or wallet material.
+#[derive(Debug, Clone)]
+pub struct SendObservation {
+    pub http: u16,
+    pub accepted: bool,
+    pub rejection_flags: Vec<&'static str>,
 }
 
 impl LossyDaemon {
@@ -24,6 +33,8 @@ impl LossyDaemon {
         let port = listener.local_addr()?.port();
         let replies_before_loss = Arc::new(AtomicUsize::new(usize::MAX));
         let accepted_dropped = Arc::new(AtomicUsize::new(0));
+        let observations = Arc::new(Mutex::new(Vec::new()));
+        let observed = observations.clone();
         let drop_flag = replies_before_loss.clone();
         let drop_count = accepted_dropped.clone();
         let client = Client::builder()
@@ -36,10 +47,11 @@ impl LossyDaemon {
                 let client = client.clone();
                 let flag = drop_flag.clone();
                 let count = drop_count.clone();
+                let observed = observed.clone();
                 tokio::spawn(async move {
                     let _ = tokio::time::timeout(
                         Duration::from_secs(15),
-                        forward(socket, daemon_port, client, flag, count),
+                        forward(socket, daemon_port, client, flag, count, observed),
                     )
                     .await;
                 });
@@ -49,8 +61,12 @@ impl LossyDaemon {
             port,
             replies_before_loss,
             accepted_dropped,
+            observations,
             task,
         })
+    }
+    pub fn send_observations(&self) -> Vec<SendObservation> {
+        self.observations.lock().unwrap().clone()
     }
     pub fn lose_next_send_reply(&self) {
         self.lose_send_reply_after(0);
@@ -72,6 +88,7 @@ async fn forward(
     client: Client,
     flag: Arc<AtomicUsize>,
     count: Arc<AtomicUsize>,
+    observations: Arc<Mutex<Vec<SendObservation>>>,
 ) -> Result<()> {
     let mut request = Vec::new();
     let mut chunk = [0_u8; 4096];
@@ -129,11 +146,29 @@ async fn forward(
         .await?;
     let status = response.status();
     let body = response.bytes().await?;
-    if ["/sendrawtransaction", "/send_raw_transaction"].contains(&path.as_str())
-        && flag.load(Ordering::Acquire) != usize::MAX
-    {
+    if ["/sendrawtransaction", "/send_raw_transaction"].contains(&path.as_str()) {
         let value: Value = serde_json::from_slice(&body)?;
-        if status.is_success() && value["status"] == "OK" {
+        let accepted = status.is_success() && value["status"] == "OK";
+        let rejection_flags = [
+            "double_spend",
+            "fee_too_low",
+            "invalid_input",
+            "invalid_output",
+            "low_mixin",
+            "not_rct",
+            "not_relayed",
+            "overspend",
+            "too_big",
+        ]
+        .into_iter()
+        .filter(|key| value[*key] == true)
+        .collect();
+        observations.lock().unwrap().push(SendObservation {
+            http: status.as_u16(),
+            accepted,
+            rejection_flags,
+        });
+        if accepted && flag.load(Ordering::Acquire) != usize::MAX {
             // Only accepted transactions consume the countdown. One drop disarms it.
             let previous =
                 flag.fetch_update(

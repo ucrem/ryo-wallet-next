@@ -669,7 +669,13 @@ async fn isolated_testnet_funded_wallet_operations() -> Result<()> {
         proxy
             .accepted_dropped
             .load(std::sync::atomic::Ordering::Acquire),
-        2
+        2,
+        "second lost reply must follow genuine acceptance; observations: {:?}",
+        proxy
+            .send_observations()
+            .iter()
+            .map(|row| (row.http, row.accepted, &row.rejection_flags))
+            .collect::<Vec<_>>()
     );
     let accepted = node_a.transactions(&split_hashes).await?;
     assert!(split_hashes[..2].iter().all(|hash| {
