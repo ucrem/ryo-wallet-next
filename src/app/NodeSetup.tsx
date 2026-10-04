@@ -1,14 +1,18 @@
 import { useState, type FormEvent } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import type { NodeConfig } from "@/api/generated/NodeConfig"
+import type { Network } from "@/api/generated/Network"
 import { saveNodeSelection, type NodeSelection } from "@/api/node"
 import { Button } from "@/components/ui/button"
+import { RemoteNodeSuggestion } from "@/components/RemoteNodeSuggestion"
+import { defaultNodeRpcPort, remoteNodeSuggestion } from "@/lib/remoteNodeSuggestion"
 
-export function NodeSetup({ current, root, onSaved, disabled = false }: { current: NodeConfig | null; root: string; onSaved: () => void; disabled?: boolean }) {
+export function NodeSetup({ current, root, onSaved, disabled = false, network: selectedNetwork = "mainnet" }: { current: NodeConfig | null; root: string; onSaved: () => void; disabled?: boolean; network?: Network }) {
   const queryClient = useQueryClient()
+  const network = current?.network ?? selectedNetwork
   const [mode, setMode] = useState<"local" | "remote" | "hybrid">(current?.mode ?? "local")
   const [host, setHost] = useState(current?.mode === "remote" ? current.host : current?.bootstrap?.host ?? "")
-  const [port, setPort] = useState(current?.mode === "remote" ? String(current.port) : String(current?.bootstrap?.port ?? (current?.network === "testnet" ? 13311 : 12211)))
+  const [port, setPort] = useState(current?.mode === "remote" ? String(current.port) : String(current?.bootstrap?.port ?? defaultNodeRpcPort(network)))
   const save = useMutation({
     mutationFn: saveNodeSelection,
     onSuccess: async () => {
@@ -44,7 +48,7 @@ export function NodeSetup({ current, root, onSaved, disabled = false }: { curren
         </p>
       ) : null}
       <fieldset disabled={disabled || save.isPending} className="grid gap-2 sm:grid-cols-3">
-        <legend className="mb-2 text-sm font-medium">Node mode · {(current?.network ?? "mainnet").replace(/^./, (letter) => letter.toUpperCase())}</legend>
+        <legend className="mb-2 text-sm font-medium">Node mode · {network.replace(/^./, (letter) => letter.toUpperCase())}</legend>
         <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-slate-600 p-3 text-sm">
           <input type="radio" name="node-mode" value="hybrid" checked={mode === "hybrid"} onChange={() => { setMode("hybrid"); save.reset() }} className="mt-1" />
           <span><strong>Local + Remote</strong> · Sync locally with a remote bootstrap node until your chain catches up.</span>
@@ -89,7 +93,7 @@ export function NodeSetup({ current, root, onSaved, disabled = false }: { curren
                 setHost(event.target.value)
                 save.reset()
               }}
-              placeholder="node.example.org"
+              placeholder={remoteNodeSuggestion(network)?.host ?? "node.example.org"}
               autoComplete="off"
               required
               className="min-w-0 rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2"
@@ -110,6 +114,11 @@ export function NodeSetup({ current, root, onSaved, disabled = false }: { curren
               className="min-w-0 rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2"
             />
           </label>
+          <RemoteNodeSuggestion network={network} className="sm:col-span-2" onSelect={(suggestedHost, suggestedPort) => {
+            setHost(suggestedHost)
+            setPort(String(suggestedPort))
+            save.reset()
+          }} />
           <p className="text-xs leading-5 text-amber-200 sm:col-span-2">
             When connected, a remote node can see your IP address and wallet scan requests. The RPC connection uses plain HTTP.
           </p>

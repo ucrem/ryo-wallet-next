@@ -265,8 +265,8 @@ export function App() {
                   ) : node.isError ? (
                     <p className="text-sm text-red-300" role="alert">The saved node choice could not be read. No settings were changed.</p>
                   ) : (
-                    <NodeSetup key={root + ":" + node.data?.mode + ":" + node.data?.host + ":" + node.data?.port}
-                      root={root} current={node.data ?? null} disabled={setupBusy} onSaved={() => {
+                    <NodeSetup key={root + ":" + dataRoot.data?.network + ":" + node.data?.mode + ":" + node.data?.host + ":" + node.data?.port}
+                      root={root} current={node.data ?? null} network={dataRoot.data?.network ?? "mainnet"} disabled={setupBusy} onSaved={() => {
                         if (walletAction === null) setWalletAction("open")
                         setScreen("summary")
                       }} />
