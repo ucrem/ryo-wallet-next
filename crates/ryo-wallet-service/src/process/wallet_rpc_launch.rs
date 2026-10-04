@@ -1,5 +1,5 @@
 use std::ffi::OsString;
-use std::net::IpAddr;
+use std::net::{IpAddr, SocketAddr};
 use std::path::PathBuf;
 
 use thiserror::Error;
@@ -33,6 +33,24 @@ impl WalletRpcLaunch {
         node: &NodeConfig,
         rpc_port: u16,
     ) -> Result<Self, WalletRpcLaunchError> {
+        Self::prepare_with_address(paths, node, rpc_port, daemon_address(node))
+    }
+
+    pub(super) fn prepare_via_gate(
+        paths: &AppPaths,
+        node: &NodeConfig,
+        rpc_port: u16,
+        address: SocketAddr,
+    ) -> Result<Self, WalletRpcLaunchError> {
+        Self::prepare_with_address(paths, node, rpc_port, format!("http://{address}"))
+    }
+
+    fn prepare_with_address(
+        paths: &AppPaths,
+        node: &NodeConfig,
+        rpc_port: u16,
+        address: String,
+    ) -> Result<Self, WalletRpcLaunchError> {
         if rpc_port == 0 {
             return Err(WalletRpcLaunchError::InvalidPort);
         }
@@ -50,7 +68,7 @@ impl WalletRpcLaunch {
                 .map_err(WalletRpcLaunchError::UnsupportedPath)?
                 .into_os_string(),
             "--daemon-address".into(),
-            daemon_address(node).into(),
+            address.into(),
         ];
         args.extend([
             "--log-level".into(),

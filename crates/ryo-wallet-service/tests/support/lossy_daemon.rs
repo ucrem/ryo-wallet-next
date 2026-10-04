@@ -2,7 +2,7 @@
 //! It forwards all bytes unchanged and never logs transaction/request bodies.
 use reqwest::Client;
 use serde_json::Value;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -16,6 +16,8 @@ pub struct LossyDaemon {
     replies_before_loss: Arc<AtomicUsize>,
     pub accepted_dropped: Arc<AtomicUsize>,
     observations: Arc<Mutex<Vec<SendObservation>>>,
+    hold_pool: Arc<AtomicBool>,
+    pool_held: Arc<AtomicBool>,
     task: JoinHandle<()>,
 }
 
@@ -34,6 +36,10 @@ impl LossyDaemon {
         let replies_before_loss = Arc::new(AtomicUsize::new(usize::MAX));
         let accepted_dropped = Arc::new(AtomicUsize::new(0));
         let observations = Arc::new(Mutex::new(Vec::new()));
+        let hold_pool = Arc::new(AtomicBool::new(false));
+        let pool_held = Arc::new(AtomicBool::new(false));
+        let hold = hold_pool.clone();
+        let held = pool_held.clone();
         let observed = observations.clone();
         let drop_flag = replies_before_loss.clone();
         let drop_count = accepted_dropped.clone();
@@ -48,10 +54,21 @@ impl LossyDaemon {
                 let flag = drop_flag.clone();
                 let count = drop_count.clone();
                 let observed = observed.clone();
+                let hold = hold.clone();
+                let held = held.clone();
                 tokio::spawn(async move {
                     let _ = tokio::time::timeout(
-                        Duration::from_secs(15),
-                        forward(socket, daemon_port, client, flag, count, observed),
+                        Duration::from_secs(60),
+                        forward(
+                            socket,
+                            daemon_port,
+                            client,
+                            flag,
+                            count,
+                            observed,
+                            hold,
+                            held,
+                        ),
                     )
                     .await;
                 });
@@ -62,6 +79,8 @@ impl LossyDaemon {
             replies_before_loss,
             accepted_dropped,
             observations,
+            hold_pool,
+            pool_held,
             task,
         })
     }
@@ -75,6 +94,12 @@ impl LossyDaemon {
         self.replies_before_loss
             .store(successful_replies, Ordering::Release);
     }
+    pub fn hold_next_pool_reply(&self) {
+        self.hold_pool.store(true, Ordering::Release);
+    }
+    pub fn pool_reply_is_held(&self) -> bool {
+        self.pool_held.load(Ordering::Acquire)
+    }
 }
 impl Drop for LossyDaemon {
     fn drop(&mut self) {
@@ -82,6 +107,7 @@ impl Drop for LossyDaemon {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn forward(
     mut socket: TcpStream,
     daemon_port: u16,
@@ -89,6 +115,8 @@ async fn forward(
     flag: Arc<AtomicUsize>,
     count: Arc<AtomicUsize>,
     observations: Arc<Mutex<Vec<SendObservation>>>,
+    hold_pool: Arc<AtomicBool>,
+    pool_held: Arc<AtomicBool>,
 ) -> Result<()> {
     let mut request = Vec::new();
     let mut chunk = [0_u8; 4096];
@@ -146,6 +174,14 @@ async fn forward(
         .await?;
     let status = response.status();
     let body = response.bytes().await?;
+    if path == "/get_transaction_pool_hashes.bin" && hold_pool.swap(false, Ordering::AcqRel) {
+        // Genuine blocks have already been processed. Delay only the real pool
+        // reply so the single-threaded wallet server cannot serve stop_wallet.
+        // The transport gate must close this socket before saving and exiting.
+        pool_held.store(true, Ordering::Release);
+        let _ = socket.read(&mut [0]).await?;
+        return Ok(());
+    }
     if ["/sendrawtransaction", "/send_raw_transaction"].contains(&path.as_str()) {
         let value: Value = serde_json::from_slice(&body)?;
         let accepted = status.is_success() && value["status"] == "OK";

@@ -358,6 +358,168 @@ async fn new_wallet(
     Ok((wallet, id, created.into_recovery_phrase().into_secret()))
 }
 
+async fn cached_height(wallet: &WalletService) -> Result<u64> {
+    // An unavailable daemon can itself briefly occupy the reviewed refresh
+    // thread. Wait for an authenticated cache read, without triggering a rescan.
+    let until = tokio::time::Instant::now() + Duration::from_secs(40);
+    loop {
+        match wallet.height().await {
+            Ok(height) => return Ok(height),
+            Err(ryo_wallet_service::application::WalletServiceError::Busy)
+                if tokio::time::Instant::now() < until =>
+            {
+                tokio::time::sleep(Duration::from_millis(200)).await;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+async fn cached_balance(wallet: &WalletService) -> Result<Value> {
+    let until = tokio::time::Instant::now() + Duration::from_secs(40);
+    loop {
+        match wallet.overview().await {
+            Ok(value) => return Ok(json!(value.total)),
+            Err(ryo_wallet_service::application::WalletServiceError::Busy)
+                if tokio::time::Instant::now() < until =>
+            {
+                continue;
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires verified runtimes; real cache persistence during a blocked testnet scan"]
+async fn locking_a_busy_scan_preserves_cache_across_process_restart() -> Result<()> {
+    let temporary = tempfile::tempdir()?;
+    let [rpc_a, rpc_b, p2p_a, p2p_b] = [free_port(), free_port(), free_port(), free_port()];
+    let mut node_a = TestNode::start(&temporary.path().join("node-a"), rpc_a, p2p_a, p2p_b).await?;
+    let mut node_b = TestNode::start(&temporary.path().join("node-b"), rpc_b, p2p_b, p2p_a).await?;
+    node_a.ready().await?;
+    node_b.ready().await?;
+    let (source, _, seed) = new_wallet(
+        AppPaths::new(temporary.path().join("source"), Network::Testnet)?,
+        rpc_a,
+    )
+    .await?;
+    let address = source.overview().await?.primary_address;
+    node_a.mine(&address, 80).await?;
+    scan(&source).await?;
+    let expected_balance = source.overview().await?.total;
+    assert!(expected_balance.atomic.parse::<u64>()? > 0);
+    let expected_history = operation(&source, WalletOperation::History).await?;
+    source.lock(Duration::from_secs(5)).await?;
+    println!("Resume fixture: genuine funded source saved; restoring a fresh cache.");
+
+    let proxy = LossyDaemon::start(rpc_a).await?;
+    proxy.hold_next_pool_reply();
+    let paths = AppPaths::new(temporary.path().join("restored"), Network::Testnet)?;
+    let id = WalletId::parse(uuid::Uuid::new_v4().simple().to_string())?;
+    let wallet = WalletService::new();
+    wallet
+        .start_wallet_rpc(
+            reviewed_binary(BinaryKind::WalletRpc),
+            paths.clone(),
+            NodeConfig::remote(Network::Testnet, "127.0.0.1".into(), proxy.port)?,
+            free_port(),
+        )
+        .await?;
+    wallet
+        .restore_wallet(id.clone(), Zeroizing::new(PASSWORD.into()), seed, 1)
+        .await?;
+    let unsaved_cache = std::fs::read(paths.wallet_dir(&id).join("wallet"))?;
+    let until = tokio::time::Instant::now() + Duration::from_secs(40);
+    while !(proxy.pool_reply_is_held() && wallet.scan_height().is_some_and(|height| height >= 81)) {
+        if tokio::time::Instant::now() >= until {
+            return Err("busy scan was not observed".into());
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let processed = wallet.scan_height().ok_or("missing actual scan height")?;
+    println!("Resume fixture: processed height {processed}; pool response is held.");
+    assert!(
+        wallet.height().await.is_err(),
+        "fixture must block genuine wallet RPC reads"
+    );
+    let lock_started = tokio::time::Instant::now();
+    wallet.lock(Duration::from_secs(5)).await?;
+    println!("Resume fixture: locked; checking persisted cache with the daemon unavailable.");
+    assert!(
+        lock_started.elapsed() < Duration::from_secs(10),
+        "lock used the unsaved forced-kill path"
+    );
+    assert!(wallet.is_idle().await?);
+    assert!(
+        std::fs::read(paths.wallet_dir(&id).join("wallet"))? != unsaved_cache,
+        "blocked scan cache was not saved before process exit"
+    );
+
+    // Reopen against an unavailable daemon, so neither the height nor funds
+    // can be reconstructed by rescanning during this assertion.
+    wallet
+        .start_wallet_rpc(
+            reviewed_binary(BinaryKind::WalletRpc),
+            paths.clone(),
+            NodeConfig::remote(Network::Testnet, "127.0.0.1".into(), free_port())?,
+            free_port(),
+        )
+        .await?;
+    wallet
+        .open_imported_wallet(id.clone(), Zeroizing::new(PASSWORD.into()))
+        .await?;
+    println!("Resume fixture: reopened existing cache; reading authenticated height.");
+    assert_eq!(cached_height(&wallet).await?, processed);
+    println!("Resume fixture: persisted height verified; checking funds without a daemon.");
+    let balance = cached_balance(&wallet).await?;
+    assert_eq!(balance, json!(expected_balance));
+    wallet.lock(Duration::from_secs(5)).await?;
+    // A further fresh session also proves repeated locks keep the same cache.
+    wallet
+        .start_wallet_rpc(
+            reviewed_binary(BinaryKind::WalletRpc),
+            paths,
+            NodeConfig::remote(Network::Testnet, "127.0.0.1".into(), rpc_a)?,
+            free_port(),
+        )
+        .await?;
+    wallet
+        .open_imported_wallet(id, Zeroizing::new(PASSWORD.into()))
+        .await?;
+    assert_eq!(cached_height(&wallet).await?, processed);
+    assert_eq!(
+        operation(&wallet, WalletOperation::History).await?,
+        expected_history
+    );
+    // Ryo history reads also refresh the real mempool, so this last assertion
+    // uses a reachable daemon. No blockchain rescan was requested.
+    wallet.lock(Duration::from_secs(5)).await?;
+    node_b.stop().await?;
+    node_a.stop().await?;
+    if let Some(report) = std::env::var_os("RYO_SCAN_RESUME_REPORT") {
+        let receipt = json!({
+            "profile": "isolated-testnet-genesis-busy-lock-v1",
+            "platform": std::env::consts::OS,
+            "observed_at_unix": SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs(),
+            "processed_height": processed,
+            "current_fork_gate_passed": false,
+            "checks": ["busy_rpc_observed", "graceful_cache_saved", "offline_height_preserved",
+                "offline_funded_balance_preserved", "second_restart_history_preserved"]
+        });
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(report)?;
+        file.write_all(serde_json::to_string_pretty(&receipt)?.as_bytes())?;
+    }
+    println!(
+        "Busy scan saved height {processed} and real funds; offline reopen preserved both, and a second restart preserved history without a rescan."
+    );
+    Ok(())
+}
+
 #[tokio::test]
 #[ignore = "requires verified runtimes; mines genuine genesis-era testnet blocks in two isolated nodes"]
 async fn isolated_testnet_funded_wallet_operations() -> Result<()> {

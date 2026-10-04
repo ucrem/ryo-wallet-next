@@ -8,6 +8,7 @@ use crate::domain::NodeConfig;
 use crate::rpc::{RpcError, WalletRpcClient};
 use crate::storage::AppPaths;
 
+use super::daemon_gate::DaemonGate;
 use super::scan_progress::{ScanProgress, consume};
 use super::{
     CredentialFileError, ManagedProcess, ProcessError, VerifiedBinary, WalletRpcLaunch,
@@ -20,6 +21,8 @@ const FORCE_STOP_DEADLINE: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Error)]
 pub enum WalletRpcStartupError {
+    #[error("wallet daemon transport could not be prepared")]
+    DaemonTransport(#[source] std::io::Error),
     #[error("wallet RPC launch configuration is invalid")]
     Launch(#[source] WalletRpcLaunchError),
     #[error("wallet RPC process could not be started")]
@@ -35,6 +38,7 @@ pub enum WalletRpcStartupError {
 /// An authenticated, app-owned `ryo-wallet-rpc` process. It can only be
 /// created by successful binary verification and authenticated readiness.
 pub struct WalletRpcSession {
+    daemon_gate: DaemonGate,
     process: ManagedProcess,
     client: WalletRpcClient,
     progress: ScanProgress,
@@ -58,7 +62,10 @@ impl WalletRpcSession {
         rpc_port: u16,
         deadline: Duration,
     ) -> Result<Self, WalletRpcStartupError> {
-        let launch = WalletRpcLaunch::prepare(paths, node, rpc_port)
+        let daemon_gate = DaemonGate::start(node)
+            .await
+            .map_err(WalletRpcStartupError::DaemonTransport)?;
+        let launch = WalletRpcLaunch::prepare_via_gate(paths, node, rpc_port, daemon_gate.address)
             .map_err(WalletRpcStartupError::Launch)?;
         let mut process =
             ManagedProcess::start_wallet(binary, &launch.args, &launch.working_directory)
@@ -72,6 +79,7 @@ impl WalletRpcSession {
         let startup = wait_for_readiness(&launch, rpc_port, deadline).await;
         match startup {
             Ok(client) => Ok(Self {
+                daemon_gate,
                 process,
                 client,
                 progress,
@@ -96,6 +104,11 @@ impl WalletRpcSession {
     /// A lock is complete only once the key-bearing child has exited. If its
     /// graceful RPC stop does not lead to exit, use the bounded OS fallback.
     pub async fn stop(mut self, deadline: Duration) -> Result<(), ProcessError> {
+        // The reviewed RPC server refreshes on its single HTTP thread. A long
+        // refresh blocks stop_wallet and would otherwise force-kill an unsaved
+        // cache. Release its daemon reads first; it can then store the complete
+        // processed state and exit. The independently owned node stays active.
+        self.daemon_gate.quiesce().await;
         let _ = self.client.stop_wallet().await;
         match self.process.wait_for_exit(deadline).await {
             Ok(_) => Ok(()),

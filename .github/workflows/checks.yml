@@ -76,7 +76,7 @@ jobs:
       - name: Observe public testnet availability from this runner
         continue-on-error: true
         run: node scripts/probe-testnet.mjs 30
-      - name: Funded two-node fixture (genesis fork, not current-fork acceptance)
+      - name: Funded and busy-scan cache fixtures (genesis fork, not current-fork acceptance)
         shell: bash
         run: |
           suffix=""
@@ -84,6 +84,7 @@ jobs:
           export RYO_TEST_DAEMON="$GITHUB_WORKSPACE/src-tauri/.dev-runtime/ryod$suffix"
           export RYO_TEST_WALLET_RPC="$GITHUB_WORKSPACE/src-tauri/.dev-runtime/ryo-wallet-rpc$suffix"
           export RYO_VALIDATION_REPORT="$GITHUB_WORKSPACE/target/testnet-genesis-report.json"
+          export RYO_SCAN_RESUME_REPORT="$GITHUB_WORKSPACE/target/wallet-scan-resume-report.json"
           cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
       - name: Upload non-sensitive acceptance and availability receipts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -91,6 +92,7 @@ jobs:
           name: testnet-genesis-receipt-${{ matrix.os }}
           path: |
             target/testnet-genesis-report.json
+            target/wallet-scan-resume-report.json
             target/testnet-validation/probe-*/report.json
           if-no-files-found: error
           retention-days: 30

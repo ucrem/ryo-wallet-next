@@ -18,6 +18,73 @@ The app now reads processed-block heights from its own verified wallet RPC proce
 - A node probe has five seconds to respond. On a failed probe, the last heights remain visible for at most 30 seconds, bound to the same endpoint and process generation. The label is `Node response delayed`; reachability and readiness stay false. The tooltip identifies the values as last reported. Expired context, network mismatch or changed ownership cannot reuse these heights.
 - Wallet events update the footer; periodic snapshots recover from missed events or listener registration failures.
 
+## Saving an interrupted scan
+
+The wallet cache and the daemon's blockchain database are separate. Ryo stores
+the encrypted wallet cache when `stop_wallet` is served. Previously a long
+refresh could block that request until the app's bounded shutdown forcibly
+terminated the process. The latest processed blocks were then lost from the
+cache, even though the daemon's chain remained on disk.
+
+Each wallet RPC session now owns a byte-preserving daemon transport. Manual
+lock, inactivity lock and normal application shutdown first close that
+session's daemon connections and listener. The reviewed runtime can finish its
+current processed results, leave the blocking refresh, serve `stop_wallet`,
+store the actual cache and exit. Reopening uses the same wallet file, including
+its processed blocks and recovered funds; no renderer height is used to skip
+blocks. The independently supervised local daemon remains running on a wallet
+lock. A full rescan or a new seed restoration still deliberately starts a new
+scan.
+
+The transport forwards to the original configured node and never logs request
+or response bodies. Only same-host connections are accepted, with at most 16
+live connections. Local endpoints use loopback. Public remote endpoints use a
+routed local IPv4 address and reject foreign source addresses before reading
+or forwarding any data: upstream 0.6.1.0 automatically trusts loopback daemon
+addresses and lacks a force-untrusted flag, so routing a public node through
+loopback would change its trust. A remote session fails startup if no usable
+non-loopback IPv4 route is available. Wallet RPC itself remains authenticated
+and loopback-bound. Node health still probes the original endpoint directly.
+
+The bounded process termination fallback remains for an unresponsive runtime.
+A forced OS termination, crash or disk write failure cannot promise that the
+latest in-memory scan was saved. This change does not add crash-safe periodic
+checkpointing or replace Ryo's cache format.
+
+### Persistence evidence (2026-10-04)
+
+- A genuine isolated two-node fixture restored a freshly funded wallet and held
+  a real mempool response after processing 80 validated blocks. Wallet height
+  reads timed out, reproducing the blocked RPC condition.
+- Lock completed through the graceful path in under ten seconds and changed
+  the wallet cache file. A new process reopened the cache with an unavailable
+  daemon and returned saved height **81** and the original funded balance.
+- A second fresh process retained that height and the original transaction
+  history without requesting a blockchain rescan. The daemon was reachable for
+  the history assertion because Ryo's history RPC also refreshes its mempool.
+- The existing funded send, receive, split-send, lost-reply and recovery suite
+  passed with the transport enabled. These remain genesis-era testnet checks,
+  not current-fork acceptance.
+- Unit tests cover unchanged request/response bytes, cancellation of in-flight
+  reads, refusal of reconnects after lock, rejection of foreign sources and
+  preservation of the public remote endpoint's non-loopback trust boundary.
+- A separate opt-in read-only mainnet test used a freshly generated disposable
+  wallet against `wallet-node.ryo-currency.com:12211`. It observed processed
+  height **1,238** during a busy scan, gracefully saved height **2,720** and
+  reopened that height with an unavailable daemon. The extra blocks were
+  processed between the initial observation and the graceful checkpoint.
+  No existing wallet, funds or signing operation was used. Public node
+  availability is not a required CI gate. Repeat with
+  `cargo test -p ryo-wallet-service --test public_scan_resume --locked -- --ignored --nocapture`
+  after setting `RYO_TEST_WALLET_RPC` to the reviewed executable.
+- Local Windows validation passed 61 service unit tests, 10 RPC transport tests,
+  66 frontend tests, TypeScript, ESLint, service Clippy with warnings denied,
+  formatting and version consistency. Both genuine testnet fixtures passed in
+  38.45 seconds with fresh non-sensitive receipts. The optimized native desktop
+  executable compiled successfully. The already-open old desktop process was
+  preserved during compilation; applying the fix to that session requires a
+  restart, because its ongoing scan does not yet use the new transport.
+
 ## Evidence and remaining limits
 
 - Windows unit checks cover fragmented stdout, processed versus downloaded blocks, invalid hashes, overflow, oversized output, process EOF, read deadlines, abandoned-read handling and preservation of mutation commands.

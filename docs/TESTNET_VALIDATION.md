@@ -10,6 +10,7 @@ Updated 2026-10-03. This milestone validates the existing wallet rather than dec
 - A real three-transaction split sweep with ring size 100 produces `relayed`, `unknown`, and `not_sent` after losing the second acceptance reply. A fresh service owner reconciles the accepted transaction and does not relay the unsubmitted remainder; the real daemon's pool and chain are checked for every hash.
 - Funded seed restoration recovers the primary address and balance. Rescan, encrypted key image export/import, sweep to zero sender balance, continuing the chain with the wallet locked, peer chain propagation and persisted-chain restart pass.
 - Recovery progress is also checked against the unchanged runtime: after each full scan, the processed-block height parsed from private stdout must match authenticated wallet RPC height. Busy-read deadlines and automatic UI recovery are covered separately; see [Wallet synchronization](WALLET_SYNC.md).
+- A separate genuine busy-scan fixture verifies cache persistence at lock: it holds a real pool response, confirms wallet RPC reads are blocked, then checks saved height and funded balance in a fresh process with no reachable daemon. Another process restart retains history without a requested rescan. See the persistence evidence in [Wallet synchronization](WALLET_SYNC.md).
 - Test passwords and the recovery phrase are checked against the disposable raw logs. The receipt contains only the profile, platform, time, height and passed checks. No phrase, password, credentials, addresses or signed metadata are uploaded.
 - The initial funded suite passed all six checks in [CI run 37150606231](https://github.com/ucrem/ryo-wallet-next/actions/runs/37150606231), including native Windows, Linux and macOS Intel integrations. The expanded partial split-send case passed locally on Windows; its cross-platform result is recorded by the PR's current CI receipts.
 
@@ -40,6 +41,7 @@ $env:RYO_TEST_DAEMON = (Resolve-Path src-tauri/.dev-runtime/ryod.exe).Path
 $env:RYO_TEST_WALLET_RPC = (Resolve-Path src-tauri/.dev-runtime/ryo-wallet-rpc.exe).Path
 # Optional: choose a NEW receipt path; an existing file is never overwritten.
 $env:RYO_VALIDATION_REPORT = Join-Path (Resolve-Path target).Path 'testnet-genesis-report.json'
+$env:RYO_SCAN_RESUME_REPORT = Join-Path (Resolve-Path target).Path 'wallet-scan-resume-report.json'
 cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
 ```
 
@@ -49,6 +51,7 @@ Linux / macOS Intel:
 export RYO_TEST_DAEMON="$PWD/src-tauri/.dev-runtime/ryod"
 export RYO_TEST_WALLET_RPC="$PWD/src-tauri/.dev-runtime/ryo-wallet-rpc"
 export RYO_VALIDATION_REPORT="$PWD/target/testnet-genesis-report.json"
+export RYO_SCAN_RESUME_REPORT="$PWD/target/wallet-scan-resume-report.json"
 cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
 ```
 
