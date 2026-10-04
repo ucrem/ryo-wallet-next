@@ -82,8 +82,15 @@ checkpointing or replace Ryo's cache format.
   formatting and version consistency. Both genuine testnet fixtures passed in
   38.45 seconds with fresh non-sensitive receipts. The optimized native desktop
   executable compiled successfully. The already-open old desktop process was
-  preserved during compilation; applying the fix to that session requires a
-  restart, because its ongoing scan does not yet use the new transport.
+  preserved during compilation, then closed at the user's explicit request.
+  The new executable was launched through commands and process metadata confirms
+  a responding native desktop window. No computer-use automation or user wallet
+  authentication was performed.
+- In the first CI run for `f8c216f`, the Linux busy-scan persistence fixture
+  passed, while the funded fixture failed at wallet RPC startup authentication.
+  The cause of that authentication failure is unproven. The two fixtures now
+  run sequentially to eliminate shared native-startup/port-allocation
+  interference; no acceptance assertion or authentication check was relaxed.
 
 ## Evidence and remaining limits
 

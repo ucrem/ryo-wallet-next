@@ -42,7 +42,7 @@ $env:RYO_TEST_WALLET_RPC = (Resolve-Path src-tauri/.dev-runtime/ryo-wallet-rpc.e
 # Optional: choose a NEW receipt path; an existing file is never overwritten.
 $env:RYO_VALIDATION_REPORT = Join-Path (Resolve-Path target).Path 'testnet-genesis-report.json'
 $env:RYO_SCAN_RESUME_REPORT = Join-Path (Resolve-Path target).Path 'wallet-scan-resume-report.json'
-cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
+cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture --test-threads=1
 ```
 
 Linux / macOS Intel:
@@ -52,10 +52,10 @@ export RYO_TEST_DAEMON="$PWD/src-tauri/.dev-runtime/ryod"
 export RYO_TEST_WALLET_RPC="$PWD/src-tauri/.dev-runtime/ryo-wallet-rpc"
 export RYO_VALIDATION_REPORT="$PWD/target/testnet-genesis-report.json"
 export RYO_SCAN_RESUME_REPORT="$PWD/target/wallet-scan-resume-report.json"
-cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
+cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture --test-threads=1
 ```
 
-The test allocates fresh temporary storage, chooses private ports, keeps wallet login enabled, binds RPC/P2P/ZMQ to loopback, disables UPnP and connects exclusively to its second node. Test processes terminate on exit; temporary wallet/chain data is removed. The mainnet application and Atom data are never opened by the fixture. The RPC fault proxy exists only under `tests/support`, with bounded request sizes and timeouts.
+The tests run sequentially to isolate native runtime startup and ephemeral port allocation between fixtures. Each allocates fresh temporary storage, chooses private ports, keeps wallet login enabled, binds RPC/P2P/ZMQ to loopback, disables UPnP and connects exclusively to its second node. Test processes terminate on exit; temporary wallet/chain data is removed. The mainnet application and Atom data are never opened by the fixtures. The RPC fault proxy exists only under `tests/support`, with bounded request sizes and timeouts.
 
 Probe public availability without a wallet:
 

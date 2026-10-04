@@ -85,7 +85,7 @@ jobs:
           export RYO_TEST_WALLET_RPC="$GITHUB_WORKSPACE/src-tauri/.dev-runtime/ryo-wallet-rpc$suffix"
           export RYO_VALIDATION_REPORT="$GITHUB_WORKSPACE/target/testnet-genesis-report.json"
           export RYO_SCAN_RESUME_REPORT="$GITHUB_WORKSPACE/target/wallet-scan-resume-report.json"
-          cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture
+          cargo test -p ryo-wallet-service --test testnet_validation --locked -- --ignored --nocapture --test-threads=1
       - name: Upload non-sensitive acceptance and availability receipts
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
