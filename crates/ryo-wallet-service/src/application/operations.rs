@@ -85,6 +85,15 @@ pub enum WalletOperation {
     },
 }
 
+impl WalletOperation {
+    pub(crate) fn is_background_read(&self) -> bool {
+        matches!(
+            self,
+            Self::Info | Self::History | Self::Contacts | Self::AddressBalances
+        )
+    }
+}
+
 pub struct SecretMaterial {
     phrase: Zeroizing<String>,
     view_key: Zeroizing<String>,

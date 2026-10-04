@@ -26,7 +26,7 @@ export function WalletStatusBar({
     queryFn: getWalletSyncStatus,
     enabled: serviceState === "open" && sessionGeneration !== null,
     retry: false,
-    refetchInterval: false,
+    refetchInterval: 15_000,
     refetchOnWindowFocus: false,
     staleTime: Infinity,
   })
@@ -44,7 +44,7 @@ export function WalletStatusBar({
       if (disposed) listener()
       else unlisten = listener
     }).catch(() => {
-      // The initial snapshot remains available if event registration fails.
+      // Periodic snapshots recover if event registration fails.
     })
 
     return () => {
@@ -65,12 +65,14 @@ export function WalletStatusBar({
     : chain.isPending ? "Checking node"
       : node.mode !== "remote" && chainData?.state === "stopped" ? "Node stopped"
         : chainData?.state === "faulted" ? "Node needs restart"
-          : !chainData?.reachable ? "Node unreachable"
+          : !chainData?.reachable ? chainData?.height ? "Node response delayed" : "Node unreachable"
             : chainData.offline ? "Node offline"
               : chainData.ready && chainProgress === 100 ? "Node synced"
                 : chainData.target_height !== null ? "Node syncing" : "Finding peers"
 
   const synced =
+    data?.wallet_rpc_busy !== true &&
+    data?.wallet_rpc_available !== false &&
     data?.node_reachable === true &&
     data.node_offline === false &&
     data.node_ready === true &&
@@ -83,6 +85,10 @@ export function WalletStatusBar({
   if (serviceState === "open") {
     if (sync.isPending) {
       status = "Checking wallet"
+    } else if (data?.wallet_rpc_busy) {
+      status = data.wallet_height !== null ? "Wallet scanning" : "Wallet busy"
+    } else if (sync.isError || data?.wallet_rpc_available === false) {
+      status = "Wallet status unavailable"
     } else if (!data?.node_reachable || data?.node_offline) {
       status = "Wallet waiting"
     } else if (synced) {
@@ -104,7 +110,8 @@ export function WalletStatusBar({
       <div className="flex h-10 items-center gap-4 whitespace-nowrap text-[11px] text-slate-400">
         <div className="flex shrink-0 items-center gap-2" aria-label="Node synchronization status"
           title={chainData?.state === "stopped" ? "Start the node to resume from your data folder."
-            : chainData?.reachable && chainData.target_height === null ? "Chain loaded · finding peers" : undefined}>
+            : chainData?.height && !chainData.reachable ? "Last reported chain height; waiting for a fresh node response."
+              : chainData?.reachable && chainData.target_height === null ? "Chain loaded · finding peers" : undefined}>
           <span aria-hidden="true" className={"size-1.5 rounded-full " +
             (chainLabel === "Node synced" ? "bg-emerald-400" : chainData?.reachable ? "bg-amber-400" : "bg-slate-500")} />
           {node ? <span className="text-slate-500">{node.mode === "hybrid" ? "Local + Remote" : node.mode === "local" ? "Local" : "Remote"}</span> : null}
@@ -120,7 +127,7 @@ export function WalletStatusBar({
 
         <div className="flex shrink-0 items-center gap-2" aria-label="Wallet synchronization status"
           title={serviceState !== "open" && node?.mode !== "remote" && chainData?.state === "running"
-            ? "Wallet locked · node stays active" : undefined}>
+            ? "Wallet locked · node stays active" : data?.wallet_rpc_busy ? "Wallet RPC is busy scanning; progress comes from processed blocks." : undefined}>
           <span aria-hidden="true" className={"size-1.5 rounded-full " +
             (synced ? "bg-emerald-400" : serviceState === "open" ? "bg-amber-400" : "bg-slate-500")} />
           <span className="font-medium text-slate-200">{status}</span>

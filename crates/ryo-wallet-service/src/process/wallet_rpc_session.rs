@@ -8,6 +8,7 @@ use crate::domain::NodeConfig;
 use crate::rpc::{RpcError, WalletRpcClient};
 use crate::storage::AppPaths;
 
+use super::scan_progress::{ScanProgress, consume};
 use super::{
     CredentialFileError, ManagedProcess, ProcessError, VerifiedBinary, WalletRpcLaunch,
     WalletRpcLaunchError, read_generated_login,
@@ -36,6 +37,8 @@ pub enum WalletRpcStartupError {
 pub struct WalletRpcSession {
     process: ManagedProcess,
     client: WalletRpcClient,
+    progress: ScanProgress,
+    progress_task: tokio::task::JoinHandle<()>,
 }
 
 impl WalletRpcSession {
@@ -57,13 +60,25 @@ impl WalletRpcSession {
     ) -> Result<Self, WalletRpcStartupError> {
         let launch = WalletRpcLaunch::prepare(paths, node, rpc_port)
             .map_err(WalletRpcStartupError::Launch)?;
-        let mut process = ManagedProcess::start(binary, &launch.args, &launch.working_directory)
-            .await
-            .map_err(WalletRpcStartupError::Process)?;
+        let mut process =
+            ManagedProcess::start_wallet(binary, &launch.args, &launch.working_directory)
+                .await
+                .map_err(WalletRpcStartupError::Process)?;
+        let stdout = process
+            .take_stdout()
+            .ok_or(WalletRpcStartupError::Readiness(RpcError::InvalidResponse))?;
+        let progress = ScanProgress::default();
+        let progress_task = tokio::spawn(consume(stdout, progress.clone()));
         let startup = wait_for_readiness(&launch, rpc_port, deadline).await;
         match startup {
-            Ok(client) => Ok(Self { process, client }),
+            Ok(client) => Ok(Self {
+                process,
+                client,
+                progress,
+                progress_task,
+            }),
             Err(error) => {
+                progress_task.abort();
                 let _ = process.force_stop(FORCE_STOP_DEADLINE).await;
                 Err(error)
             }
@@ -72,6 +87,10 @@ impl WalletRpcSession {
 
     pub fn client(&self) -> &WalletRpcClient {
         &self.client
+    }
+
+    pub(crate) fn scan_progress(&self) -> ScanProgress {
+        self.progress.clone()
     }
 
     /// A lock is complete only once the key-bearing child has exited. If its
@@ -87,6 +106,12 @@ impl WalletRpcSession {
                 .map(|_| ()),
             Err(error) => Err(error),
         }
+    }
+}
+
+impl Drop for WalletRpcSession {
+    fn drop(&mut self) {
+        self.progress_task.abort();
     }
 }
 

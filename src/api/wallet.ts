@@ -18,6 +18,8 @@ export type ImportSelection = { selection_id: string; file_name: string }
 
 export type WalletSyncStatus = {
   wallet_height: string | null
+  wallet_rpc_busy?: boolean
+  wallet_rpc_available?: boolean
   daemon_height: string | null
   network_height: string | null
   node_reachable: boolean

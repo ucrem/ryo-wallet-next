@@ -1,6 +1,7 @@
 use serde::Serialize;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::timeout;
 use ts_rs::TS;
@@ -38,6 +39,27 @@ pub struct NodeStatus {
 #[derive(Clone)]
 pub struct NodeService {
     sender: mpsc::Sender<Command>,
+    recent: Arc<Mutex<Option<RecentHealth>>>,
+}
+
+struct RecentHealth {
+    endpoint: NodeConfig,
+    received: Instant,
+    status: NodeStatus,
+}
+
+impl RecentHealth {
+    fn retain_heights(&self, endpoint: &NodeConfig, status: &mut NodeStatus, now: Instant) {
+        if self.endpoint == *endpoint
+            && self.status.generation == status.generation
+            && now.duration_since(self.received) <= Duration::from_secs(30)
+        {
+            // A delayed reply retains numeric context, never reachability or readiness.
+            status.height.clone_from(&self.status.height);
+            status.rpc_height.clone_from(&self.status.rpc_height);
+            status.target_height.clone_from(&self.status.target_height);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -82,7 +104,10 @@ impl NodeService {
                     .block_on(run_actor(receiver));
             })
             .expect("node service thread must be available");
-        Self { sender }
+        Self {
+            sender,
+            recent: Arc::new(Mutex::new(None)),
+        }
     }
 
     pub async fn start(
@@ -143,7 +168,9 @@ impl NodeService {
         }
         let client =
             DaemonRpcClient::configured(&endpoint).map_err(|_| DaemonError::Configuration)?;
-        if let Ok(Ok(health)) = timeout(Duration::from_secs(3), client.health()).await
+        let health = timeout(Duration::from_secs(5), client.health()).await;
+        let delayed = !matches!(health, Ok(Ok(_)));
+        if let Ok(Ok(health)) = health
             && health.network == node.network
         {
             status.height = Some(health.local_height.to_string());
@@ -161,6 +188,17 @@ impl NodeService {
             let current = self.inspect().await?;
             if current.generation != snapshot.generation {
                 return Ok(empty_status(node.mode, &current));
+            }
+        }
+        if let Ok(mut recent) = self.recent.lock() {
+            if status.reachable {
+                *recent = Some(RecentHealth {
+                    endpoint,
+                    received: Instant::now(),
+                    status: status.clone(),
+                });
+            } else if delayed && let Some(recent) = recent.as_ref() {
+                recent.retain_heights(&endpoint, &mut status, Instant::now());
             }
         }
         Ok(status)
@@ -267,6 +305,57 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
 mod tests {
     use super::*;
     use crate::domain::Network;
+
+    #[test]
+    fn delayed_health_retains_only_recent_heights_for_the_same_endpoint_and_generation() {
+        let endpoint = NodeConfig::managed_local(Network::Mainnet);
+        let snapshot = Snapshot {
+            state: NodeState::Running,
+            generation: 1,
+            endpoint: Some(endpoint.clone()),
+        };
+        let now = Instant::now();
+        let mut healthy = empty_status(endpoint.mode, &snapshot);
+        healthy.height = Some("200".into());
+        healthy.rpc_height = Some("200".into());
+        healthy.target_height = Some("1000".into());
+        healthy.reachable = true;
+        healthy.ready = true;
+        healthy.offline = false;
+        let recent = RecentHealth {
+            endpoint: endpoint.clone(),
+            received: now,
+            status: healthy,
+        };
+        let mut delayed = empty_status(endpoint.mode, &snapshot);
+        recent.retain_heights(&endpoint, &mut delayed, now + Duration::from_secs(5));
+        assert_eq!(delayed.height.as_deref(), Some("200"));
+        assert!(!delayed.reachable && !delayed.ready && delayed.offline);
+        for (different_endpoint, different_snapshot, age) in [
+            (endpoint.clone(), snapshot.clone(), 31),
+            (
+                endpoint.clone(),
+                Snapshot {
+                    generation: 2,
+                    ..snapshot.clone()
+                },
+                1,
+            ),
+            (
+                NodeConfig::managed_local(Network::Testnet),
+                snapshot.clone(),
+                1,
+            ),
+        ] {
+            let mut unavailable = empty_status(endpoint.mode, &different_snapshot);
+            recent.retain_heights(
+                &different_endpoint,
+                &mut unavailable,
+                now + Duration::from_secs(age),
+            );
+            assert!(unavailable.height.is_none());
+        }
+    }
 
     #[tokio::test]
     async fn stopped_local_node_is_not_an_external_daemon_and_stop_is_idempotent() {

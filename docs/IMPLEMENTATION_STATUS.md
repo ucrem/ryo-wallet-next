@@ -4,6 +4,7 @@ Updated 2026-10-04 for next-release wallet import on the 0.1.0-alpha.6 baseline.
 
 ## Implemented
 
+- Recovery sync now tracks processed blocks through private wallet RPC stdout while the single-threaded upstream refresh is busy. Background reads have bounded deadlines and retry automatically; balances/history retain explicitly labelled previous snapshots. Node probes retain recent heights with a delayed-response label, without claiming reachability/readiness. See [Wallet synchronization](WALLET_SYNC.md) for evidence and remaining full-chain gates.
 - Settings exposes General and Preferences in the top menu. General covers local/remote/bootstrap mode, a native folder picker, bounded daemon options and isolated network selection. Global preferences cover light/dark/system themes, native tray/startup behavior, advisory form warnings and Rust-owned generation-checked inactivity locking. General changes require stopped wallet/node processes; preferences can save during sync. See [Settings behavior and validation](SETTINGS.md).
 - Home stacks the three wallet choices in the original one-third-width column, with the existing Ryo vector symbol on the right fading from left to right.
 - The compact top menu exposes Wallet, Receive, Send, Address Book and TX History. Receive covers labels, per-address balances, QR codes and native SVG exports; payment requests round-trip exact RYO amounts. Contacts and the wallet name persist through wallet attributes; transaction notes use the upstream notes API.

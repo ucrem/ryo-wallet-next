@@ -186,6 +186,8 @@ fn persist_data_root(
 #[derive(Clone, PartialEq, Eq, serde::Serialize)]
 struct WalletSyncStatusResponse {
     wallet_height: Option<String>,
+    wallet_rpc_busy: bool,
+    wallet_rpc_available: bool,
     daemon_height: Option<String>,
     network_height: Option<String>,
     node_reachable: bool,
@@ -205,10 +207,10 @@ async fn app_status(
 async fn wallet_overview(
     service: tauri::State<'_, WalletService>,
 ) -> Result<WalletOverview, &'static str> {
-    service
-        .overview()
-        .await
-        .map_err(|_| "wallet overview unavailable")
+    service.overview().await.map_err(|error| match error {
+        WalletServiceError::Busy => "wallet RPC busy",
+        _ => "wallet overview unavailable",
+    })
 }
 
 #[tauri::command]
@@ -223,6 +225,7 @@ async fn wallet_receive_addresses(
         .receive_addresses(session_generation)
         .await
         .map_err(|error| match error {
+            WalletServiceError::Busy => "wallet RPC busy",
             WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
             _ => "receive addresses are unavailable",
         })
@@ -281,11 +284,27 @@ async fn collect_wallet_sync_status(
     nodes: &NodeService,
     node: &NodeConfig,
 ) -> WalletSyncStatusResponse {
-    let wallet_height = service.height().await.ok().map(|height| height.to_string());
-
-    match nodes.status(node).await {
+    // Node health must not queue behind the wallet's single-threaded refresh.
+    let (height, health) = tokio::join!(
+        async {
+            if service.read_is_busy() && service.scan_height().is_some() {
+                None
+            } else {
+                service.height().await.ok()
+            }
+        },
+        nodes.status(node)
+    );
+    let wallet_height = height
+        .or_else(|| service.scan_height())
+        .map(|height| height.to_string());
+    let wallet_rpc_busy = service.read_is_busy();
+    let wallet_rpc_available = height.is_some();
+    match health {
         Ok(health) => WalletSyncStatusResponse {
             wallet_height,
+            wallet_rpc_busy,
+            wallet_rpc_available,
             daemon_height: health.rpc_height.or(health.height),
             network_height: health.target_height,
             node_reachable: health.reachable,
@@ -295,6 +314,8 @@ async fn collect_wallet_sync_status(
         },
         Err(_) => WalletSyncStatusResponse {
             wallet_height,
+            wallet_rpc_busy,
+            wallet_rpc_available,
             daemon_height: None,
             network_height: None,
             node_reachable: false,

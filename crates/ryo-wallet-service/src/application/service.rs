@@ -1,3 +1,7 @@
+use std::sync::{
+    Arc, Mutex,
+    atomic::{AtomicBool, Ordering},
+};
 use std::time::Duration;
 
 use thiserror::Error;
@@ -6,6 +10,7 @@ use ts_rs::TS;
 use zeroize::Zeroizing;
 
 use crate::domain::{AtomicAmount, AtomicAmountDto, NodeConfig};
+use crate::process::ScanProgress;
 use crate::process::{ProcessError, VerifiedBinary, WalletRpcSession, WalletRpcStartupError};
 use crate::rpc::{ReceiveAddress, RecoveryPhrase, RpcError};
 use crate::storage::{AppPaths, PathError, WalletId};
@@ -14,6 +19,17 @@ use super::operations::{OperationError, OperationsState, WalletOperation, Wallet
 use super::{LifecycleMachine, LifecycleStatus, LifecycleTransitionError};
 
 const COMMAND_QUEUE_CAPACITY: usize = 8;
+const READ_EXECUTION_TIMEOUT: Duration = Duration::from_secs(4);
+const READ_REQUEST_TIMEOUT: Duration = Duration::from_secs(6);
+
+async fn bounded_read<T>(
+    deadline: Duration,
+    future: impl std::future::Future<Output = Result<T, WalletServiceError>>,
+) -> Result<T, WalletServiceError> {
+    tokio::time::timeout(deadline, future)
+        .await
+        .unwrap_or(Err(WalletServiceError::Busy))
+}
 
 #[derive(Debug, Error)]
 pub enum WalletServiceError {
@@ -31,6 +47,8 @@ pub enum WalletServiceError {
     UnsupportedWalletScope,
     #[error("wallet service is unavailable")]
     Unavailable,
+    #[error("wallet RPC busy")]
+    Busy,
     #[error("wallet session has changed")]
     StaleSession,
     #[error(transparent)]
@@ -42,6 +60,8 @@ pub enum WalletServiceError {
 #[derive(Clone)]
 pub struct WalletService {
     sender: mpsc::Sender<Command>,
+    scan: Arc<Mutex<Option<ScanProgress>>>,
+    read_busy: Arc<AtomicBool>,
 }
 
 /// Result of a newly created wallet. The recovery phrase is moved exactly
@@ -78,6 +98,10 @@ impl CreatedWallet {
 impl WalletService {
     pub fn new() -> Self {
         let (sender, receiver) = mpsc::channel(COMMAND_QUEUE_CAPACITY);
+        let scan = Arc::new(Mutex::new(None));
+        let actor_scan = scan.clone();
+        let read_busy = Arc::new(AtomicBool::new(false));
+        let actor_busy = read_busy.clone();
         std::thread::Builder::new()
             .name("ryo-wallet-service".to_owned())
             .spawn(move || {
@@ -85,10 +109,37 @@ impl WalletService {
                     .enable_all()
                     .build()
                     .expect("wallet service runtime must be available")
-                    .block_on(run_actor(receiver));
+                    .block_on(run_actor(receiver, actor_scan, actor_busy));
             })
             .expect("wallet service thread must be available");
-        Self { sender }
+        Self {
+            sender,
+            scan,
+            read_busy,
+        }
+    }
+
+    /// Numeric progress from this session's private stdout remains available during refresh.
+    pub fn scan_height(&self) -> Option<u64> {
+        self.scan
+            .lock()
+            .ok()
+            .and_then(|scan| scan.as_ref().and_then(ScanProgress::height))
+    }
+
+    pub fn read_is_busy(&self) -> bool {
+        self.read_busy.load(Ordering::Acquire)
+    }
+
+    async fn read_request<T>(
+        &self,
+        future: impl std::future::Future<Output = Result<T, WalletServiceError>>,
+    ) -> Result<T, WalletServiceError> {
+        let result = bounded_read(READ_REQUEST_TIMEOUT, future).await;
+        if matches!(result, Err(WalletServiceError::Busy)) {
+            self.read_busy.store(true, Ordering::Release);
+        }
+        result
     }
 
     pub async fn status(&self) -> Result<LifecycleStatus, WalletServiceError> {
@@ -200,22 +251,28 @@ impl WalletService {
     }
 
     pub async fn overview(&self) -> Result<WalletOverview, WalletServiceError> {
-        let (response, reply) = oneshot::channel();
-        self.send(Command::Overview { response }).await?;
-        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        self.read_request(async {
+            let (response, reply) = oneshot::channel();
+            self.send(Command::Overview { response }).await?;
+            reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        })
+        .await
     }
 
     pub async fn receive_addresses(
         &self,
         session_generation: String,
     ) -> Result<Vec<ReceiveAddress>, WalletServiceError> {
-        let (response, reply) = oneshot::channel();
-        self.send(Command::ReceiveAddresses {
-            session_generation,
-            response,
+        self.read_request(async {
+            let (response, reply) = oneshot::channel();
+            self.send(Command::ReceiveAddresses {
+                session_generation,
+                response,
+            })
+            .await?;
+            reply.await.map_err(|_| WalletServiceError::Unavailable)?
         })
-        .await?;
-        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        .await
     }
 
     pub async fn create_receive_address(
@@ -232,9 +289,12 @@ impl WalletService {
     }
 
     pub async fn height(&self) -> Result<u64, WalletServiceError> {
-        let (response, reply) = oneshot::channel();
-        self.send(Command::Height { response }).await?;
-        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        self.read_request(async {
+            let (response, reply) = oneshot::channel();
+            self.send(Command::Height { response }).await?;
+            reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        })
+        .await
     }
 
     /// Recovery is available only for an already-open wallet. The caller must
@@ -257,14 +317,22 @@ impl WalletService {
         session_generation: String,
         operation: WalletOperation,
     ) -> Result<WalletOperationOutput, WalletServiceError> {
-        let (response, reply) = oneshot::channel();
-        self.send(Command::Operation {
-            session_generation,
-            operation,
-            response,
-        })
-        .await?;
-        reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        let background_read = operation.is_background_read();
+        let request = async {
+            let (response, reply) = oneshot::channel();
+            self.send(Command::Operation {
+                session_generation,
+                operation,
+                response,
+            })
+            .await?;
+            reply.await.map_err(|_| WalletServiceError::Unavailable)?
+        };
+        if background_read {
+            self.read_request(request).await
+        } else {
+            request.await
+        }
     }
 }
 
@@ -335,7 +403,27 @@ enum Command {
     },
 }
 
-async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
+impl Command {
+    fn abandoned_read(&self) -> bool {
+        match self {
+            Self::Overview { response } => response.is_closed(),
+            Self::Height { response } => response.is_closed(),
+            Self::ReceiveAddresses { response, .. } => response.is_closed(),
+            Self::Operation {
+                operation,
+                response,
+                ..
+            } => operation.is_background_read() && response.is_closed(),
+            _ => false,
+        }
+    }
+}
+
+async fn run_actor(
+    mut receiver: mpsc::Receiver<Command>,
+    scan: Arc<Mutex<Option<ScanProgress>>>,
+    read_busy: Arc<AtomicBool>,
+) {
     let mut lifecycle = LifecycleMachine::new();
     let mut session: Option<WalletRpcSession> = None;
     let mut app_paths: Option<AppPaths> = None;
@@ -348,12 +436,16 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
             _ = tokio::time::sleep(Duration::from_secs(1)) => { operations.expire(); continue; }
         };
         operations.expire();
+        if command.abandoned_read() {
+            continue;
+        }
         match command {
             Command::Operation {
                 session_generation,
                 operation,
                 response,
             } => {
+                let background_read = operation.is_background_read();
                 let result = require_current_session(&lifecycle, &session_generation)
                     .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
                 let result = match (
@@ -362,19 +454,40 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                     active_id.as_ref(),
                     selected_node.as_ref(),
                 ) {
-                    (Ok(session), Some(paths), Some(id), Some(node)) => operations
-                        .execute(
-                            session.client(),
-                            node,
-                            &paths.wallet_dir(id),
-                            &session_generation,
-                            operation,
-                        )
-                        .await
-                        .map_err(WalletServiceError::Operation),
+                    (Ok(session), Some(paths), Some(id), Some(node)) => {
+                        if matches!(operation, WalletOperation::Rescan { spent_only: false })
+                            && let Ok(scan) = scan.lock()
+                            && let Some(progress) = scan.as_ref()
+                        {
+                            progress.clear();
+                        }
+                        let request = async {
+                            operations
+                                .execute(
+                                    session.client(),
+                                    node,
+                                    &paths.wallet_dir(id),
+                                    &session_generation,
+                                    operation,
+                                )
+                                .await
+                                .map_err(WalletServiceError::Operation)
+                        };
+                        if background_read {
+                            bounded_read(READ_EXECUTION_TIMEOUT, request).await
+                        } else {
+                            request.await
+                        }
+                    }
                     (Err(error), _, _, _) => Err(error),
                     _ => Err(WalletServiceError::Unavailable),
                 };
+                if background_read {
+                    read_busy.store(
+                        matches!(result, Err(WalletServiceError::Busy)),
+                        Ordering::Release,
+                    );
+                }
                 let _ = response.send(result);
             }
             Command::Status { response } => {
@@ -457,6 +570,9 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 if result.is_ok() {
                     active_id = Some(wallet_id);
                     operations.invalidate();
+                    *scan.lock().expect("scan state") =
+                        session.as_ref().map(WalletRpcSession::scan_progress);
+                    read_busy.store(false, Ordering::Release);
                 }
                 let _ = response.send(result);
             }
@@ -500,6 +616,9 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 if result.is_ok() {
                     active_id = Some(wallet_id);
                     operations.invalidate();
+                    *scan.lock().expect("scan state") =
+                        session.as_ref().map(WalletRpcSession::scan_progress);
+                    read_busy.store(false, Ordering::Release);
                 }
                 let _ = response.send(result);
             }
@@ -532,6 +651,9 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 if result.is_ok() {
                     active_id = Some(wallet_id);
                     operations.invalidate();
+                    *scan.lock().expect("scan state") =
+                        session.as_ref().map(WalletRpcSession::scan_progress);
+                    read_busy.store(false, Ordering::Release);
                 }
                 let _ = response.send(result);
             }
@@ -548,6 +670,8 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 }
                 operations.invalidate();
                 active_id = None;
+                *scan.lock().expect("scan state") = None;
+                read_busy.store(false, Ordering::Release);
                 if session.is_none()
                     && matches!(
                         lifecycle.status().state,
@@ -582,12 +706,20 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 {
                     Ok(()) => match session.as_ref() {
                         Some(session) => {
-                            wallet_overview(session.client(), lifecycle.status()).await
+                            bounded_read(
+                                READ_EXECUTION_TIMEOUT,
+                                wallet_overview(session.client(), lifecycle.status()),
+                            )
+                            .await
                         }
                         None => Err(WalletServiceError::Unavailable),
                     },
                     Err(error) => Err(error),
                 };
+                read_busy.store(
+                    matches!(result, Err(WalletServiceError::Busy)),
+                    Ordering::Release,
+                );
                 let _ = response.send(result);
             }
             Command::ReceiveAddresses {
@@ -597,13 +729,22 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                 let result = require_current_session(&lifecycle, &session_generation)
                     .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
                 let result = match result {
-                    Ok(session) => session
-                        .client()
-                        .receive_addresses()
+                    Ok(session) => {
+                        bounded_read(READ_EXECUTION_TIMEOUT, async {
+                            session
+                                .client()
+                                .receive_addresses()
+                                .await
+                                .map_err(WalletServiceError::Rpc)
+                        })
                         .await
-                        .map_err(WalletServiceError::Rpc),
+                    }
                     Err(error) => Err(error),
                 };
+                read_busy.store(
+                    matches!(result, Err(WalletServiceError::Busy)),
+                    Ordering::Release,
+                );
                 let _ = response.send(result);
             }
             Command::CreateReceiveAddress {
@@ -629,14 +770,23 @@ async fn run_actor(mut receiver: mpsc::Receiver<Command>) {
                     .and_then(|_| session.as_ref().ok_or(WalletServiceError::Unavailable));
 
                 let result = match result {
-                    Ok(session) => session
-                        .client()
-                        .height()
+                    Ok(session) => {
+                        bounded_read(READ_EXECUTION_TIMEOUT, async {
+                            session
+                                .client()
+                                .height()
+                                .await
+                                .map_err(WalletServiceError::Rpc)
+                        })
                         .await
-                        .map_err(WalletServiceError::Rpc),
+                    }
                     Err(error) => Err(error),
                 };
 
+                read_busy.store(
+                    matches!(result, Err(WalletServiceError::Busy)),
+                    Ordering::Release,
+                );
                 let _ = response.send(result);
             }
             Command::RecoveryPhrase { response } => {
@@ -724,6 +874,49 @@ fn begin_create_or_restore<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn read_deadline_and_abandoned_reads_do_not_discard_mutations() {
+        assert!(matches!(
+            bounded_read::<()>(Duration::from_millis(10), std::future::pending()).await,
+            Err(WalletServiceError::Busy)
+        ));
+        let (response, reply) = oneshot::channel();
+        drop(reply);
+        assert!(Command::Height { response }.abandoned_read());
+        let (response, reply) = oneshot::channel();
+        drop(reply);
+        assert!(
+            Command::Operation {
+                session_generation: "1".into(),
+                operation: WalletOperation::History,
+                response
+            }
+            .abandoned_read()
+        );
+        let (response, reply) = oneshot::channel();
+        drop(reply);
+        assert!(
+            !Command::Operation {
+                session_generation: "1".into(),
+                operation: WalletOperation::SetName {
+                    name: "saved".into()
+                },
+                response
+            }
+            .abandoned_read()
+        );
+        let (response, reply) = oneshot::channel();
+        drop(reply);
+        assert!(
+            !Command::Lock {
+                deadline: Duration::from_secs(5),
+                generation: None,
+                response
+            }
+            .abandoned_read()
+        );
+    }
 
     #[tokio::test]
     async fn actor_starts_stopped_and_rejects_open_before_sidecar_start() {

@@ -29,8 +29,11 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
 }
 function useWalletData<T>(generation: string, type: "contacts" | "history" | "info" | "address_balances" | "send_journal", refresh = false) {
   return useQuery({ queryKey: ["wallet-operation", generation, type], queryFn: () => walletOperation<T>(generation, { type }), retry: false,
-    refetchInterval: refresh ? 15_000 : false, refetchIntervalInBackground: false })
+    refetchInterval: (query) => refresh || (type !== "send_journal" && query.state.status === "error") ? 15_000 : false,
+    refetchIntervalInBackground: false })
 }
+
+function walletRpcBusy(error: unknown) { return String(error) === "wallet RPC busy" }
 
 type DashboardProps = SessionProps & {
   section: WalletSection; onSection: (section: WalletSection) => void; onLock: () => void; onRemoved: () => void; locking: boolean
@@ -82,23 +85,26 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
         </div>
       </div>
       {!compact ? <div className="mt-4 grid grid-cols-3 gap-4 border-t border-slate-700 pt-3">{balances}</div> : null}
-      <Alert message={overview.isError ? "Balances could not be loaded. Try locking and reopening the wallet." : null} />
+      {overview.isError && walletRpcBusy(overview.error) ? <p role="status" className="mt-3 text-sm text-slate-400">
+        Wallet is scanning. Balances will update automatically.{overview.data ? " Showing the last available balances." : ""}
+      </p> : <Alert message={overview.isError ? `Balances could not be updated. Retrying automatically.${overview.data ? " Showing the last available balances." : ""}` : null} />}
     </section>
     {action ? <WalletActions key={action} generation={generation} action={action} name={info.data?.name ?? ""} onClose={() => setAction(null)} onRemoved={onRemoved} /> : null}
     {section === "overview" ? <section className={cardClass}>
       <div className="flex justify-between"><h2 className="text-lg font-semibold">Recent transactions</h2><Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
-      <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} hidden={hidden} />
+      <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} hidden={hidden} />
     </section> : null}
     {section === "receive" ? <ReceivePanel generation={generation} /> : null}
     {section === "send" ? <SendPanel generation={generation} unlocked={overview.data?.unlocked.atomic ?? "0"} onHistory={() => onSection("history")} /> : null}
     {section === "contacts" ? <ContactsPanel generation={generation} onSend={() => onSection("send")} /> : null}
-    {section === "history" ? <HistoryPanel generation={generation} entries={history.data} loading={history.isPending} failed={history.isError} /> : null}
+    {section === "history" ? <HistoryPanel generation={generation} entries={history.data} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} /> : null}
   </div>
 }
 
 function ReceivePanel({ generation }: SessionProps) {
   const client = useQueryClient()
-  const addresses = useQuery({ queryKey: ["receive-addresses", generation], queryFn: () => getReceiveAddresses(generation), retry: false })
+  const addresses = useQuery({ queryKey: ["receive-addresses", generation], queryFn: () => getReceiveAddresses(generation), retry: false,
+    refetchInterval: (query) => query.state.status === "error" ? 15_000 : false })
   const balances = useWalletData<AddressBalance[]>(generation, "address_balances", true)
   const [index, setIndex] = useState(0)
   const [uri, setUri] = useState("")
@@ -326,7 +332,7 @@ function SendResults({ entries }: { entries: SendEntry[] }) {
   </div>)}</div>
 }
 
-function HistoryPanel({ generation, entries, loading, failed }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean }) {
+function HistoryPanel({ generation, entries, loading, failed, busy }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; busy: boolean }) {
   const [type, setType] = useState("all")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(0)
@@ -339,15 +345,18 @@ function HistoryPanel({ generation, entries, loading, failed }: SessionProps & {
       <select aria-label="Transaction type" value={type} onChange={(e) => { setType(e.target.value); setPage(0) }} className={`${inputClass} max-w-48`}>
         {[["all", "All transactions"], ["in", "Incoming"], ["out", "Outgoing"], ["pending", "Pending"], ["pool", "In pool"], ["failed", "Failed"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select></div>
-    <Transactions generation={generation} entries={filtered?.slice(page * 50, page * 50 + 50)} loading={loading} failed={failed} hidden={false} />
+    <Transactions generation={generation} entries={filtered?.slice(page * 50, page * 50 + 50)} loading={loading} failed={failed} busy={busy} hidden={false} />
     {(filtered?.length ?? 0) > 50 ? <div className="mt-4 flex items-center gap-3"><Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span className="text-sm">Page {page + 1}</span><Button size="sm" variant="outline" disabled={(page + 1) * 50 >= (filtered?.length ?? 0)} onClick={() => setPage(page + 1)}>Next</Button></div> : null}
     <Alert message={journal.isError ? "Send outcomes could not be checked. Do not retry an uncertain send." : null} />
   </section>
 }
-function Transactions({ generation, entries, loading, failed, hidden }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; hidden: boolean }) {
+function Transactions({ generation, entries, loading, failed, busy, hidden }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; busy: boolean; hidden: boolean }) {
   const [selected, setSelected] = useState<string | null>(null)
   return <div className="mt-3">
-    {loading ? <p className="py-4 text-sm text-slate-400">Loading transactions…</p> : failed ? <Alert message="Transaction history could not be loaded." /> : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
+    {loading ? <p className="py-4 text-sm text-slate-400">Loading transactions…</p>
+      : failed && busy ? <p role="status" className="py-4 text-sm text-slate-400">Wallet is scanning. Transactions will update automatically.{entries ? " Showing the last available history." : ""}</p>
+        : failed ? <Alert message="Transaction history could not be updated. Retrying automatically." />
+          : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
     {entries?.map((entry) => <div key={`${entry.type}-${entry.txid}-${entry.address}`} className="border-t border-slate-700 first:border-t-0">
       <button type="button" onClick={() => setSelected(selected === entry.txid ? null : entry.txid)} aria-expanded={selected === entry.txid} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-slate-800/40">
         <div className="min-w-0"><p className="truncate font-mono text-sm text-sky-200">{entry.txid}</p><p className="mt-1 text-xs text-slate-400">{entry.type} · {entry.height !== "0" ? `Height ${entry.height} · ` : ""}{transactionDate(entry.timestamp)}</p></div>

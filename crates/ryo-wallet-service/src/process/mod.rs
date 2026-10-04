@@ -5,7 +5,9 @@
 
 mod binary;
 mod credentials;
+mod scan_progress;
 mod supervisor;
+pub(crate) use scan_progress::ScanProgress;
 mod upstream_path;
 pub use upstream_path::upstream_path;
 mod wallet_rpc_launch;

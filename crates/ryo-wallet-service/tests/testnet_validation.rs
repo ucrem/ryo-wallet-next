@@ -322,6 +322,16 @@ async fn operation(wallet: &WalletService, op: WalletOperation) -> Result<Value>
 }
 async fn scan(wallet: &WalletService) -> Result<()> {
     operation(wallet, WalletOperation::Rescan { spent_only: false }).await?;
+    // Observe genuine processed-block stdout from the unchanged reviewed runtime.
+    let rpc_height = wallet.height().await?;
+    let until = tokio::time::Instant::now() + Duration::from_secs(2);
+    while wallet.scan_height() != Some(rpc_height) && tokio::time::Instant::now() < until {
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    let processed = wallet.scan_height().ok_or("wallet scan progress missing")?;
+    if processed != rpc_height {
+        return Err("processed scan height differs from RPC chain length".into());
+    }
     Ok(())
 }
 async fn new_wallet(

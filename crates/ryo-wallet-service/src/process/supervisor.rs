@@ -38,7 +38,19 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
     ) -> Result<Self, ProcessError> {
-        Self::spawn(binary, args, working_directory, false).await
+        Self::spawn(binary, args, working_directory, false, false).await
+    }
+
+    pub(crate) async fn start_wallet(
+        binary: &VerifiedBinary,
+        args: &[OsString],
+        working_directory: &Path,
+    ) -> Result<Self, ProcessError> {
+        Self::spawn(binary, args, working_directory, false, true).await
+    }
+
+    pub(crate) fn take_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.stdout.take()
     }
 
     pub(crate) async fn start_daemon(
@@ -46,7 +58,7 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
     ) -> Result<Self, ProcessError> {
-        Self::spawn(binary, args, working_directory, true).await
+        Self::spawn(binary, args, working_directory, true, false).await
     }
 
     async fn spawn(
@@ -54,6 +66,7 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
         console: bool,
+        capture_wallet: bool,
     ) -> Result<Self, ProcessError> {
         if !working_directory.is_absolute() || !working_directory.is_dir() {
             return Err(ProcessError::UnsafeWorkingDirectory);
@@ -69,7 +82,11 @@ impl ManagedProcess {
             } else {
                 std::process::Stdio::null()
             })
-            .stdout(std::process::Stdio::null())
+            .stdout(if capture_wallet {
+                std::process::Stdio::piped()
+            } else {
+                std::process::Stdio::null()
+            })
             .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
         #[cfg(windows)]

@@ -53,6 +53,8 @@ impl WalletRpcLaunch {
             daemon_address(node).into(),
         ];
         args.extend([
+            "--log-level".into(),
+            "3".into(), // Private stdout is parsed for scan heights, never persisted or forwarded.
             "--log-file-level".into(),
             node.options().wallet_log_level.to_string().into(),
         ]);
@@ -107,6 +109,11 @@ mod tests {
                 .any(|pair| pair == ["--daemon-address", "http://127.0.0.1:12211"])
         );
         assert!(!args.contains(&"--disable-rpc-login".into()));
+        assert!(args.windows(2).any(|pair| pair == ["--log-level", "3"]));
+        assert!(
+            args.windows(2)
+                .any(|pair| pair == ["--log-file-level", "0"])
+        );
         assert!(launch.working_directory.is_dir());
     }
 
