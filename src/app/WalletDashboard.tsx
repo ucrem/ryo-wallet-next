@@ -381,14 +381,14 @@ function Transactions({ generation, entries, loading, failed, busy, hidden }: Se
       return <div key={`${entry.type}-${entry.txid}-${entry.address}`} className="border-t border-slate-700 first:border-t-0">
       <button type="button" onClick={() => setSelected(selected === entry.txid ? null : entry.txid)} aria-expanded={selected === entry.txid} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-slate-800/40">
         <div className="flex min-w-0 flex-1 items-center gap-3">
-          <span aria-hidden="true" title={incoming ? "Incoming transaction" : "Outgoing transaction"} className={`flex size-9 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-emerald-400/10 text-emerald-300" : "bg-sky-400/10 text-sky-200"}`}>
+          <span aria-hidden="true" title={incoming ? "Incoming transaction" : "Outgoing transaction"} className={`flex size-9 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5">
               <path d={incoming ? "M17 7 7 17M7 7v10h10" : "M7 17 17 7M7 7h10v10"} />
             </svg>
           </span>
           <div className="min-w-0"><p className="truncate font-mono text-sm text-sky-200">{entry.txid}</p><p className="mt-1 text-xs text-slate-400">{transactionTypeLabels[entry.type]} · {entry.height !== "0" ? `Height ${entry.height} · ` : ""}{transactionDate(entry.timestamp)}</p></div>
         </div>
-        <p className={`shrink-0 font-mono text-sm ${incoming ? "text-emerald-300" : "text-slate-100"}`}>{hidden ? "••••" : `${incoming ? "+" : "−"}${formatRyo(entry.amount)} RYO`}</p>
+        <p className={`shrink-0 font-mono text-sm ${incoming ? "text-emerald-300" : "text-red-300"}`}>{hidden ? "••••" : `${incoming ? "+" : "−"}${formatRyo(entry.amount)} RYO`}</p>
       </button>{selected === entry.txid ? <TransactionDetails key={entry.txid} generation={generation} entry={entry} /> : null}
     </div>})}
   </div>
