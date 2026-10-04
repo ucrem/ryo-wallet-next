@@ -6,9 +6,13 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest"
 import { getWalletOverview } from "@/api/overview"
 import { walletOperation, type Transaction } from "@/api/operations"
 import { WalletDashboard } from "./WalletDashboard"
+import { WalletStatusBar } from "./WalletStatusBar"
+import { getWalletSyncStatus } from "@/api/wallet"
 
 vi.mock("@/api/overview", () => ({ getWalletOverview: vi.fn() }))
 vi.mock("@/api/operations", () => ({ walletOperation: vi.fn() }))
+vi.mock("@/api/wallet", () => ({ getWalletSyncStatus: vi.fn() }))
+vi.mock("@tauri-apps/api/event", () => ({ listen: async () => () => {} }))
 
 let container: HTMLDivElement
 let root: Root
@@ -31,9 +35,10 @@ afterEach(async () => {
   container.remove()
   vi.useRealTimers()
 })
-async function mount() {
+async function mount(withStatusBar = false) {
   await act(async () => root.render(<QueryClientProvider client={client}>
     <WalletDashboard generation="7" section="overview" onSection={() => {}} onLock={() => {}} onRemoved={() => {}} locking={false} />
+    {withStatusBar ? <WalletStatusBar serviceState="open" sessionGeneration="7" node={null} root={null} /> : null}
   </QueryClientProvider>))
   await act(async () => { await vi.advanceTimersByTimeAsync(1) })
 }
@@ -75,4 +80,36 @@ it("labels retained balances and history as the last available data during scann
   expect(container.textContent).toContain("5 RYO")
   expect(container.textContent).toContain(transaction.txid)
   expect(container.querySelector('[role="alert"]')).toBeNull()
+})
+
+it("keeps a delayed history update distinct from an authenticated wallet scan at 100%", async () => {
+  const synced = { wallet_height: "100", daemon_height: "100", network_height: "100", node_reachable: true, node_ready: true, node_offline: false, node_untrusted: false, wallet_rpc_busy: false, wallet_rpc_available: true }
+  client.setQueryData(["wallet-sync-status", "7"], synced)
+  client.setQueryData(["wallet-operation", "7", "history"], [transaction])
+  vi.mocked(getWalletSyncStatus).mockResolvedValue(synced)
+  vi.mocked(getWalletOverview).mockResolvedValue(snapshot)
+  let finishRefresh!: (entries: Transaction[]) => void
+  const refreshed = new Promise<Transaction[]>((resolve) => { finishRefresh = resolve })
+  let historyAttempts = 0
+  vi.mocked(walletOperation).mockImplementation(async (_generation, operation) => {
+    if (operation.type === "history") {
+      if (historyAttempts++ === 0) throw "wallet RPC busy"
+      return await refreshed as never
+    }
+    return { name: "Synced wallet" } as never
+  })
+  await mount(true)
+  const walletStatus = () => container.querySelector('[aria-label="Wallet synchronization status"]')!.textContent
+  const historyIndicator = () => container.querySelector('[role="status"][aria-label*="Transactions update automatically"]')
+  expect(walletStatus()).toContain("Wallet synced")
+  expect(walletStatus()).toContain("100.0%")
+  expect(historyIndicator()!.textContent).toContain("Update pending")
+  expect(container.textContent).not.toContain("Syncing")
+  expect(container.textContent).toContain(transaction.txid)
+  await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
+  expect(historyIndicator()!.textContent).toContain("Updating")
+  expect(walletStatus()).toContain("Wallet synced")
+  await act(async () => { finishRefresh([transaction]); await vi.advanceTimersByTimeAsync(1) })
+  expect(historyIndicator()).toBeNull()
+  expect(walletStatus()).toContain("100.0%")
 })
