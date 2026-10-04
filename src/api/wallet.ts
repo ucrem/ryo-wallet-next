@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core"
 import type { LifecycleStatus } from "@/api/generated/LifecycleStatus"
 
-export type WalletEntry = { id: string; backup_complete: boolean }
+export type WalletEntry = { id: string; name: string | null; backup_complete: boolean }
 export type ReceiveAddress = {
   address_index: number
   address: string

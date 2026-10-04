@@ -4,7 +4,7 @@ use ryo_wallet_service::application::{
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
 use ryo_wallet_service::process::{BinaryDigest, BinaryKind, VerifiedBinary, upstream_path};
-use ryo_wallet_service::storage::{AppPaths, WalletId};
+use ryo_wallet_service::storage::{AppPaths, WalletId, load_wallet_name};
 use serde_json::Value;
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::PathBuf;
@@ -108,6 +108,10 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
         },
     )
     .await;
+    assert_eq!(
+        load_wallet_name(&paths.wallet_dir(&id)).unwrap().as_deref(),
+        Some("Disposable test")
+    );
     let contacts = op(
         &service,
         &generation,
@@ -206,7 +210,14 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
             .await,
         Err(WalletServiceError::Lifecycle(_))
     ));
-    start(&service, paths).await;
+    assert_eq!(
+        load_wallet_name(&paths.wallet_dir(&id)).unwrap().as_deref(),
+        Some("Disposable test")
+    );
+    // An older installation has the encrypted name but no locked-picker cache.
+    std::fs::remove_file(paths.wallet_dir(&id).join("wallet-name-v1.json")).unwrap();
+    assert_eq!(load_wallet_name(&paths.wallet_dir(&id)).unwrap(), None);
+    start(&service, paths.clone()).await;
     assert!(
         service
             .open_imported_wallet(id.clone(), Zeroizing::new(password.into()))
@@ -214,7 +225,10 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
             .is_err()
     );
     let status = service
-        .open_imported_wallet(id, Zeroizing::new("disposable-changed-password".into()))
+        .open_imported_wallet(
+            id.clone(),
+            Zeroizing::new("disposable-changed-password".into()),
+        )
         .await
         .unwrap();
     assert!(matches!(
@@ -227,6 +241,10 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
     assert_eq!(
         op(&service, &generation, WalletOperation::Info).await["name"],
         "Disposable test"
+    );
+    assert_eq!(
+        load_wallet_name(&paths.wallet_dir(&id)).unwrap().as_deref(),
+        Some("Disposable test")
     );
     assert_eq!(
         op(&service, &generation, WalletOperation::Contacts).await[0]["name"],

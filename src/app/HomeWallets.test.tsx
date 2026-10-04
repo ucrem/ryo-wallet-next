@@ -26,7 +26,7 @@ vi.mock("@/lib/useAppUpdates", () => ({ useAppUpdates: () => ({ result: null }) 
 vi.mock("./WalletStatusBar", () => ({ WalletStatusBar: () => null }))
 vi.mock("./WalletDashboard", () => ({ WalletDashboard: ({ onLock }: { onLock: () => void }) => <div>Saved wallet dashboard<button type="button" onClick={onLock}>Lock</button></div> }))
 
-const wallets = [{ id: "a".repeat(32), backup_complete: true }, { id: "b".repeat(32), backup_complete: true }]
+const wallets = [{ id: "a".repeat(32), name: "Mining", backup_complete: true }, { id: "b".repeat(32), name: "Savings", backup_complete: true }]
 describe("Home saved wallets", () => {
   let container: HTMLDivElement, root: Root, client: QueryClient
   beforeEach(() => {
@@ -49,7 +49,7 @@ describe("Home saved wallets", () => {
   async function mount() { await act(async () => root.render(<QueryClientProvider client={client}><App /></QueryClientProvider>)) }
   async function settle() { await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) }) }
   async function unlock(id = wallets[1].id) {
-    await act(async () => { const select = container.querySelector('section[aria-label="Your saved wallets"] select') as HTMLSelectElement; select.value = id; select.dispatchEvent(new Event("change", { bubbles: true })) })
+    await act(async () => { const select = container.querySelector('section[aria-label="Your saved wallets"] select') as HTMLSelectElement | null; if (select) { select.value = id; select.dispatchEvent(new Event("change", { bubbles: true })) } })
     container.querySelector<HTMLInputElement>('input[name="password"]')!.value = "short"
     await act(async () => container.querySelector('section[aria-label="Your saved wallets"] form')!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })))
     await settle()
@@ -100,13 +100,14 @@ describe("Home saved wallets", () => {
     await mount()
     await act(async () => { const select = container.querySelector("select")!; select.value = wallets[0].id; select.dispatchEvent(new Event("change", { bubbles: true })) })
     container.querySelector<HTMLInputElement>('input[name="password"]')!.value = "discard-me"
-    const other = { id: "c".repeat(32), backup_complete: true }
-    client.setQueryData(["wallet-list", "other-root", "testnet"], [other])
+    const other = { id: "c".repeat(32), name: "Testnet wallet", backup_complete: true }
+    const second = { id: "d".repeat(32), name: null, backup_complete: true }
+    client.setQueryData(["wallet-list", "other-root", "testnet"], [other, second])
     await act(async () => client.setQueryData(["data-root-configured"], { root: "other-root", network: "testnet" }))
     await settle()
     const select = container.querySelector("select")!
     expect(select.value).toBe("")
-    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", other.id])
+    expect(Array.from(select.options).map((option) => option.value)).toEqual(["", other.id, second.id])
     expect(container.querySelector('input[type="password"]')).toBeNull()
     expect(openWallet).not.toHaveBeenCalled()
   })

@@ -435,7 +435,11 @@ function WalletActions({ generation, action, name, onClose, onRemoved }: Session
     if (action === "password" && newPassword !== values.get("confirmation")) { setError("Passwords do not match."); form.reset(); return }
     form.reset(); guard.current = true; setBusy(true); setError(null); setMessage(null)
     try {
-      if (action === "name") { await walletOperation(generation, { type: "set_name", name: String(values.get("name") ?? "") }); setMessage("Wallet name saved.") }
+      if (action === "name") {
+        await walletOperation(generation, { type: "set_name", name: String(values.get("name") ?? "") }); setMessage("Wallet name saved.")
+        await client.invalidateQueries({ queryKey: ["wallet-list"] })
+        await client.invalidateQueries({ queryKey: ["active-wallet"] })
+      }
       if (action === "password") { await walletOperation(generation, { type: "change_password", old_password: password, new_password: newPassword }); setMessage("Password changed.") }
       if (action === "secrets") { setSecrets(await walletOperation<SecretMaterial>(generation, { type: "secrets", password })) }
       if (action === "rescan") { await walletOperation(generation, { type: "rescan", spent_only: values.get("rescan") === "spent" }); setMessage("Rescan requested. The wallet sync will update below.") }

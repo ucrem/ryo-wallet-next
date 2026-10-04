@@ -302,7 +302,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
                       <select value={selectedId} onChange={(event) => setWalletId(event.target.value)}
                         className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2">
                         {wallets.data?.map((entry) => <option key={entry.id} value={entry.id}>
-                          Wallet {entry.id.slice(0, 8)}{entry.backup_complete ? "" : " · backup pending"}
+                          {entry.name || `Wallet ${entry.id.slice(0, 8)}`}{entry.backup_complete ? "" : " · backup pending"}
                         </option>)}
                       </select>
                     </label>

@@ -12,7 +12,8 @@ use ryo_wallet_service::application::{
 use ryo_wallet_service::domain::{Network, NodeConfig};
 use ryo_wallet_service::rpc::{ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
-    AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
+    AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, load_wallet_name,
+    save_settings,
 };
 use serde::ser::SerializeStruct;
 use tauri::{Emitter, Manager};
@@ -88,6 +89,7 @@ struct ShutdownState {
 #[derive(serde::Serialize)]
 struct WalletEntry {
     id: String,
+    name: Option<String>,
     backup_complete: bool,
 }
 
@@ -408,6 +410,7 @@ fn wallet_list(state: tauri::State<'_, DataRootState>) -> Result<Vec<WalletEntry
         {
             wallets.push(WalletEntry {
                 id: id.to_string(),
+                name: load_wallet_name(&paths.wallet_dir(&id)).ok().flatten(),
                 backup_complete: backup_complete(&paths, &id),
             });
         }
@@ -430,6 +433,7 @@ fn wallet_active(
     let paths = selected_paths(&state)?;
     Ok(Some(WalletEntry {
         id: id.to_string(),
+        name: load_wallet_name(&paths.wallet_dir(&id)).ok().flatten(),
         backup_complete: backup_complete(&paths, &id),
     }))
 }

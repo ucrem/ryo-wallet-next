@@ -10,6 +10,7 @@ use zeroize::Zeroizing;
 
 use crate::domain::{AtomicAmount, NodeConfig};
 use crate::rpc::{DaemonRpcClient, RpcError, WalletRpcClient};
+use crate::storage::save_wallet_name;
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -219,11 +220,16 @@ impl OperationsState {
     ) -> Result<WalletOperationOutput, OperationError> {
         let value = match operation {
             WalletOperation::Info => {
-                json!({"name":attribute(client, "next.name").await?.unwrap_or_default()})
+                let name = attribute(client, "next.name").await?.unwrap_or_default();
+                // Backfill names from older wallets after a successful authenticated read.
+                // A broken display cache must not prevent access to the encrypted wallet.
+                let _ = save_wallet_name(directory, &name);
+                json!({"name":name})
             }
             WalletOperation::SetName { name } => {
                 text(&name, 100, false)?;
                 save_attribute(client, "next.name", &name).await?;
+                save_wallet_name(directory, &name).map_err(|_| OperationError::Storage)?;
                 json!({})
             }
             WalletOperation::History => {

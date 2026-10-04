@@ -8,6 +8,7 @@ mod paths;
 mod preferences;
 mod settings;
 mod wallet_id;
+mod wallet_name;
 
 pub use import::{ImportError, ImportedWallet, copy_wallet_pair, validate_wallet_pair};
 pub use paths::{AppPaths, PathError};
@@ -16,3 +17,4 @@ pub use settings::{
     AppSettings, SettingsError, Theme, load_settings, load_settings_if_present, save_settings,
 };
 pub use wallet_id::{WalletId, WalletIdError};
+pub use wallet_name::{WalletNameError, load_wallet_name, save_wallet_name};

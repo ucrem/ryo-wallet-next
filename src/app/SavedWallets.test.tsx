@@ -8,7 +8,7 @@ import { listWallets, openWallet } from "@/api/wallet"
 
 vi.mock("@/api/wallet", () => ({ listWallets: vi.fn(), openWallet: vi.fn(), walletRuntimeReady: async () => true }))
 
-const wallets = [{ id: "a".repeat(32), backup_complete: true }, { id: "b".repeat(32), backup_complete: true }]
+const wallets = [{ id: "a".repeat(32), name: "Mining", backup_complete: true }, { id: "b".repeat(32), name: null, backup_complete: true }]
 describe("saved wallet unlocking", () => {
   let container: HTMLDivElement, root: Root, client: QueryClient
   const opened = vi.fn()
@@ -33,6 +33,8 @@ describe("saved wallet unlocking", () => {
 
   it("clears the password on a wallet change and permits retry after an incorrect password", async () => {
     await show()
+    expect(container.querySelector("select")!.options[1].textContent).toContain("Mining")
+    expect(container.querySelector("select")!.options[2].textContent).toContain("Wallet bbbbbbbb")
     expect(container.querySelector('input[type="password"]')).toBeNull()
     await select(wallets[0].id)
     container.querySelector<HTMLInputElement>('input[name="password"]')!.value = "first-password"
@@ -79,5 +81,20 @@ describe("saved wallet unlocking", () => {
     await act(async () => container.querySelector<HTMLButtonElement>("button")!.click())
     await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
     expect(container.querySelector("select")!.options).toHaveLength(3)
+  })
+
+  it("shows the saved name and opens a single wallet without an extra selection step", async () => {
+    client.setQueryData(["wallet-list", "test-root", "mainnet"], [wallets[0]])
+    await show()
+    expect(container.querySelector("select")).toBeNull()
+    expect(container.textContent).toContain("Mining")
+    expect(container.textContent).not.toContain("Wallet aaaaaaaa")
+    container.querySelector<HTMLInputElement>('input[name="password"]')!.value = "single-wallet-password"
+    await act(async () => submit())
+    expect(openWallet).toHaveBeenCalledWith(wallets[0].id, "single-wallet-password")
+    await act(async () => client.setQueryData(["wallet-list", "test-root", "mainnet"], [{ ...wallets[0], name: "Renamed wallet" }]))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(container.textContent).toContain("Renamed wallet")
+    expect(container.textContent).not.toContain("Mining")
   })
 })
