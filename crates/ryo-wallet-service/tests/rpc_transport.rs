@@ -105,6 +105,51 @@ async fn wallet_uses_digest_and_the_source_defined_method() {
 }
 
 #[tokio::test]
+async fn digest_retry_drains_the_challenge_and_reuses_its_connection() {
+    let (listener, address) = listener().await;
+    let server = tokio::spawn(async move {
+        for index in 0..4 {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let (_, request) = read_request(&mut stream).await;
+            let nonce = format!("connection-{index}");
+            // The reviewed server sends an HTML body and keeps its per-socket
+            // nonce. An unread body can force the retry onto another socket.
+            let body = "challenge body ".repeat(2048);
+            stream
+                .write_all(
+                    format!(
+                        "HTTP/1.1 401 Unauthorized\r\nContent-Length: {}\r\nConnection: keep-alive\r\nWWW-Authenticate: Digest realm=\"ryo-rpc\", nonce=\"{nonce}\", qop=\"auth\", algorithm=MD5\r\n\r\n{body}",
+                        body.len()
+                    )
+                    .as_bytes(),
+                )
+                .await
+                .unwrap();
+            let (headers, authenticated) = tokio::select! {
+                request = read_request(&mut stream) => request,
+                _ = listener.accept() => panic!("Digest retry opened a socket with a different server nonce"),
+            };
+            assert!(headers.contains(&format!("nonce=\"{nonce}\"")));
+            assert_eq!(authenticated, request);
+            let response = serde_json::json!({
+                "jsonrpc": "2.0", "id": request["id"], "result": {"languages": ["English"]}
+            });
+            reply(&mut stream, "200 OK", "", &response.to_string()).await;
+        }
+    });
+    let credentials = RpcCredentials::new("test-user".into(), "test-password".into()).unwrap();
+    let wallet = WalletRpcClient::new(address, credentials).unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        for _ in 0..4 {
+            assert_eq!(wallet.languages().await.unwrap(), vec!["English"]);
+        }
+        server.await.unwrap();
+    })
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
 async fn daemon_rejects_malformed_network_and_mismatched_request_id() {
     let (listener, address) = listener().await;
     let server = tokio::spawn(async move {

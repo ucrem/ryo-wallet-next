@@ -895,17 +895,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diqwest"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d10611d0d3ed31b33e13ec3e31329aa2053aa4f773eb082b597f39a97e68360"
-dependencies = [
- "digest_auth",
- "reqwest",
- "url",
-]
-
-[[package]]
 name = "dirs"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3587,7 +3576,7 @@ dependencies = [
 name = "ryo-wallet-service"
 version = "0.1.0"
 dependencies = [
- "diqwest",
+ "digest_auth",
  "reqwest",
  "serde",
  "serde_json",

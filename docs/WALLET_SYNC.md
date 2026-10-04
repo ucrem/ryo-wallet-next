@@ -86,11 +86,34 @@ checkpointing or replace Ryo's cache format.
   The new executable was launched through commands and process metadata confirms
   a responding native desktop window. No computer-use automation or user wallet
   authentication was performed.
-- In the first CI run for `f8c216f`, the Linux busy-scan persistence fixture
-  passed, while the funded fixture failed at wallet RPC startup authentication.
-  The cause of that authentication failure is unproven. The two fixtures now
-  run sequentially to eliminate shared native-startup/port-allocation
-  interference; no acceptance assertion or authentication check was relaxed.
+- In CI for `f8c216f`, busy-scan persistence passed on Linux and macOS, but
+  funded operations and the Linux local-node lifecycle encountered intermittent
+  RPC authentication failures. Sequential fixtures in `db984b5` did not resolve
+  the issue: macOS still rejected authenticated operations and Linux failed a
+  genuine lost-reply assertion. The checks remain strict.
+
+### Connection-bound RPC authentication
+
+The reviewed [HTTP handler](https://github.com/ryo-currency/ryo-currency/blob/0.6.1.0/contrib/epee/include/net/http_protocol_handler.h)
+owns one Digest authentication session per TCP connection. The previous client
+helper could leave the nonempty HTTP 401 body unread while sending its Digest
+answer. Depending on buffering, that answer used another connection with a
+different server nonce, producing an authentication failure with valid credentials.
+
+The transport now fully drains the bounded challenge body before answering on
+the same short-lived HTTP client. It uses the already-reviewed `digest_auth`
+dependency directly. There is one retry only after an unauthenticated request
+is rejected; authenticated operations are never automatically repeated. Each
+logical call still uses a fresh client and a fresh nonce exchange.
+
+A socket-based regression sends a nonempty keep-alive challenge and requires
+the answer on that exact connection, then repeats the exchange with new nonces.
+It fails when challenge draining is removed and passes with the correction.
+All 11 RPC transport checks, 61 service unit checks and strict service Clippy
+pass on Windows. Both real native testnet fixtures passed with this correction
+in 79.89 seconds and generated fresh non-sensitive receipts. Cross-platform CI
+results for this correction are recorded in the PR separately from earlier
+revisions.
 
 ## Evidence and remaining limits
 

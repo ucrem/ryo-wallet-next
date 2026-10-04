@@ -3,8 +3,8 @@ use std::net::{IpAddr, Ipv4Addr, SocketAddrV4};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
-use diqwest::WithDigestAuth;
-use reqwest::{Client, StatusCode, redirect::Policy};
+use digest_auth::{AuthContext, HttpMethod};
+use reqwest::{Client, Response, StatusCode, redirect::Policy};
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use thiserror::Error;
 use zeroize::Zeroizing;
@@ -127,19 +127,54 @@ impl JsonRpcTransport {
             .map_err(|_| RpcError::InvalidResponse)?,
         );
         // reqwest owns its body after this point. Its internal copy cannot be zeroized here.
-        // The 0.6.1.0 loopback server accepts a fresh Digest handshake per
-        // request but fails after connection reuse. The endpoint is private
-        // and local, so a short-lived client is the compatible safe boundary.
+        // Upstream 0.6.1.0 binds each Digest nonce to its TCP connection. A
+        // fresh client isolates logical calls; draining the 401 body lets the
+        // authenticated request reuse precisely the challenged connection.
         let client = new_rpc_client()?;
         let request = client
             .post(&self.endpoint)
             .header("Content-Type", "application/json")
             .body(payload.to_vec());
         let mut response = match &self.credentials {
-            Some(c) => request
-                .send_digest_auth((c.username.as_str(), c.password.as_str()))
-                .await
-                .map_err(|_| RpcError::Transport)?,
+            Some(c) => {
+                let mut challenge = request
+                    .try_clone()
+                    .ok_or(RpcError::Transport)?
+                    .send()
+                    .await
+                    .map_err(|_| RpcError::Transport)?;
+                if challenge.status() == StatusCode::UNAUTHORIZED {
+                    let value = challenge
+                        .headers()
+                        .get(reqwest::header::WWW_AUTHENTICATE)
+                        .ok_or(RpcError::Authentication)?
+                        .to_str()
+                        .map_err(|_| RpcError::Authentication)?;
+                    let mut prompt =
+                        digest_auth::parse(value).map_err(|_| RpcError::Authentication)?;
+                    let context = AuthContext::new_with_method(
+                        c.username.as_str(),
+                        c.password.as_str(),
+                        "/json_rpc",
+                        Some(payload.as_slice()),
+                        HttpMethod::POST,
+                    );
+                    let answer = prompt
+                        .respond(&context)
+                        .map_err(|_| RpcError::Authentication)?;
+                    // Only retry a request the server rejected before dispatch.
+                    // Never repeat an authenticated wallet operation on failure.
+                    drain_challenge(&mut challenge).await?;
+                    drop(challenge);
+                    request
+                        .header(reqwest::header::AUTHORIZATION, answer.to_header_string())
+                        .send()
+                        .await
+                        .map_err(|_| RpcError::Transport)?
+                } else {
+                    challenge
+                }
+            }
             None => request.send().await.map_err(|_| RpcError::Transport)?,
         };
         if response.status() == StatusCode::UNAUTHORIZED {
@@ -173,6 +208,23 @@ impl JsonRpcTransport {
             _ => Err(RpcError::InvalidResponse),
         }
     }
+}
+
+async fn drain_challenge(response: &mut Response) -> Result<(), RpcError> {
+    if response
+        .content_length()
+        .is_some_and(|len| len > MAX_RESPONSE_BYTES as u64)
+    {
+        return Err(RpcError::ResponseTooLarge);
+    }
+    let mut received = 0;
+    while let Some(chunk) = response.chunk().await.map_err(|_| RpcError::Transport)? {
+        if chunk.len() > MAX_RESPONSE_BYTES.saturating_sub(received) {
+            return Err(RpcError::ResponseTooLarge);
+        }
+        received += chunk.len();
+    }
+    Ok(())
 }
 
 fn new_rpc_client() -> Result<Client, RpcError> {
