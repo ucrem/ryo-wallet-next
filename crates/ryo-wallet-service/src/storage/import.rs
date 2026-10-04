@@ -38,13 +38,8 @@ pub struct ImportedWallet {
     pub keys_path: PathBuf,
 }
 
-/// Copies an existing wallet pair to private storage. No source is renamed,
-/// deleted, or opened by a wallet engine here.
-pub fn copy_wallet_pair(
-    app_paths: &AppPaths,
-    wallet_id: &WalletId,
-    source_wallet: &Path,
-) -> Result<ImportedWallet, ImportError> {
+/// Checks the selected pair using metadata only; no copy or wallet engine is started.
+pub fn validate_wallet_pair(source_wallet: &Path) -> Result<(), ImportError> {
     if !source_wallet.is_absolute() {
         return Err(ImportError::RelativeSource);
     }
@@ -60,6 +55,18 @@ pub fn copy_wallet_pair(
         return Err(ImportError::MissingKeys);
     }
     validate_source(&source_keys, MAX_KEYS_BYTES, ImportError::KeysTooLarge)?;
+    Ok(())
+}
+
+/// Copies an existing wallet pair to private storage. No source is renamed,
+/// deleted, or opened by a wallet engine here.
+pub fn copy_wallet_pair(
+    app_paths: &AppPaths,
+    wallet_id: &WalletId,
+    source_wallet: &Path,
+) -> Result<ImportedWallet, ImportError> {
+    validate_wallet_pair(source_wallet)?;
+    let source_keys = companion_keys_path(source_wallet);
 
     app_paths
         .ensure_private_dirs()
@@ -198,6 +205,25 @@ mod tests {
             copy_wallet_pair(&paths(&temp), &id(), &companion_keys_path(&source)),
             Err(ImportError::SelectedKeyFile)
         ));
+    }
+
+    #[test]
+    fn selection_validation_leaves_originals_and_destination_untouched() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("personal-wallet");
+        fs::write(&source, b"encrypted wallet").unwrap();
+        assert!(matches!(
+            validate_wallet_pair(&source),
+            Err(ImportError::MissingKeys)
+        ));
+        fs::write(companion_keys_path(&source), b"encrypted keys").unwrap();
+        validate_wallet_pair(&source).unwrap();
+        assert_eq!(fs::read(&source).unwrap(), b"encrypted wallet");
+        assert_eq!(
+            fs::read(companion_keys_path(&source)).unwrap(),
+            b"encrypted keys"
+        );
+        assert!(!paths(&temp).root().exists());
     }
 
     #[cfg(unix)]

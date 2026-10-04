@@ -1,10 +1,13 @@
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 use std::time::Duration;
 
 use ryo_wallet_service::application::{WalletService, WalletServiceError};
 use ryo_wallet_service::rpc::RpcError;
-use ryo_wallet_service::storage::{AppPaths, ImportError, WalletId, copy_wallet_pair};
+use ryo_wallet_service::storage::{
+    AppPaths, ImportError, WalletId, copy_wallet_pair, validate_wallet_pair,
+};
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 use zeroize::Zeroizing;
@@ -15,24 +18,39 @@ use super::{
     save_backup_acknowledgement, selected_paths, start_wallet_sync_monitor_for_current_node,
 };
 
-/// The renderer supplies the password and backup acknowledgement, never a path.
+#[derive(Default)]
+pub(super) struct ImportSelectionState(Mutex<Option<PendingImport>>);
+
+#[derive(Clone)]
+struct PendingImport {
+    selection_id: String,
+    source: PathBuf,
+    paths: AppPaths,
+}
+
+#[derive(serde::Serialize)]
+pub struct ImportSelection {
+    selection_id: String,
+    file_name: String,
+}
+
+/// File selection precedes authentication. Only a basename and opaque token leave Rust.
 #[tauri::command]
-pub async fn wallet_import(
-    password: String,
-    backup_confirmed: bool,
+pub async fn wallet_select_import(
     app: tauri::AppHandle,
-) -> Result<Option<RestoredWalletResponse>, &'static str> {
-    let password = Zeroizing::new(password);
-    if password.is_empty() || password.len() > 1024 {
-        return Err("enter the existing wallet password (at most 1024 bytes)");
-    }
-    if !backup_confirmed {
-        return Err("confirm that you have a backup of the original wallet files");
-    }
+) -> Result<Option<ImportSelection>, &'static str> {
+    let setup = app.state::<SetupState>();
+    let _guard = setup.0.lock().await;
+    require_app_running(&app)?;
     let state = app.state::<DataRootState>();
     let service = app.state::<WalletService>();
     require_stopped(&service).await?;
-    let initial_paths = selected_paths(&state)?;
+    let paths = selected_paths(&state)?;
+    let selection = app.state::<ImportSelectionState>();
+    *selection
+        .0
+        .lock()
+        .map_err(|_| "wallet selection is unavailable")? = None;
     let picker = app.clone();
     let selected = tauri::async_runtime::spawn_blocking(move || {
         picker
@@ -49,17 +67,84 @@ pub async fn wallet_import(
     let source = selected
         .into_path()
         .map_err(|_| "selected wallet file path is invalid")?;
+    let validation_source = source.clone();
+    tauri::async_runtime::spawn_blocking(move || validate_wallet_pair(&validation_source))
+        .await
+        .map_err(|_| "wallet file validation is unavailable")?
+        .map_err(import_error)?;
+    require_app_running(&app)?;
+    let response = ImportSelection {
+        selection_id: uuid::Uuid::new_v4().simple().to_string(),
+        file_name: source
+            .file_name()
+            .ok_or("selected wallet file name is invalid")?
+            .to_string_lossy()
+            .into_owned(),
+    };
+    *selection
+        .0
+        .lock()
+        .map_err(|_| "wallet selection is unavailable")? = Some(PendingImport {
+        selection_id: response.selection_id.clone(),
+        source,
+        paths,
+    });
+    Ok(Some(response))
+}
+
+fn selected_import(
+    pending: Option<&PendingImport>,
+    selection_id: &str,
+    paths: &AppPaths,
+) -> Result<PendingImport, &'static str> {
+    let pending = pending
+        .filter(|pending| pending.selection_id == selection_id)
+        .ok_or("select the wallet file again")?;
+    if pending.paths.root() != paths.root() || pending.paths.network() != paths.network() {
+        return Err("data folder or network changed; select the wallet file again");
+    }
+    Ok(pending.clone())
+}
+
+/// The renderer supplies the selection token, password and acknowledgement, never a path.
+#[tauri::command]
+pub async fn wallet_import(
+    selection_id: String,
+    password: String,
+    backup_confirmed: bool,
+    app: tauri::AppHandle,
+) -> Result<RestoredWalletResponse, &'static str> {
+    let password = Zeroizing::new(password);
+    if password.is_empty() || password.len() > 1024 {
+        return Err("enter the existing wallet password (at most 1024 bytes)");
+    }
+    if !backup_confirmed {
+        return Err("confirm that you have a backup of the original wallet files");
+    }
     let setup = app.state::<SetupState>();
     let _guard = setup.0.lock().await;
     require_app_running(&app)?;
+    let state = app.state::<DataRootState>();
+    let service = app.state::<WalletService>();
     require_stopped(&service).await?;
     let paths = selected_paths(&state)?;
-    if paths.root() != initial_paths.root() || paths.network() != initial_paths.network() {
-        return Err("data folder or network changed; select the wallet file again");
-    }
+    let selection = app.state::<ImportSelectionState>();
+    let pending = selected_import(
+        selection
+            .0
+            .lock()
+            .map_err(|_| "wallet selection is unavailable")?
+            .as_ref(),
+        &selection_id,
+        &paths,
+    )?;
     let nodes = app.state::<NodeService>();
     ready_wallet_service_under_setup(&service, &state, &app, &nodes).await?;
-    let imported = import_wallet_copy(&paths, &service, &source, password).await?;
+    let imported = import_wallet_copy(&paths, &service, &pending.source, password).await?;
+    *selection
+        .0
+        .lock()
+        .map_err(|_| "wallet selection is unavailable")? = None;
     let id =
         WalletId::parse(imported.wallet_id.clone()).map_err(|_| "wallet identifier is invalid")?;
     *app.state::<ActiveWalletState>()
@@ -73,7 +158,7 @@ pub async fn wallet_import(
         &state,
         app.state::<SyncMonitorState>().inner(),
     );
-    Ok(Some(imported))
+    Ok(imported)
 }
 
 async fn import_wallet_copy(
@@ -160,6 +245,29 @@ mod tests {
     use ryo_wallet_service::application::{LifecycleState, WalletOperation};
     use ryo_wallet_service::domain::{Network, NodeConfig};
     use std::net::{Ipv4Addr, TcpListener};
+
+    #[test]
+    fn selection_requires_the_native_token_and_unchanged_storage_and_network() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = AppPaths::new(temp.path().join("copies"), Network::Mainnet).unwrap();
+        let pending = PendingImport {
+            selection_id: "native-selection".into(),
+            source: temp.path().join("original-wallet"),
+            paths: paths.clone(),
+        };
+        assert!(selected_import(None, "native-selection", &paths).is_err());
+        assert!(selected_import(Some(&pending), "renderer-path", &paths).is_err());
+        let changed_root = AppPaths::new(temp.path().join("other"), Network::Mainnet).unwrap();
+        let changed_network = AppPaths::new(paths.root().to_path_buf(), Network::Testnet).unwrap();
+        assert!(selected_import(Some(&pending), "native-selection", &changed_root).is_err());
+        assert!(selected_import(Some(&pending), "native-selection", &changed_network).is_err());
+        assert_eq!(
+            selected_import(Some(&pending), "native-selection", &paths)
+                .unwrap()
+                .source,
+            pending.source
+        );
+    }
 
     async fn start(service: &WalletService, paths: AppPaths) {
         let port = TcpListener::bind((Ipv4Addr::LOCALHOST, 0))

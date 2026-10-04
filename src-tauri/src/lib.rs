@@ -948,6 +948,7 @@ pub fn run() {
             app.manage(WalletService::new());
             app.manage(NodeService::new());
             app.manage(SetupState::default());
+            app.manage(wallet_import::ImportSelectionState::default());
             app.manage(ShutdownState::default());
             app.manage(DataRootState::load(app.handle())?);
             app.manage(app_settings::PreferencesState::load(app.handle())?);
@@ -1006,6 +1007,7 @@ pub fn run() {
             wallet_create,
             wallet_restore,
             wallet_open,
+            wallet_import::wallet_select_import,
             wallet_import::wallet_import,
             wallet_lock,
             wallet_backup_phrase,

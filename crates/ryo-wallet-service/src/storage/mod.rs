@@ -9,7 +9,7 @@ mod preferences;
 mod settings;
 mod wallet_id;
 
-pub use import::{ImportError, ImportedWallet, copy_wallet_pair};
+pub use import::{ImportError, ImportedWallet, copy_wallet_pair, validate_wallet_pair};
 pub use paths::{AppPaths, PathError};
 pub use preferences::{Preferences, idle_expired};
 pub use settings::{

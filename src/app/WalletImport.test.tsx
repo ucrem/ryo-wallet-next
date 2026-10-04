@@ -4,11 +4,11 @@ import { createRoot, type Root } from "react-dom/client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { WalletWorkspace } from "./WalletWorkspace"
-import { getBackupPhrase, importWallet } from "@/api/wallet"
+import { getBackupPhrase, importWallet, selectImportWallet } from "@/api/wallet"
 
 vi.mock("@/api/wallet", () => ({
   listWallets: async () => [], walletRuntimeReady: async () => true,
-  importWallet: vi.fn(), getBackupPhrase: vi.fn(), acknowledgeBackup: vi.fn(),
+  importWallet: vi.fn(), selectImportWallet: vi.fn(), getBackupPhrase: vi.fn(), acknowledgeBackup: vi.fn(),
   createWallet: vi.fn(), restoreWallet: vi.fn(), openWallet: vi.fn(), lockWallet: vi.fn(),
 }))
 vi.mock("./WalletDashboard", () => ({ WalletDashboard: () => <article>Imported wallet dashboard</article> }))
@@ -18,7 +18,8 @@ describe("native wallet file import", () => {
   let root: Root
   let client: QueryClient
   beforeEach(async () => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
+    vi.mocked(selectImportWallet).mockResolvedValue({ selection_id: "native-selection", file_name: "mining" })
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
     container = document.createElement("div")
     document.body.append(container)
@@ -38,37 +39,71 @@ describe("native wallet file import", () => {
     container.remove()
   })
   function form() { return container.querySelector<HTMLFormElement>('section[aria-label="Import wallet file"] form')! }
+  async function chooseFile() {
+    const button = container.querySelector<HTMLButtonElement>('section[aria-label="Import wallet file"] button[type="button"]')!
+    await act(async () => button.click())
+  }
   async function submit(backup = true) {
     form().querySelector<HTMLInputElement>('input[name="password"]')!.value = "short"
     form().querySelector<HTMLInputElement>('input[name="backup"]')!.checked = backup
     await act(async () => { form().dispatchEvent(new Event("submit", { bubbles: true, cancelable: true })) })
   }
 
-  it("offers import with an empty wallet list and accepts existing short passwords", async () => {
+  it("selects and identifies the file before requesting its existing password", async () => {
     expect(container.textContent).toContain("No saved wallets")
+    expect(form()).toBeNull()
+    expect(container.querySelector('input[type="password"]')).toBeNull()
+    await chooseFile()
+    expect(selectImportWallet).toHaveBeenCalledOnce()
+    expect(importWallet).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("Selected wallet: mining")
     expect(form().querySelector<HTMLInputElement>('input[name="password"]')!.minLength).toBe(1)
     await submit(false)
     expect(importWallet).not.toHaveBeenCalled()
     vi.mocked(importWallet).mockResolvedValue({ wallet_id: "imported", status: { state: "open", session_generation: "7" } })
     await submit()
-    expect(importWallet).toHaveBeenCalledWith("short", true)
+    expect(importWallet).toHaveBeenCalledWith("native-selection", "short", true)
     expect(container.textContent).toContain("Imported wallet dashboard")
     expect(getBackupPhrase).not.toHaveBeenCalled()
   })
-  it("treats cancelled native selection as cancellation and clears the password", async () => {
-    vi.mocked(importWallet).mockResolvedValue(null)
-    await submit()
+  it("cancels file selection without asking for a password or importing", async () => {
+    vi.mocked(selectImportWallet).mockResolvedValue(null)
+    await chooseFile()
     expect(container.textContent).toContain("File selection cancelled. No wallet was imported.")
-    expect(form().querySelector<HTMLInputElement>('input[name="password"]')!.value).toBe("")
+    expect(form()).toBeNull()
+    expect(importWallet).not.toHaveBeenCalled()
     expect(container.textContent).not.toContain("Imported wallet dashboard")
     expect(getBackupPhrase).not.toHaveBeenCalled()
   })
   it("keeps import available after an incorrect password without showing a recovery phrase", async () => {
+    await chooseFile()
     vi.mocked(importWallet).mockRejectedValue("incorrect wallet password")
     await submit()
     expect(container.querySelector('[role="alert"]')?.textContent).toBe("incorrect wallet password")
     expect(form().querySelector<HTMLInputElement>('input[name="password"]')!.value).toBe("")
     expect(form().querySelector<HTMLButtonElement>('button[type="submit"]')!.disabled).toBe(false)
+    vi.mocked(importWallet).mockResolvedValue({ wallet_id: "imported", status: { state: "open", session_generation: "7" } })
+    await submit()
+    expect(importWallet).toHaveBeenLastCalledWith("native-selection", "short", true)
+    expect(container.textContent).toContain("Imported wallet dashboard")
     expect(getBackupPhrase).not.toHaveBeenCalled()
+  })
+  it("clears the previous password and backup acknowledgement when changing files", async () => {
+    await chooseFile()
+    form().querySelector<HTMLInputElement>('input[name="password"]')!.value = "first-password"
+    form().querySelector<HTMLInputElement>('input[name="backup"]')!.checked = true
+    vi.mocked(selectImportWallet).mockResolvedValue({ selection_id: "other-selection", file_name: "savings" })
+    await chooseFile()
+    expect(container.textContent).toContain("Selected wallet: savings")
+    expect(form().querySelector<HTMLInputElement>('input[name="password"]')!.value).toBe("")
+    expect(form().querySelector<HTMLInputElement>('input[name="backup"]')!.checked).toBe(false)
+    expect(importWallet).not.toHaveBeenCalled()
+  })
+  it("reports an invalid file pair before requesting a password", async () => {
+    vi.mocked(selectImportWallet).mockRejectedValue("the matching .keys file must be beside the selected wallet file")
+    await chooseFile()
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("matching .keys file")
+    expect(form()).toBeNull()
+    expect(importWallet).not.toHaveBeenCalled()
   })
 })

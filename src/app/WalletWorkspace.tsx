@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   acknowledgeBackup, createWallet, getBackupPhrase,
-  importWallet, listWallets, lockWallet, openWallet, restoreWallet, walletRuntimeReady,
-  type WalletEntry,
+  importWallet, listWallets, lockWallet, openWallet, restoreWallet, selectImportWallet, walletRuntimeReady,
+  type ImportSelection, type WalletEntry,
 } from "@/api/wallet"
 import { challengePositions, verifyBackupWords } from "./backupChallenge"
 import { Button } from "@/components/ui/button"
@@ -26,6 +26,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [importCancelled, setImportCancelled] = useState(false)
+  const [importSelection, setImportSelection] = useState<ImportSelection | null>(null)
   const preferences = usePreferences()
   const [weakWarning, setWeakWarning] = useState(false)
   const [weakAccepted, setWeakAccepted] = useState(false)
@@ -151,9 +152,26 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
     }
   }
 
+  async function chooseImportFile() {
+    if (busy) return
+    setImportSelection(null)
+    setImportCancelled(false)
+    setError(null)
+    setBusy(true)
+    try {
+      const selected = await selectImportWallet()
+      setImportSelection(selected)
+      setImportCancelled(selected === null)
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function submitImport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (busy) return
+    if (busy || !importSelection) return
     const form = event.currentTarget
     const values = new FormData(form)
     const password = String(values.get("password") ?? "")
@@ -164,11 +182,8 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
     setImportCancelled(false)
     setBusy(true)
     try {
-      const imported = await importWallet(password, backupConfirmed)
-      if (imported === null) {
-        setImportCancelled(true)
-        return
-      }
+      const imported = await importWallet(importSelection.selection_id, password, backupConfirmed)
+      setImportSelection(null)
       setWalletId(imported.wallet_id)
       setPhase("open")
       await refreshWalletState()
@@ -301,16 +316,24 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
               <section className="rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Import wallet file">
                 <h2 className="font-semibold">Import a wallet file</h2>
                 <p className="mt-2 text-sm text-slate-400">Close the wallet in Atom first. Select the main wallet file; its matching .keys file must be in the same folder. The app opens a private copy and preserves the originals.</p>
-                <form onSubmit={(event) => void submitImport(event)} className="mt-4 grid gap-4">
-                  <PasswordField name="password" label="Existing wallet password" autoComplete="current-password" />
-                  <label className="flex items-start gap-2 text-sm text-slate-300">
-                    <input type="checkbox" name="backup" required disabled={busy} className="mt-1" />
-                    I have a backup of the original wallet files.
-                  </label>
-                  <Button type="submit" disabled={busy || runtime.data !== true} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300">
-                    {busy ? "Opening…" : "Choose file and import"}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" disabled={busy} variant="outline" onClick={() => void chooseImportFile()}>
+                    {importSelection ? "Change file" : "Choose wallet file"}
                   </Button>
-                </form>
+                  {importSelection ? <p className="min-w-0 break-all text-sm" role="status">Selected wallet: <strong>{importSelection.file_name}</strong></p> : null}
+                </div>
+                {importSelection ? (
+                  <form key={importSelection.selection_id} onSubmit={(event) => void submitImport(event)} className="mt-4 grid gap-4">
+                    <PasswordField name="password" label="Password for the selected wallet" autoComplete="current-password" />
+                    <label className="flex items-start gap-2 text-sm text-slate-300">
+                      <input type="checkbox" name="backup" required disabled={busy} className="mt-1" />
+                      I have a backup of the original wallet files.
+                    </label>
+                    <Button type="submit" disabled={busy || runtime.data !== true} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300">
+                      {busy ? "Importing…" : "Import and open wallet"}
+                    </Button>
+                  </form>
+                ) : <p className="mt-3 text-xs text-slate-400">Choose the file first, then enter its existing password to import and open a copy.</p>}
                 {importCancelled ? <p className="mt-3 text-sm text-slate-400" role="status">File selection cancelled. No wallet was imported.</p> : null}
               </section>
             </div>
