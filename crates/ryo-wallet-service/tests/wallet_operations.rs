@@ -224,6 +224,7 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
             .await
             .is_err()
     );
+    assert_eq!(load_wallet_name(&paths.wallet_dir(&id)).unwrap(), None);
     let status = service
         .open_imported_wallet(
             id.clone(),
@@ -231,6 +232,11 @@ async fn wallet_operations_persist_and_password_reauthentication_rejects_wrong_p
         )
         .await
         .unwrap();
+    // Unlock itself migrates the name before any dashboard Info request.
+    assert_eq!(
+        load_wallet_name(&paths.wallet_dir(&id)).unwrap().as_deref(),
+        Some("Disposable test")
+    );
     assert!(matches!(
         service
             .operation(generation, WalletOperation::Contacts)

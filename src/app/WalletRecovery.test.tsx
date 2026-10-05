@@ -44,6 +44,8 @@ async function mount(withStatusBar = false) {
 }
 
 it("recovers balances, history and name automatically after the runtime finishes scanning", async () => {
+  client.setQueryData(["wallet-list", "test-root", "mainnet"], [{ id: "a".repeat(32), name: null, backup_complete: true }])
+  client.setQueryData(["active-wallet", "7"], { id: "a".repeat(32), name: null, backup_complete: true })
   vi.mocked(getWalletOverview).mockRejectedValueOnce("wallet RPC busy").mockResolvedValue(snapshot)
   const attempts = new Map<string, number>()
   vi.mocked(walletOperation).mockImplementation(async (_generation, operation) => {
@@ -58,6 +60,7 @@ it("recovers balances, history and name automatically after the runtime finishes
   expect(container.textContent).not.toContain("update automatically")
   expect(container.textContent).not.toContain("locking and reopening")
   expect(container.querySelector('[role="alert"]')).toBeNull()
+  expect(client.getQueryState(["wallet-list", "test-root", "mainnet"])!.isInvalidated).toBe(false)
   await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
   expect(container.textContent).toContain("Recovered wallet")
   expect(container.textContent).toContain("5 RYO")
@@ -66,6 +69,8 @@ it("recovers balances, history and name automatically after the runtime finishes
   expect(container.querySelector('[role="status"]')).toBeNull()
   expect(attempts.get("history")).toBe(2)
   expect([...attempts.keys()]).toEqual(["info", "history"])
+  expect(client.getQueryState(["wallet-list", "test-root", "mainnet"])!.isInvalidated).toBe(true)
+  expect(client.getQueryState(["active-wallet", "7"])!.isInvalidated).toBe(true)
 })
 
 it("labels retained balances and history as the last available data during scanning", async () => {

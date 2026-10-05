@@ -32,6 +32,7 @@ export function SavedWallets({ root, network, disabled, nodeConfigured, onOpened
       const status = await openWallet(selected.id, password)
       client.setQueryData(["foundation-status"], status)
       client.setQueryData(["active-wallet", status.session_generation], selected)
+      void client.invalidateQueries({ queryKey: ["wallet-list"] })
       void client.invalidateQueries({ queryKey: ["active-wallet", status.session_generation] })
       onOpened()
     } catch (cause) {

@@ -61,8 +61,16 @@ export function WalletDashboard(props: DashboardProps) {
 function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved, locking, hidden, onToggleBalances }: DashboardProps & {
   hidden: boolean; onToggleBalances: () => void
 }) {
+  const queryClient = useQueryClient()
   const overview = useQuery({ queryKey: ["wallet-overview", generation], queryFn: getWalletOverview, refetchInterval: 10_000 })
   const info = useWalletData<{ name: string }>(generation, "info")
+  useEffect(() => {
+    if (!info.isSuccess) return
+    // A delayed authenticated name read can fill an older wallet's display
+    // cache after unlock. Refresh both pickers before the next lock.
+    void queryClient.invalidateQueries({ queryKey: ["wallet-list"] })
+    void queryClient.invalidateQueries({ queryKey: ["active-wallet", generation] })
+  }, [queryClient, generation, info.isSuccess, info.data?.name])
   const history = useWalletData<Transaction[]>(generation, "history", true)
   const [action, setAction] = useState<string | null>(null)
   const address = overview.data?.primary_address ?? ""

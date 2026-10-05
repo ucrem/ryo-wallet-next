@@ -220,10 +220,7 @@ impl OperationsState {
     ) -> Result<WalletOperationOutput, OperationError> {
         let value = match operation {
             WalletOperation::Info => {
-                let name = attribute(client, "next.name").await?.unwrap_or_default();
-                // Backfill names from older wallets after a successful authenticated read.
-                // A broken display cache must not prevent access to the encrypted wallet.
-                let _ = save_wallet_name(directory, &name);
+                let name = read_wallet_name(client, directory).await?;
                 json!({"name":name})
             }
             WalletOperation::SetName { name } => {
@@ -723,6 +720,17 @@ fn clean_payment_id(id: &str) -> &str {
 fn is_hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
+pub(crate) async fn read_wallet_name(
+    client: &WalletRpcClient,
+    directory: &Path,
+) -> Result<String, OperationError> {
+    let name = attribute(client, "next.name").await?.unwrap_or_default();
+    // Backfill names from older wallets after a successful authenticated read.
+    // A broken display cache must not prevent access to the encrypted wallet.
+    let _ = save_wallet_name(directory, &name);
+    Ok(name)
+}
+
 async fn attribute(client: &WalletRpcClient, key: &str) -> Result<Option<String>, OperationError> {
     #[derive(Deserialize)]
     struct Attribute {

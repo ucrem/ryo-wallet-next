@@ -13,9 +13,11 @@ use crate::domain::{AtomicAmount, AtomicAmountDto, NodeConfig};
 use crate::process::ScanProgress;
 use crate::process::{ProcessError, VerifiedBinary, WalletRpcSession, WalletRpcStartupError};
 use crate::rpc::{ReceiveAddress, RecoveryPhrase, RpcError};
-use crate::storage::{AppPaths, PathError, WalletId};
+use crate::storage::{AppPaths, PathError, WalletId, load_wallet_name};
 
-use super::operations::{OperationError, OperationsState, WalletOperation, WalletOperationOutput};
+use super::operations::{
+    OperationError, OperationsState, WalletOperation, WalletOperationOutput, read_wallet_name,
+};
 use super::{LifecycleMachine, LifecycleStatus, LifecycleTransitionError};
 
 const COMMAND_QUEUE_CAPACITY: usize = 8;
@@ -568,6 +570,20 @@ async fn run_actor(
                     let _ = lifecycle.opening_failed();
                 }
                 if result.is_ok() {
+                    if let (Some(session), Some(paths)) = (session.as_ref(), app_paths.as_ref()) {
+                        let directory = paths.wallet_dir(&wallet_id);
+                        if !matches!(load_wallet_name(&directory), Ok(Some(_))) {
+                            // Recover older names during unlock, including wallets that
+                            // have not completed backup or mounted the dashboard yet.
+                            // A busy scan or broken display cache must not reject unlock.
+                            let _ = bounded_read(READ_EXECUTION_TIMEOUT, async {
+                                read_wallet_name(session.client(), &directory)
+                                    .await
+                                    .map_err(WalletServiceError::Operation)
+                            })
+                            .await;
+                        }
+                    }
                     active_id = Some(wallet_id);
                     operations.invalidate();
                     *scan.lock().expect("scan state") =

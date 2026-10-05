@@ -97,4 +97,19 @@ describe("saved wallet unlocking", () => {
     expect(container.textContent).toContain("Renamed wallet")
     expect(container.textContent).not.toContain("Mining")
   })
+
+  it("refreshes legacy names recovered during unlock without losing the wallet selection", async () => {
+    client.setQueryData(["wallet-list", "test-root", "mainnet"], wallets.map((wallet) => ({ ...wallet, name: null })))
+    await show()
+    await select(wallets[0].id)
+    expect(container.querySelector("select")!.selectedOptions[0].textContent).toContain("Wallet aaaaaaaa")
+    container.querySelector<HTMLInputElement>('input[name="password"]')!.value = "legacy-wallet-password"
+    await act(async () => submit())
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)) })
+    expect(listWallets).toHaveBeenCalledOnce()
+    expect(container.querySelector("select")!.value).toBe(wallets[0].id)
+    expect(container.querySelector("select")!.selectedOptions[0].textContent).toContain("Mining")
+    expect(container.querySelector<HTMLInputElement>('input[name="password"]')!.value).toBe("")
+    expect(opened).toHaveBeenCalledOnce()
+  })
 })
