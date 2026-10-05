@@ -17,6 +17,61 @@ use super::{DataRootState, selected_paths};
 
 mod environment;
 
+#[derive(Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ExportErrorCode {
+    InvalidDestination,
+    ProtectedStorage,
+    FileExists,
+    DestinationUnavailable,
+    PermissionDenied,
+    StorageFull,
+    CreateFailed,
+    PermissionsFailed,
+    WriteFailed,
+    PublishFailed,
+    FilePickerFailed,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExportError {
+    code: ExportErrorCode,
+    os_error_code: Option<i32>,
+}
+
+impl ExportError {
+    fn new(code: ExportErrorCode) -> Self {
+        Self {
+            code,
+            os_error_code: None,
+        }
+    }
+
+    fn io(stage: ExportErrorCode, error: &std::io::Error) -> Self {
+        let code = match error.kind() {
+            std::io::ErrorKind::AlreadyExists => ExportErrorCode::FileExists,
+            std::io::ErrorKind::PermissionDenied => ExportErrorCode::PermissionDenied,
+            std::io::ErrorKind::StorageFull => ExportErrorCode::StorageFull,
+            _ => stage,
+        };
+        Self {
+            code,
+            os_error_code: error.raw_os_error(),
+        }
+    }
+}
+
+fn suggested_filename() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    format!(
+        "ryo-wallet-next-diagnostics-{seconds}-{}.json",
+        uuid::Uuid::new_v4().simple()
+    )
+}
+
 pub struct DiagnosticsState(Instant);
 
 impl Default for DiagnosticsState {
@@ -197,67 +252,112 @@ async fn collect(
     report
 }
 
+fn validate_destination(destination: &Path, protected: &[PathBuf]) -> Result<PathBuf, ExportError> {
+    if !destination.is_absolute()
+        || !destination
+            .extension()
+            .and_then(|value| value.to_str())
+            .is_some_and(|extension| extension.eq_ignore_ascii_case("json"))
+    {
+        return Err(ExportError::new(ExportErrorCode::InvalidDestination));
+    }
+    let parent = destination
+        .parent()
+        .ok_or_else(|| ExportError::new(ExportErrorCode::InvalidDestination))?;
+    let parent = fs::canonicalize(parent)
+        .map_err(|error| ExportError::io(ExportErrorCode::DestinationUnavailable, &error))?;
+    for directory in protected {
+        if fs::canonicalize(directory).is_ok_and(|directory| parent.starts_with(directory)) {
+            return Err(ExportError::new(ExportErrorCode::ProtectedStorage));
+        }
+    }
+    let filename = destination
+        .file_name()
+        .ok_or_else(|| ExportError::new(ExportErrorCode::InvalidDestination))?;
+    let destination = parent.join(filename);
+    match fs::symlink_metadata(&destination) {
+        Ok(_) => return Err(ExportError::new(ExportErrorCode::FileExists)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => {
+            return Err(ExportError::io(
+                ExportErrorCode::DestinationUnavailable,
+                &error,
+            ));
+        }
+    }
+    Ok(destination)
+}
+
 fn save(
     report: &Report,
     destination: Option<&Path>,
     protected: &[PathBuf],
-) -> Result<bool, &'static str> {
+) -> Result<bool, ExportError> {
     let Some(destination) = destination else {
         return Ok(false);
     };
-    if !destination.is_absolute()
-        || destination.extension().and_then(|value| value.to_str()) != Some("json")
-    {
-        return Err("choose a new JSON file outside application storage");
-    }
+    let destination = validate_destination(destination, protected)?;
     let parent = destination
         .parent()
-        .and_then(|path| fs::canonicalize(path).ok())
-        .ok_or("destination folder is unavailable")?;
-    for directory in protected {
-        if fs::canonicalize(directory).is_ok_and(|directory| parent.starts_with(directory)) {
-            return Err("choose a new JSON file outside application storage");
-        }
-    }
-    let mut temporary = tempfile::NamedTempFile::new_in(&parent)
-        .map_err(|_| "diagnostic file could not be saved")?;
-    secure_file(temporary.path()).map_err(|_| "diagnostic file could not be secured")?;
-    serde_json::to_writer_pretty(&mut temporary, report)
-        .map_err(|_| "diagnostic file could not be saved")?;
+        .expect("validated destination has a parent");
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)
+        .map_err(|error| ExportError::io(ExportErrorCode::CreateFailed, &error))?;
+    secure_file(temporary.path())
+        .map_err(|error| ExportError::io(ExportErrorCode::PermissionsFailed, &error))?;
+    serde_json::to_writer_pretty(&mut temporary, report).map_err(|error| {
+        ExportError::io(ExportErrorCode::WriteFailed, &std::io::Error::from(error))
+    })?;
     temporary
         .write_all(b"\n")
         .and_then(|_| temporary.flush())
         .and_then(|_| temporary.as_file().sync_all())
-        .map_err(|_| "diagnostic file could not be saved")?;
+        .map_err(|error| ExportError::io(ExportErrorCode::WriteFailed, &error))?;
     temporary
         .persist_noclobber(destination)
-        .map_err(|_| "choose a new filename; existing files are not overwritten")?;
+        .map_err(|error| ExportError::io(ExportErrorCode::PublishFailed, &error.error))?;
     Ok(true)
 }
 
 #[tauri::command]
-pub async fn app_export_diagnostics(app: tauri::AppHandle) -> Result<bool, &'static str> {
+pub async fn app_export_diagnostics(app: tauri::AppHandle) -> Result<bool, ExportError> {
     let picker_app = app.clone();
     let destination = tauri::async_runtime::spawn_blocking(move || {
         picker_app
             .dialog()
             .file()
             .add_filter("Diagnostic report", &["json"])
-            .set_file_name("ryo-wallet-next-diagnostics.json")
+            .set_file_name(suggested_filename())
             .blocking_save_file()
             .map(|file| {
                 file.into_path()
-                    .map_err(|_| "destination path is unavailable")
+                    .map_err(|_| ExportError::new(ExportErrorCode::InvalidDestination))
             })
             .transpose()
     })
     .await
-    .map_err(|_| "file picker is unavailable")??;
+    .map_err(|_| ExportError::new(ExportErrorCode::FilePickerFailed))??;
     if destination.is_none() {
         return Ok(false);
     }
     let state = app.state::<DataRootState>();
     let paths = selected_paths(&state).ok();
+    let mut protected = Vec::new();
+    if let Ok(config) = app.path().app_config_dir() {
+        protected.push(config);
+    }
+    if let Some(paths) = paths.as_ref() {
+        for network in [Network::Mainnet, Network::Testnet, Network::Stagenet] {
+            if let Ok(paths) =
+                ryo_wallet_service::storage::AppPaths::new(paths.root().to_owned(), network)
+            {
+                protected.push(paths.network_root());
+            }
+        }
+    }
+    // Give file-specific feedback before collecting status or creating a temporary file.
+    let destination = destination
+        .map(|destination| validate_destination(&destination, &protected))
+        .transpose()?;
     let settings = paths.as_ref().map(load_settings_if_present).transpose();
     let configuration_failed = settings.is_err();
     let settings = settings.ok().flatten().flatten();
@@ -290,22 +390,9 @@ pub async fn app_export_diagnostics(app: tauri::AppHandle) -> Result<bool, &'sta
     if configuration_failed {
         report.observations.push("configuration_unavailable");
     }
-    let mut protected = Vec::new();
-    if let Ok(config) = app.path().app_config_dir() {
-        protected.push(config);
-    }
-    if let Some(paths) = paths {
-        for network in [Network::Mainnet, Network::Testnet, Network::Stagenet] {
-            if let Ok(paths) =
-                ryo_wallet_service::storage::AppPaths::new(paths.root().to_owned(), network)
-            {
-                protected.push(paths.network_root());
-            }
-        }
-    }
     tauri::async_runtime::spawn_blocking(move || save(&report, destination.as_deref(), &protected))
         .await
-        .map_err(|_| "diagnostic file could not be saved")?
+        .map_err(|_| ExportError::new(ExportErrorCode::WriteFailed))?
 }
 
 #[cfg(test)]
@@ -373,6 +460,84 @@ mod tests {
         assert_eq!(fs::read(destination).unwrap(), bytes);
         assert!(save(&report, Some(&temp.path().join("wallet.keys")), &[]).is_err());
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn legacy_filename_collision_gets_specific_feedback_and_fresh_exports_succeed() {
+        let temp = tempfile::tempdir().unwrap();
+        let report = Report::new(None);
+        let legacy = temp.path().join("ryo-wallet-next-diagnostics.json");
+        fs::write(&legacy, b"existing-report-canary").unwrap();
+        let error = save(&report, Some(&legacy), &[]).unwrap_err();
+        assert_eq!(error.code, ExportErrorCode::FileExists);
+        assert_eq!(fs::read(&legacy).unwrap(), b"existing-report-canary");
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+
+        let first = suggested_filename();
+        let second = suggested_filename();
+        assert_ne!(first, second);
+        for filename in [first, second] {
+            assert!(
+                filename.starts_with("ryo-wallet-next-diagnostics-") && filename.ends_with(".json")
+            );
+            let destination = temp.path().join(filename);
+            assert!(save(&report, Some(&destination), &[]).unwrap());
+            let exported: serde_json::Value =
+                serde_json::from_slice(&fs::read(destination).unwrap()).unwrap();
+            assert_eq!(exported["schema_version"], 2);
+        }
+        assert_eq!(fs::read(&legacy).unwrap(), b"existing-report-canary");
+    }
+
+    #[test]
+    fn destination_errors_distinguish_protection_format_and_unavailable_folders() {
+        let temp = tempfile::tempdir().unwrap();
+        let destination = temp.path().join("report.json");
+        assert_eq!(
+            validate_destination(&destination, &[temp.path().into()])
+                .unwrap_err()
+                .code,
+            ExportErrorCode::ProtectedStorage
+        );
+        assert_eq!(
+            validate_destination(&temp.path().join("report.txt"), &[])
+                .unwrap_err()
+                .code,
+            ExportErrorCode::InvalidDestination
+        );
+        assert_eq!(
+            validate_destination(&temp.path().join("missing/report.json"), &[])
+                .unwrap_err()
+                .code,
+            ExportErrorCode::DestinationUnavailable
+        );
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
+        assert!(
+            save(
+                &Report::new(None),
+                Some(&temp.path().join("report.JSON")),
+                &[]
+            )
+            .unwrap()
+        );
+    }
+
+    #[test]
+    fn structured_failure_codes_do_not_include_io_text_or_paths() {
+        for (kind, expected) in [
+            (std::io::ErrorKind::PermissionDenied, "permission_denied"),
+            (std::io::ErrorKind::StorageFull, "storage_full"),
+            (std::io::ErrorKind::Other, "write_failed"),
+        ] {
+            let error = ExportError::io(
+                ExportErrorCode::WriteFailed,
+                &std::io::Error::new(kind, "private-path-and-password-canary"),
+            );
+            let json = serde_json::to_value(&error).unwrap();
+            assert_eq!(json["code"], expected);
+            assert!(json["os_error_code"].is_null());
+            assert!(!json.to_string().contains("canary"));
+        }
     }
 
     #[test]

@@ -1,6 +1,8 @@
 # Diagnostic report
 
-In the native desktop app, open **About → Diagnostics → Export diagnostic report** and choose a new `.json` file outside application storage. It works with the wallet locked and before setup. Cancellation writes nothing. Existing files are never overwritten; choose another filename for another snapshot.
+In the native desktop app, open **About → Diagnostics → Export diagnostic report** and choose a new `.json` file outside application storage. Each export suggests a fresh timestamp/UUID filename, so another snapshot does not reuse a previous report's default name. It works with the wallet locked and before setup. Cancellation writes nothing. Existing files are never overwritten; choosing an existing file (even after the native dialog's replace prompt) returns a specific instruction to choose another name. `.json` and `.JSON` are accepted.
+
+Destination validation happens before collecting status and again before saving. Existing files, private application storage, unavailable folders, permission failures and full storage produce distinct allowlisted feedback. Known I/O failures can include a numeric OS error code; raw I/O text and paths are never returned or displayed. Unknown failures use a general retry message instead of incorrectly claiming that the chosen folder is private application storage.
 
 Schema **2** contains:
 
@@ -18,7 +20,7 @@ The report excludes seeds, keys, passwords, RPC credentials, signed transaction 
 
 Collection is read-only. Wallet lifecycle and node probes have deadlines; cached scan progress is read without queueing behind an upstream refresh. Environment collection runs off the UI thread with a four-second deadline in parallel with those probes. An OS call already running in a worker cannot be forcibly cancelled; an expired environment probe is omitted and labeled. Missing data remains null/unavailable and is not interpreted as zero or synchronized. Windows OS/RAM/volume fields remain null on other platforms in this implementation. Resource availability can change immediately after collection. The report is a snapshot, not a trace or a proof that a wallet's balance/history is current.
 
-Tests cover endpoint/session/malformed-height exclusion, populated-report preference/path redaction, bounded API-version text, filesystem category filtering, native Windows OS/RAM/disk probes, remote/invalid storage refusal, cancelled export, app-storage refusal, existing-file preservation, locked unconfigured collection without lifecycle changes, native-only dispatch and duplicate-click suppression. Native dialog interaction and installed cross-platform export remain manual acceptance checks.
+Tests cover endpoint/session/malformed-height exclusion, populated-report preference/path redaction, bounded API-version text, filesystem category filtering, native Windows OS/RAM/disk probes, remote/invalid storage refusal, cancelled export, app-storage refusal, existing-file preservation, legacy-filename collision followed by successful fresh exports, `.JSON` acceptance, classified failures without raw I/O text, locked unconfigured collection without lifecycle changes, native-only dispatch and duplicate-click suppression. Native dialog interaction and installed cross-platform export remain manual acceptance checks.
 
 ## Native API references
 
