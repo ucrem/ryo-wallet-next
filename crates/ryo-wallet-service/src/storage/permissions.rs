@@ -71,14 +71,17 @@ mod windows {
         GetSecurityInfo, SDDL_REVISION_1, SE_FILE_OBJECT, SetSecurityInfo,
     };
     use windows_sys::Win32::Security::{
-        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CopySid, DACL_SECURITY_INFORMATION, EqualSid, GetAce,
-        GetLengthSid, GetSecurityDescriptorDacl, GetTokenInformation, IsValidSid,
-        OWNER_SECURITY_INFORMATION, PROTECTED_DACL_SECURITY_INFORMATION, TOKEN_QUERY, TOKEN_USER,
-        TokenUser,
+        ACCESS_ALLOWED_ACE, ACE_HEADER, ACL, CopySid, CreateWellKnownSid,
+        DACL_SECURITY_INFORMATION, EqualSid, GetAce, GetLengthSid, GetSecurityDescriptorDacl,
+        GetTokenInformation, IsValidSid, OWNER_SECURITY_INFORMATION,
+        PROTECTED_DACL_SECURITY_INFORMATION, TOKEN_INFORMATION_CLASS, TOKEN_OWNER, TOKEN_QUERY,
+        TOKEN_USER, TokenOwner, TokenUser, WELL_KNOWN_SID_TYPE, WinBuiltinAdministratorsSid,
+        WinLocalSystemSid,
     };
     use windows_sys::Win32::Storage::FileSystem::{
-        FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
-        FILE_READ_ATTRIBUTES, READ_CONTROL, WRITE_DAC, WRITE_OWNER,
+        DELETE, FILE_ATTRIBUTE_REPARSE_POINT, FILE_FLAG_BACKUP_SEMANTICS,
+        FILE_FLAG_OPEN_REPARSE_POINT, FILE_GENERIC_READ, FILE_READ_ATTRIBUTES, READ_CONTROL,
+        WRITE_DAC, WRITE_OWNER,
     };
     use windows_sys::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
@@ -98,6 +101,24 @@ mod windows {
             self.0.as_ptr().cast_mut().cast()
         }
         fn current() -> io::Result<Self> {
+            Self::from_token(TokenUser)
+        }
+        fn default_owner() -> io::Result<Self> {
+            Self::from_token(TokenOwner)
+        }
+        fn well_known(kind: WELL_KNOWN_SID_TYPE) -> io::Result<Self> {
+            let mut buffer = vec![0u32; 17]; // SECURITY_MAX_SID_SIZE (68 bytes), aligned.
+            let mut length = (buffer.len() * size_of::<u32>()) as u32;
+            // SAFETY: correctly aligned, bounded output buffer; no domain SID required.
+            if unsafe {
+                CreateWellKnownSid(kind, null_mut(), buffer.as_mut_ptr().cast(), &mut length)
+            } == 0
+            {
+                return Err(io::Error::last_os_error());
+            }
+            Ok(Self(buffer))
+        }
+        fn from_token(kind: TOKEN_INFORMATION_CLASS) -> io::Result<Self> {
             let mut token: HANDLE = null_mut();
             // SAFETY: output handle and token buffers remain live for these calls.
             unsafe {
@@ -106,14 +127,14 @@ mod windows {
                 }
                 let token = OwnedHandle::from_raw_handle(token);
                 let mut length = 0;
-                GetTokenInformation(token.as_raw_handle(), TokenUser, null_mut(), 0, &mut length);
+                GetTokenInformation(token.as_raw_handle(), kind, null_mut(), 0, &mut length);
                 if length < size_of::<TOKEN_USER>() as u32 || length > 65536 {
                     return Err(io::Error::other("invalid process identity"));
                 }
                 let mut buffer = vec![0usize; (length as usize).div_ceil(size_of::<usize>())];
                 if GetTokenInformation(
                     token.as_raw_handle(),
-                    TokenUser,
+                    kind,
                     buffer.as_mut_ptr().cast(),
                     length,
                     &mut length,
@@ -121,7 +142,11 @@ mod windows {
                 {
                     return Err(io::Error::last_os_error());
                 }
-                let sid = (*buffer.as_ptr().cast::<TOKEN_USER>()).User.Sid;
+                let sid = if kind == TokenOwner {
+                    (*buffer.as_ptr().cast::<TOKEN_OWNER>()).Owner
+                } else {
+                    (*buffer.as_ptr().cast::<TOKEN_USER>()).User.Sid
+                };
                 if IsValidSid(sid) == 0 {
                     return Err(io::Error::other("invalid process identity"));
                 }
@@ -236,6 +261,9 @@ mod windows {
             return Err(io::Error::other("private storage is a reparse point"));
         }
         let user = UserSid::current()?;
+        let default_owner = UserSid::default_owner()?;
+        let administrators = UserSid::well_known(WinBuiltinAdministratorsSid)?;
+        let system = UserSid::well_known(WinLocalSystemSid)?;
         let mut owner = null_mut();
         let mut dacl: *mut ACL = null_mut();
         let mut descriptor = null_mut();
@@ -257,7 +285,7 @@ mod windows {
             let _allocation = LocalMemory(descriptor);
             if owner.is_null()
                 || IsValidSid(owner) == 0
-                || EqualSid(owner, user.pointer()) == 0
+                || !owner_allowed(owner, &user, &default_owner, &administrators)
                 || dacl.is_null()
                 || (*dacl).AceCount == 0
             {
@@ -284,21 +312,109 @@ mod windows {
                 if IsValidSid(sid) == 0 {
                     return Err(io::Error::other("invalid private file identity"));
                 }
-                if allowed.Mask != 0 && EqualSid(sid, user.pointer()) == 0 {
-                    // Compare with the fixed, valid LocalSystem SID S-1-5-18.
-                    let system = [0x0000_0101u32, 0x0500_0000, 18];
-                    if EqualSid(sid, system.as_ptr().cast_mut().cast()) == 0 {
-                        return Err(io::Error::other("private file permits another user"));
-                    }
+                if !allow_allowed(
+                    sid,
+                    allowed.Mask,
+                    &user,
+                    &default_owner,
+                    &administrators,
+                    &system,
+                ) {
+                    return Err(io::Error::other("private file permits another user"));
                 }
             }
         }
         Ok(())
     }
 
+    // Ryo uses TokenOwner, which can be Administrators on an elevated Windows
+    // token. This does not authorize arbitrary owner groups or broad admin ACEs.
+    unsafe fn owner_allowed(
+        owner: *mut c_void,
+        user: &UserSid,
+        default_owner: &UserSid,
+        administrators: &UserSid,
+    ) -> bool {
+        // SAFETY: caller supplies validated, live SIDs.
+        unsafe {
+            EqualSid(owner, user.pointer()) != 0
+                || (EqualSid(default_owner.pointer(), administrators.pointer()) != 0
+                    && EqualSid(owner, default_owner.pointer()) != 0)
+        }
+    }
+
+    unsafe fn allow_allowed(
+        sid: *mut c_void,
+        mask: u32,
+        user: &UserSid,
+        default_owner: &UserSid,
+        administrators: &UserSid,
+        system: &UserSid,
+    ) -> bool {
+        // SAFETY: caller supplies validated, live SIDs. The elevated exception is
+        // only Ryo's documented read/query/delete mask for this token's owner.
+        unsafe {
+            mask == 0
+                || EqualSid(sid, user.pointer()) != 0
+                || EqualSid(sid, system.pointer()) != 0
+                || (EqualSid(default_owner.pointer(), administrators.pointer()) != 0
+                    && EqualSid(sid, default_owner.pointer()) != 0
+                    && mask & !(READ_CONTROL | FILE_GENERIC_READ | DELETE) == 0)
+        }
+    }
+
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn elevated_upstream_owner_is_narrowly_scoped_and_never_allows_everyone() {
+            use windows_sys::Win32::Security::WinWorldSid;
+            use windows_sys::Win32::Storage::FileSystem::FILE_ALL_ACCESS;
+            let user = UserSid::current().unwrap();
+            let administrators = UserSid::well_known(WinBuiltinAdministratorsSid).unwrap();
+            let system = UserSid::well_known(WinLocalSystemSid).unwrap();
+            let world = UserSid::well_known(WinWorldSid).unwrap();
+            // SAFETY: the APIs above produced validated, owned SIDs.
+            unsafe {
+                assert!(owner_allowed(
+                    administrators.pointer(),
+                    &user,
+                    &administrators,
+                    &administrators
+                ));
+                assert!(!owner_allowed(
+                    world.pointer(),
+                    &user,
+                    &world,
+                    &administrators
+                ));
+                assert!(allow_allowed(
+                    administrators.pointer(),
+                    READ_CONTROL | FILE_GENERIC_READ | DELETE,
+                    &user,
+                    &administrators,
+                    &administrators,
+                    &system
+                ));
+                assert!(!allow_allowed(
+                    administrators.pointer(),
+                    FILE_ALL_ACCESS,
+                    &user,
+                    &administrators,
+                    &administrators,
+                    &system
+                ));
+                assert!(!allow_allowed(
+                    world.pointer(),
+                    FILE_GENERIC_READ,
+                    &user,
+                    &world,
+                    &administrators,
+                    &system
+                ));
+            }
+        }
 
         #[test]
         fn inherited_private_files_are_readable_and_broad_or_null_acls_are_rejected() {

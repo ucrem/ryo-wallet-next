@@ -103,3 +103,13 @@ Before a user-facing release, each platform still needs dependency and license
 notices, platform signing (and Apple notarization), installation tests, and
 wallet-flow tests on clean systems. See the
 [MVP criteria](MVP.md) and [implementation status](IMPLEMENTATION_STATUS.md).
+
+For local Windows installer smoke tests, use a separate product name, bundle
+identifier, data profile and install directory. Tauri's NSIS process check
+matches the executable basename for the current user; a different bundle ID
+does not isolate that check. Stop every same-named test/development app before
+silent install/reinstall/uninstall, and reopen the ordinary desktop afterwards.
+The 2026-10-05 smoke verified installed runtime digests, native window startup,
+same-version repair preserving preferences, independent node lock/reopen/restart
+and uninstall. It does not close signed in-app update or clean installed funded
+wallet-flow gates.
