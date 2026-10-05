@@ -88,7 +88,10 @@ pub(super) fn os_version() -> Option<OsVersion> {
 #[cfg(target_os = "macos")]
 unsafe extern "C" {
     // Public libSystem APIs not declared by the pinned libc crate.
-    fn host_page_size(host: libc::mach_port_t, page_size: *mut u32) -> libc::kern_return_t;
+    fn host_page_size(
+        host: libc::mach_port_t,
+        page_size: *mut libc::vm_size_t,
+    ) -> libc::kern_return_t;
     fn mach_port_deallocate(
         task: libc::mach_port_t,
         name: libc::mach_port_t,
@@ -126,11 +129,15 @@ pub(super) fn physical_memory() -> Option<MemoryReport> {
     if result != 0 || length != size_of::<u64>() {
         return None;
     }
+    // libc recommends a separate Mach binding crate; the native API remains
+    // supported. Keep this allowance confined to the pinned binding call.
+    #[allow(deprecated)]
     let host = HostPort(unsafe { libc::mach_host_self() });
     if host.0 == 0 {
         return None;
     }
-    let mut page_size = 0u32;
+    // vm_size_t is pointer-sized on 64-bit Darwin; match the native output ABI.
+    let mut page_size: libc::vm_size_t = 0;
     if unsafe { host_page_size(host.0, &mut page_size) } != libc::KERN_SUCCESS {
         return None;
     }
@@ -151,7 +158,12 @@ pub(super) fn physical_memory() -> Option<MemoryReport> {
         return None;
     }
     let stats = unsafe { stats.assume_init() };
-    memory(total, stats.free_count, stats.inactive_count, page_size)
+    memory(
+        total,
+        stats.free_count,
+        stats.inactive_count,
+        u32::try_from(page_size).ok()?,
+    )
 }
 
 #[cfg(target_os = "macos")]

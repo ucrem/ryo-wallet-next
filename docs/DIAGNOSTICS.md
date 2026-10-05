@@ -36,4 +36,6 @@ Tests cover endpoint/session/malformed-height exclusion, populated-report prefer
 - [Linux filesystem type codes](https://github.com/torvalds/linux/blob/master/include/uapi/linux/magic.h)
 - [Apple product version sysctl](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sysctl.c)
 - [Apple Mach VM statistics and speculative-page accounting](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/vm_statistics.h)
+- [Apple host page-size API uses vm_size_t](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/mach_host.defs)
+- [Apple pointer-sized vm_size_t ABI](https://github.com/apple-oss-distributions/xnu/blob/main/osfmk/mach/i386/vm_types.h)
 - [Apple filesystem statistics and local/read-only mount flags](https://github.com/apple-oss-distributions/xnu/blob/main/bsd/sys/mount.h)

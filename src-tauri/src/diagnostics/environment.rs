@@ -369,6 +369,13 @@ mod tests {
         let json = serde_json::json!({ "version": version, "memory": memory, "volume": volume });
         assert_eq!(json["version"]["platform"], std::env::consts::OS);
         assert!(json["version"]["kernel_version"].as_str().is_some());
+        #[cfg(target_os = "macos")]
+        {
+            assert!(json["version"]["product_version"].as_str().is_some());
+            assert!(json["version"]["build"].as_str().is_some());
+        }
+        #[cfg(target_os = "linux")]
+        assert!(json["version"]["distribution"].as_str().is_some());
         let json = json.to_string();
         assert!(!json.contains(&temp.path().to_string_lossy().to_string()));
         for key in [
