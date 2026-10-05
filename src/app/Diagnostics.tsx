@@ -23,14 +23,16 @@ export function Diagnostics({ isNative }: { isNative: boolean }) {
   }
 
   return (
-    <section aria-labelledby="diagnostics-title" className="mt-5 rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5 sm:p-6">
-      <h2 id="diagnostics-title" className="text-xl font-semibold">Diagnostics</h2>
-      <p className="mt-2 text-sm text-slate-400">Save the app version, node status and sync heights to help investigate a problem. The report excludes wallet secrets, addresses, names and file paths.</p>
-      <Button type="button" variant="outline" className="mt-4" onClick={() => void exportReport()} disabled={!isNative || saving}>
-        {saving ? "Saving…" : "Export diagnostic report"}
-      </Button>
-      {result === "error" ? <p className="mt-3 text-sm text-red-300" role="alert">Could not save the report. Choose a new JSON filename outside the app data folder and try again.</p> : result ? (
-        <p className="mt-3 text-sm text-slate-300" role="status">{result === "saved" ? "Diagnostic report saved. Nothing was uploaded." : "Export cancelled."}</p>
+    <section aria-labelledby="diagnostics-title" className="flex min-w-0 flex-col rounded-xl border border-slate-700 bg-[var(--app-surface)] p-4">
+      <h2 id="diagnostics-title" className="text-lg font-semibold">Diagnostics</h2>
+      <p className="mt-2 text-xs leading-5 text-slate-400">Save the app version, node status and sync heights to help investigate a problem. The report excludes wallet secrets, addresses, names and file paths.</p>
+      <div className="mt-auto pt-3">
+        <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => void exportReport()} disabled={!isNative || saving}>
+          {saving ? "Saving…" : "Export diagnostic report"}
+        </Button>
+      </div>
+      {result === "error" ? <p className="mt-3 text-xs leading-5 text-red-300" role="alert">Could not save the report. Choose a new JSON filename outside the app data folder and try again.</p> : result ? (
+        <p className="mt-3 text-xs leading-5 text-slate-300" role="status">{result === "saved" ? "Diagnostic report saved. Nothing was uploaded." : "Export cancelled."}</p>
       ) : null}
     </section>
   )
