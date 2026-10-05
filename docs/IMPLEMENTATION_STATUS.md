@@ -4,7 +4,7 @@ Updated 2026-10-05 for next-release hardening on the 0.1.0-alpha.6 baseline. Thi
 
 ## Implemented
 
-- About exports a Rust-owned, allowlisted diagnostic JSON report without wallet secrets, identifying wallet data, paths, endpoints or raw logs. Export cancellation and no-overwrite behavior are covered. See [Diagnostics](DIAGNOSTICS.md).
+- About exports a Rust-owned, allowlisted diagnostic JSON report without wallet secrets, identifying wallet data, paths, endpoints or raw logs. Schema 2 adds Windows build/patch, WebView runtime, memory, local storage capabilities/space, verified runtimes, build identity, uptime, selected preferences and node probe timing. The app/version, updates and diagnostics panels share one compact desktop row. Export cancellation and no-overwrite behavior are covered. See [Diagnostics](DIAGNOSTICS.md).
 - Saved-wallet names are recovered from authenticated encrypted `next.name` during unlock and cached separately for the locked Home picker. Missing metadata cannot reconstruct a previously encrypted name until that wallet is unlocked once. The picker refreshes after unlock and rename. This cache is a display label, not wallet authority.
 
 - Recovery sync now tracks processed blocks through private wallet RPC stdout while the single-threaded upstream refresh is busy. Background reads have bounded deadlines and retry automatically; balances/history retain explicitly labelled previous snapshots. Node probes retain recent heights with a delayed-response label, without claiming reachability/readiness. See [Wallet synchronization](WALLET_SYNC.md) for evidence and remaining full-chain gates.

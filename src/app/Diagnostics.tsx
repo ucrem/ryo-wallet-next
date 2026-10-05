@@ -25,7 +25,7 @@ export function Diagnostics({ isNative }: { isNative: boolean }) {
   return (
     <section aria-labelledby="diagnostics-title" className="flex min-w-0 flex-col rounded-xl border border-slate-700 bg-[var(--app-surface)] p-4">
       <h2 id="diagnostics-title" className="text-lg font-semibold">Diagnostics</h2>
-      <p className="mt-2 text-xs leading-5 text-slate-400">Save the app version, node status and sync heights to help investigate a problem. The report excludes wallet secrets, addresses, names and file paths.</p>
+      <p className="mt-2 text-xs leading-5 text-slate-400">Export system, runtime and sync details for troubleshooting. Wallet secrets, addresses, names and file paths are excluded.</p>
       <div className="mt-auto pt-3">
         <Button type="button" variant="outline" size="sm" className="text-xs" onClick={() => void exportReport()} disabled={!isNative || saving}>
           {saving ? "Saving…" : "Export diagnostic report"}

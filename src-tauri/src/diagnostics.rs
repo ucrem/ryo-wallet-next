@@ -1,19 +1,56 @@
-//! Explicit allowlist: never serialize settings, wallet data, raw errors or logs.
+//! Explicit support allowlist: never serialize full settings, wallet data, raw errors or logs.
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use ryo_wallet_service::application::{
     LifecycleState, NodeService, NodeState, NodeStatus, WalletService,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig, NodeMode};
-use ryo_wallet_service::storage::{load_settings_if_present, secure_file};
+use ryo_wallet_service::storage::{Preferences, Theme, load_settings_if_present, secure_file};
 use serde::Serialize;
 use tauri::Manager;
 use tauri_plugin_dialog::DialogExt;
 
 use super::{DataRootState, selected_paths};
+
+mod environment;
+
+pub struct DiagnosticsState(Instant);
+
+impl Default for DiagnosticsState {
+    fn default() -> Self {
+        Self(Instant::now())
+    }
+}
+
+#[derive(Serialize)]
+struct BuildReport {
+    profile: &'static str,
+    target: &'static str,
+    source_revision: Option<&'static str>,
+    tracked_source_modified: Option<bool>,
+}
+
+#[derive(Serialize)]
+struct PreferencesReport {
+    theme: Theme,
+    idle_lock_seconds: u16,
+    minimize_to_tray: bool,
+    launch_on_startup_preference: bool,
+}
+
+impl From<Preferences> for PreferencesReport {
+    fn from(preferences: Preferences) -> Self {
+        Self {
+            theme: preferences.theme,
+            idle_lock_seconds: preferences.idle_lock_seconds,
+            minimize_to_tray: preferences.minimize_to_tray,
+            launch_on_startup_preference: preferences.launch_on_startup,
+        }
+    }
+}
 
 #[derive(Serialize)]
 struct Report {
@@ -22,12 +59,17 @@ struct Report {
     os: &'static str,
     architecture: &'static str,
     collected_at_unix_seconds: u64,
+    build: BuildReport,
+    app_uptime_seconds: Option<u64>,
+    environment: Option<environment::EnvironmentReport>,
+    preferences: Option<PreferencesReport>,
     network: Option<Network>,
     node_mode: Option<NodeMode>,
     wallet_state: Option<LifecycleState>,
     wallet_height: Option<String>,
     wallet_height_source: &'static str,
     wallet_rpc_busy: bool,
+    node_probe_elapsed_ms: Option<u64>,
     node: Option<NodeReport>,
     observations: Vec<&'static str>,
 }
@@ -53,7 +95,7 @@ fn height(value: Option<&str>) -> Option<String> {
 impl Report {
     fn new(node: Option<&NodeConfig>) -> Self {
         Self {
-            schema_version: 1,
+            schema_version: 2,
             app_version: env!("CARGO_PKG_VERSION"),
             os: std::env::consts::OS,
             architecture: std::env::consts::ARCH,
@@ -61,12 +103,33 @@ impl Report {
                 .duration_since(UNIX_EPOCH)
                 .unwrap_or_default()
                 .as_secs(),
+            build: BuildReport {
+                profile: if cfg!(debug_assertions) {
+                    "debug"
+                } else {
+                    "release"
+                },
+                target: env!("RYO_BUILD_TARGET"),
+                source_revision: match env!("RYO_BUILD_REVISION") {
+                    "unknown" => None,
+                    revision => Some(revision),
+                },
+                tracked_source_modified: match env!("RYO_BUILD_SOURCE_MODIFIED") {
+                    "true" => Some(true),
+                    "false" => Some(false),
+                    _ => None,
+                },
+            },
+            app_uptime_seconds: None,
+            environment: None,
+            preferences: None,
             network: node.map(|node| node.network),
             node_mode: node.map(|node| node.mode),
             wallet_state: None,
             wallet_height: None,
             wallet_height_source: "unavailable",
             wallet_rpc_busy: false,
+            node_probe_elapsed_ms: None,
             node: None,
             observations: Vec::new(),
         }
@@ -99,7 +162,13 @@ async fn collect(
         async {
             match node {
                 Some(node) => {
-                    Some(tokio::time::timeout(Duration::from_secs(6), nodes.status(node)).await)
+                    let start = Instant::now();
+                    let status =
+                        tokio::time::timeout(Duration::from_secs(6), nodes.status(node)).await;
+                    Some((
+                        status,
+                        start.elapsed().as_millis().min(u128::from(u64::MAX)) as u64,
+                    ))
                 }
                 None => None,
             }
@@ -109,10 +178,11 @@ async fn collect(
         Ok(Ok(status)) => report.wallet_state = Some(status.state),
         _ => report.observations.push("wallet_status_unavailable"),
     }
+    report.node_probe_elapsed_ms = health.as_ref().map(|(_, elapsed)| *elapsed);
     match health {
-        Some(Ok(Ok(status))) => report.set_node(&status),
-        Some(Err(_)) => report.observations.push("node_status_timeout"),
-        Some(Ok(Err(_))) => report.observations.push("node_status_unavailable"),
+        Some((Ok(Ok(status)), _)) => report.set_node(&status),
+        Some((Err(_), _)) => report.observations.push("node_status_timeout"),
+        Some((Ok(Err(_)), _)) => report.observations.push("node_status_unavailable"),
         None => report.observations.push("node_not_configured"),
     }
     // Cached scan progress is read without queueing behind upstream refresh.
@@ -193,12 +263,30 @@ pub async fn app_export_diagnostics(app: tauri::AppHandle) -> Result<bool, &'sta
     let settings = settings.ok().flatten().flatten();
     let service = app.state::<WalletService>();
     let nodes = app.state::<NodeService>();
-    let mut report = collect(
-        &service,
-        &nodes,
-        settings.as_ref().map(|settings| &settings.node),
-    )
-    .await;
+    let probe_root = paths.as_ref().map(|paths| paths.root().to_owned());
+    let probe =
+        tauri::async_runtime::spawn_blocking(move || environment::collect(probe_root.as_deref()));
+    let (mut report, environment) = tokio::join!(
+        collect(
+            &service,
+            &nodes,
+            settings.as_ref().map(|settings| &settings.node)
+        ),
+        tokio::time::timeout(Duration::from_secs(4), probe),
+    );
+    match environment {
+        Ok(Ok(environment)) => report.environment = Some(environment),
+        Ok(Err(_)) => report.observations.push("environment_unavailable"),
+        Err(_) => report.observations.push("environment_timeout"),
+    }
+    report.app_uptime_seconds = Some(app.state::<DiagnosticsState>().0.elapsed().as_secs());
+    match app
+        .state::<super::app_settings::PreferencesState>()
+        .snapshot()
+    {
+        Ok(preferences) => report.preferences = Some(preferences.into()),
+        Err(_) => report.observations.push("preferences_unavailable"),
+    }
     if configuration_failed {
         report.observations.push("configuration_unavailable");
     }
@@ -285,6 +373,58 @@ mod tests {
         assert_eq!(fs::read(destination).unwrap(), bytes);
         assert!(save(&report, Some(&temp.path().join("wallet.keys")), &[]).is_err());
         assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn populated_report_redacts_storage_and_exports_only_selected_preferences() {
+        let temp = tempfile::Builder::new()
+            .prefix("private-path-canary")
+            .tempdir()
+            .unwrap();
+        let mut report = Report::new(None);
+        report.environment = Some(environment::collect(Some(temp.path())));
+        report.preferences = Some(
+            Preferences {
+                theme: Theme::Light,
+                idle_lock_seconds: 120,
+                minimize_to_tray: true,
+                launch_on_startup: true,
+                notify_no_payment_id: false,
+                notify_weak_password: false,
+            }
+            .into(),
+        );
+        let json = serde_json::to_value(&report).unwrap();
+        let serialized = json.to_string();
+        for excluded in [
+            "private-path-canary",
+            "notify_no_payment_id",
+            "notify_weak_password",
+            "serial_number",
+            "machine_name",
+            "username",
+            "wallet_id",
+        ] {
+            assert!(
+                !serialized.contains(excluded),
+                "export contained {excluded}"
+            );
+        }
+        assert_eq!(json["schema_version"], 2);
+        assert_eq!(json["preferences"]["idle_lock_seconds"], 120);
+        assert_eq!(json["preferences"]["theme"], "light");
+        assert_eq!(
+            json["environment"]["ryo_runtime"]["manifest_version"],
+            "0.6.1.0"
+        );
+        assert!(
+            json["environment"]["available_parallelism"]
+                .as_u64()
+                .unwrap()
+                > 0
+        );
+        assert!(json["node_probe_elapsed_ms"].is_null());
+        assert_eq!(fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 
     #[tokio::test]

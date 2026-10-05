@@ -982,6 +982,7 @@ pub fn run() {
             app.manage(ActiveWalletState(Mutex::new(None)));
             app.manage(SyncMonitorState(AtomicU64::new(0)));
             app.manage(app_updates::InstallState::default());
+            app.manage(diagnostics::DiagnosticsState::default());
             app_settings::setup_tray(app.handle())?;
             app_settings::apply_window_theme(
                 app.handle(),

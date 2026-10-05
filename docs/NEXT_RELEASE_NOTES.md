@@ -14,6 +14,7 @@ These are unreleased changes on the 0.1.0-alpha.6 baseline. Assign a version and
 - Protected Windows permissions for app-owned storage and handle-based owner/ACL validation of generated RPC credentials.
 - Windows sidecar Job Object ownership and kernel cleanup on abrupt owner exit, with an explicitly documented spawn-to-assignment limit.
 - Native, local-only diagnostic JSON export from About, excluding wallet secrets and identifying data.
+- Expanded diagnostic support facts: Windows build/patch, WebView runtime, memory, local data-volume capacity/capabilities, verified Ryo runtimes, build identity, uptime, selected preferences and node probe timing.
 - Native service permission/process tests in the three-platform integration CI.
 - Updated implementation, security, CI and acceptance documentation.
 
