@@ -150,7 +150,7 @@ fn height(value: Option<&str>) -> Option<String> {
 impl Report {
     fn new(node: Option<&NodeConfig>) -> Self {
         Self {
-            schema_version: 2,
+            schema_version: 3,
             app_version: env!("CARGO_PKG_VERSION"),
             os: std::env::consts::OS,
             architecture: std::env::consts::ARCH,
@@ -484,7 +484,7 @@ mod tests {
             assert!(save(&report, Some(&destination), &[]).unwrap());
             let exported: serde_json::Value =
                 serde_json::from_slice(&fs::read(destination).unwrap()).unwrap();
-            assert_eq!(exported["schema_version"], 2);
+            assert_eq!(exported["schema_version"], 3);
         }
         assert_eq!(fs::read(&legacy).unwrap(), b"existing-report-canary");
     }
@@ -575,7 +575,7 @@ mod tests {
                 "export contained {excluded}"
             );
         }
-        assert_eq!(json["schema_version"], 2);
+        assert_eq!(json["schema_version"], 3);
         assert_eq!(json["preferences"]["idle_lock_seconds"], 120);
         assert_eq!(json["preferences"]["theme"], "light");
         assert_eq!(

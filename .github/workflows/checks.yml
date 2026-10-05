@@ -112,7 +112,7 @@ jobs:
           cache: pnpm
       - name: Install pinned Rust toolchain
         run: |
-          rustup toolchain install 1.98.1 --profile minimal
+          rustup toolchain install 1.98.1 --profile minimal --component clippy
           rustup default 1.98.1
       - name: Install Tauri Linux build prerequisites
         run: |
@@ -125,6 +125,8 @@ jobs:
           node scripts/prepare-dev-runtime.mjs
       - name: Check Tauri host
         run: cargo check -p ryo-wallet-next --locked
+      - name: Clippy for Tauri host and diagnostics
+        run: cargo clippy -p ryo-wallet-next --all-targets --locked -- -D warnings
       - name: Host tests including redacted diagnostics export
         run: cargo test -p ryo-wallet-next --lib --locked
       - name: Verify wallet-file import with disposable copied wallets
@@ -134,3 +136,29 @@ jobs:
           RYO_TEST_DAEMON: ${{ github.workspace }}/src-tauri/.dev-runtime/ryod
           RYO_TEST_WALLET_RPC: ${{ github.workspace }}/src-tauri/.dev-runtime/ryo-wallet-rpc
         run: cargo test -p ryo-wallet-service --test locked_node --locked -- --ignored
+
+  tauri-macos-check:
+    runs-on: macos-15-intel
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: 12.6.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - name: Install pinned Rust toolchain and Clippy
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component clippy
+          rustup default 1.98.1
+      - name: Build frontend assets and prepare reviewed runtimes
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+          node scripts/prepare-dev-runtime.mjs
+      - name: Clippy for Tauri host and diagnostics
+        run: cargo clippy -p ryo-wallet-next --all-targets --locked -- -D warnings
+      - name: Host tests including native macOS diagnostic probes
+        run: cargo test -p ryo-wallet-next --lib --locked

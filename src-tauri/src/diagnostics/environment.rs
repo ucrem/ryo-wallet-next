@@ -3,9 +3,16 @@ use std::path::Path;
 
 use serde::Serialize;
 
+#[cfg(any(target_os = "linux", test))]
+mod linux;
+#[cfg(any(target_os = "macos", test))]
+mod macos;
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+mod unix;
+
 #[derive(Serialize)]
 pub(super) struct EnvironmentReport {
-    windows_version: Option<WindowsVersion>,
+    os_version: Option<OsVersion>,
     webview_version: Option<String>,
     available_parallelism: Option<usize>,
     physical_memory: Option<MemoryReport>,
@@ -14,17 +21,34 @@ pub(super) struct EnvironmentReport {
 }
 
 #[derive(Serialize)]
-struct WindowsVersion {
-    major: u32,
-    minor: u32,
-    build: u32,
-    update_build_revision: Option<u32>,
+#[serde(tag = "platform", rename_all = "snake_case")]
+enum OsVersion {
+    #[cfg(any(windows, test))]
+    Windows {
+        major: u32,
+        minor: u32,
+        build: u32,
+        update_build_revision: Option<u32>,
+    },
+    #[cfg(any(target_os = "macos", test))]
+    Macos {
+        product_version: Option<String>,
+        kernel_version: Option<String>,
+        build: Option<String>,
+    },
+    #[cfg(any(target_os = "linux", test))]
+    Linux {
+        distribution: Option<&'static str>,
+        distribution_version: Option<String>,
+        kernel_version: Option<String>,
+    },
 }
 
 #[derive(Serialize)]
 struct MemoryReport {
     total_bytes: String,
     available_bytes: String,
+    availability_source: &'static str,
 }
 
 #[derive(Serialize)]
@@ -32,8 +56,9 @@ struct VolumeReport {
     filesystem: Option<&'static str>,
     supports_persistent_acls: Option<bool>,
     read_only: Option<bool>,
-    total_bytes_available_to_user: Option<String>,
+    total_bytes: Option<String>,
     free_bytes_available_to_user: Option<String>,
+    space_source: &'static str,
 }
 
 #[derive(Serialize)]
@@ -53,7 +78,30 @@ fn numeric_version(value: &str) -> Option<String> {
     .then(|| value.to_owned())
 }
 
-#[cfg(any(windows, test))]
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+fn byte_count(blocks: u128, block_size: u128) -> Option<String> {
+    if block_size == 0 {
+        return None;
+    }
+    u64::try_from(blocks.checked_mul(block_size)?)
+        .ok()
+        .map(|value| value.to_string())
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos", test))]
+fn kernel_release(value: &str) -> Option<String> {
+    let mut components = value.split(['-', '+']);
+    let base = numeric_version(components.next()?)?;
+    let revision = components.next().and_then(numeric_version);
+    // Keep a numeric distribution ABI/package revision (e.g. 6.8.0-60), but
+    // omit kernel flavor names and custom build suffixes.
+    Some(match revision {
+        Some(revision) => format!("{base}-{revision}"),
+        None => base,
+    })
+}
+
+#[cfg(any(windows, target_os = "macos", test))]
 fn filesystem_name(value: &str) -> &'static str {
     match value {
         "NTFS" => "NTFS",
@@ -63,6 +111,13 @@ fn filesystem_name(value: &str) -> &'static str {
         "exFAT" => "exFAT",
         "UDF" => "UDF",
         "CDFS" => "CDFS",
+        "apfs" => "APFS",
+        "hfs" => "HFS",
+        "msdos" => "FAT",
+        "exfat" => "exFAT",
+        "ntfs" => "NTFS",
+        "udf" => "UDF",
+        "cd9660" => "CDFS",
         _ => "other",
     }
 }
@@ -71,7 +126,7 @@ pub(super) fn collect(data_root: Option<&Path>) -> EnvironmentReport {
     let manifest: Option<serde_json::Value> =
         serde_json::from_str(include_str!("../../runtime-manifest.json")).ok();
     EnvironmentReport {
-        windows_version: windows_version(),
+        os_version: os_version(),
         webview_version: tauri::webview_version()
             .ok()
             .and_then(|value| numeric_version(&value)),
@@ -92,21 +147,26 @@ pub(super) fn collect(data_root: Option<&Path>) -> EnvironmentReport {
     }
 }
 
-#[cfg(not(windows))]
-fn windows_version() -> Option<WindowsVersion> {
+#[cfg(target_os = "linux")]
+use linux::{data_volume, os_version, physical_memory};
+#[cfg(target_os = "macos")]
+use macos::{data_volume, os_version, physical_memory};
+
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
+fn os_version() -> Option<OsVersion> {
     None
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn physical_memory() -> Option<MemoryReport> {
     None
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux", target_os = "macos")))]
 fn data_volume(_: &Path) -> Option<VolumeReport> {
     None
 }
 
 #[cfg(windows)]
-fn windows_version() -> Option<WindowsVersion> {
+fn os_version() -> Option<OsVersion> {
     use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
     use windows_sys::Win32::System::Registry::{
         HKEY_LOCAL_MACHINE, RRF_RT_REG_DWORD, RegGetValueW,
@@ -138,7 +198,7 @@ fn windows_version() -> Option<WindowsVersion> {
             &mut size,
         )
     };
-    Some(WindowsVersion {
+    Some(OsVersion::Windows {
         major: version.dwMajorVersion,
         minor: version.dwMinorVersion,
         build: version.dwBuildNumber,
@@ -157,6 +217,7 @@ fn physical_memory() -> Option<MemoryReport> {
     (unsafe { GlobalMemoryStatusEx(&mut memory) } != 0).then(|| MemoryReport {
         total_bytes: memory.ullTotalPhys.to_string(),
         available_bytes: memory.ullAvailPhys.to_string(),
+        availability_source: "windows_physical_available",
     })
 }
 
@@ -229,8 +290,9 @@ fn data_volume(root: &Path) -> Option<VolumeReport> {
             .then(|| filesystem_name(&String::from_utf16_lossy(&filesystem[..filesystem_end]))),
         supports_persistent_acls: volume_ok.then_some(flags & FILE_PERSISTENT_ACLS != 0),
         read_only: volume_ok.then_some(flags & FILE_READ_ONLY_VOLUME != 0),
-        total_bytes_available_to_user: space_ok.then(|| total.to_string()),
+        total_bytes: space_ok.then(|| total.to_string()),
         free_bytes_available_to_user: space_ok.then(|| free.to_string()),
+        space_source: "windows_user_available_capacity",
     })
 }
 
@@ -254,28 +316,85 @@ mod tests {
             assert!(numeric_version(value).is_none());
         }
         assert_eq!(filesystem_name("private-volume-canary"), "other");
+        assert_eq!(filesystem_name("apfs"), "APFS");
+        assert_eq!(byte_count(2, 4096).as_deref(), Some("8192"));
+        assert!(byte_count(u128::MAX, 4096).is_none());
+        assert!(byte_count(u64::MAX.into(), 2).is_none());
+        assert!(byte_count(1, 0).is_none());
+        assert_eq!(
+            kernel_release("6.8.0-60-generic").as_deref(),
+            Some("6.8.0-60")
+        );
+        assert_eq!(
+            kernel_release("6.17.0-private-machine-canary").as_deref(),
+            Some("6.17.0")
+        );
+        assert_eq!(kernel_release("24.6.0").as_deref(), Some("24.6.0"));
+        assert!(kernel_release("private-host-canary").is_none());
+        let version = OsVersion::Windows {
+            major: 10,
+            minor: 0,
+            build: 26100,
+            update_build_revision: Some(1),
+        };
+        assert_eq!(
+            serde_json::to_value(version).unwrap()["platform"],
+            "windows"
+        );
+    }
+
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
+    #[test]
+    fn native_unix_version_memory_and_local_disk_are_populated_without_identifiers_or_writes() {
+        let temp = tempfile::Builder::new()
+            .prefix("private-path-canary")
+            .tempdir()
+            .unwrap();
+        let version = os_version().expect("OS version unavailable");
+        let memory = physical_memory().expect("Physical memory unavailable");
+        let total: u64 = memory.total_bytes.parse().unwrap();
+        assert!(total > 0 && memory.available_bytes.parse::<u64>().unwrap() <= total);
+        let volume = data_volume(temp.path()).expect("Local volume unavailable");
+        assert!(volume.filesystem.is_some());
+        assert!(volume.total_bytes.as_ref().unwrap().parse::<u64>().unwrap() > 0);
+        assert!(
+            volume
+                .free_bytes_available_to_user
+                .as_ref()
+                .unwrap()
+                .parse::<u64>()
+                .is_ok()
+        );
+        assert_eq!(volume.supports_persistent_acls, None);
+        let json = serde_json::json!({ "version": version, "memory": memory, "volume": volume });
+        assert_eq!(json["version"]["platform"], std::env::consts::OS);
+        assert!(json["version"]["kernel_version"].as_str().is_some());
+        let json = json.to_string();
+        assert!(!json.contains(&temp.path().to_string_lossy().to_string()));
+        for key in [
+            "canary", "serial", "label", "username", "path", "machine", "mount", "hostname",
+        ] {
+            assert!(!json.contains(key));
+        }
+        assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
     }
 
     #[cfg(windows)]
     #[test]
     fn native_windows_facts_and_local_space_are_read_only_and_redacted() {
         let temp = tempfile::tempdir().unwrap();
-        let version = windows_version().expect("Windows version unavailable");
-        assert!(version.major >= 6 && version.build > 0);
+        let OsVersion::Windows { major, build, .. } =
+            os_version().expect("Windows version unavailable")
+        else {
+            panic!("unexpected OS version");
+        };
+        assert!(major >= 6 && build > 0);
         let memory = physical_memory().expect("Windows physical memory unavailable");
         let total: u64 = memory.total_bytes.parse().unwrap();
         assert!(total > 0 && memory.available_bytes.parse::<u64>().unwrap() <= total);
         let volume = data_volume(temp.path()).expect("Local volume unavailable");
         assert!(volume.filesystem.is_some());
-        assert!(
-            volume
-                .total_bytes_available_to_user
-                .as_ref()
-                .unwrap()
-                .parse::<u64>()
-                .unwrap()
-                > 0
-        );
+        assert!(volume.total_bytes.as_ref().unwrap().parse::<u64>().unwrap() > 0);
         assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
         let json = serde_json::to_string(&volume).unwrap();
         assert!(!json.contains(&temp.path().to_string_lossy().to_string()));
