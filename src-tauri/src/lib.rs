@@ -22,6 +22,7 @@ use zeroize::Zeroizing;
 
 mod app_settings;
 mod app_updates;
+mod diagnostics;
 mod wallet_import;
 mod wallet_operations;
 mod wallet_runtime;
@@ -1018,6 +1019,7 @@ pub fn run() {
             app_settings::app_activity,
             app_updates::app_update_check,
             app_updates::app_update_install,
+            diagnostics::app_export_diagnostics,
             wallet_overview,
             wallet_operations::wallet_operation,
             wallet_operations::wallet_key_images,

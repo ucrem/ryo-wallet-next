@@ -54,17 +54,17 @@ Mock tests are not proof of signing/broadcast semantics. If an isolated chain fi
 
 Tauri WebDriver supports desktop Linux/Windows; macOS needs a manual/native smoke route because WKWebView lacks the supported WebDriver route. Browser tests do not prove Tauri ACL or native process behavior. [Tauri WebDriver documentation](https://tauri.app/develop/tests/webdriver/).
 
-## CI design (not implemented yet)
+## CI coverage and remaining checks
 
-GitHub Actions on PR/push: read-only token, pinned actions/toolchains, Cargo.lock and pnpm frozen lock install. Jobs:
+PR checks are implemented in `.github/workflows/checks.yml`, with a read-only token, pinned actions/toolchains, Cargo.lock and a frozen pnpm install:
 
-1. Rust `cargo fmt --all -- --check`, `cargo clippy --workspace --all-targets -- -D warnings`, unit/domain/process tests.
+1. Rust formatting, strict service Clippy, unit/domain/process tests and generated DTO drift checks.
 2. TypeScript typecheck, ESLint, Vitest and Vite production build; generated DTO drift check.
-3. Linux/Windows/macOS matrix native `cargo check`/Tauri build validation with verified target binaries and required OS dependencies.
+3. Linux Tauri host check and native wallet import/local-node tests; Windows/Linux/macOS Intel service and funded genesis-fork integration with verified binaries.
 4. Runtime integration using disposable directories/network namespaces or isolated daemon ports; no real secrets/mainnet funds.
-5. Inspect production permissions/CSP, license and dependency advisories; record binary manifests/build provenance.
+5. Non-sensitive fixture receipts and public testnet availability observations are retained as CI artifacts. Current-fork, native capability-denial, installed desktop and full platform security checks remain acceptance gates.
 
-No release signing credentials in these jobs. Later release workflows remain a separate reviewed scope. Cache keys include platform/toolchain/lockfiles; artifacts never contain real wallets, log secrets or credential files.
+PR checks have no release signing credentials. Separate staging installer and promotion workflows implement the preview release process in [Packaging](PACKAGING.md). Artifacts exclude wallet files, raw logs and credential files. A passing short genesis-fork fixture does not prove current-fork transaction compatibility.
 
 ## First ten implementation tasks, in dependency order
 

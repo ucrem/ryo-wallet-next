@@ -9,6 +9,7 @@
     "allow-app-status",
     "allow-app-settings",
     "allow-app-updates",
+    "allow-app-diagnostics",
     "allow-wallet-overview",
     "allow-wallet-receive",
     "allow-wallet-lifecycle",

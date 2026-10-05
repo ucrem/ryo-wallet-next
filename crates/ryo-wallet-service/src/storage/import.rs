@@ -73,7 +73,7 @@ pub fn copy_wallet_pair(
         .map_err(ImportError::Destination)?;
     let destination_dir = app_paths.wallet_dir(wallet_id);
     fs::create_dir(&destination_dir).map_err(ImportError::Io)?;
-    set_owner_only(&destination_dir).map_err(ImportError::Io)?;
+    super::secure_directory(&destination_dir).map_err(ImportError::Io)?;
 
     let wallet_path = destination_dir.join("wallet");
     let keys_path = destination_dir.join("wallet.keys");
@@ -147,19 +147,9 @@ fn copy_file_bounded(
         }
         writer.write_all(&buffer[..read]).map_err(ImportError::Io)?;
     }
-    writer.flush().map_err(ImportError::Io)
-}
-
-#[cfg(unix)]
-fn set_owner_only(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-}
-
-#[cfg(not(unix))]
-fn set_owner_only(_path: &Path) -> std::io::Result<()> {
-    Ok(())
+    writer.flush().map_err(ImportError::Io)?;
+    writer.get_ref().sync_all().map_err(ImportError::Io)?;
+    super::secure_file(destination).map_err(ImportError::Io)
 }
 
 #[cfg(test)]

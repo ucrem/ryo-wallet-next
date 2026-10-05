@@ -549,7 +549,19 @@ async fn run_actor(
                 password,
                 response,
             } => {
-                let result = match lifecycle.begin_open() {
+                let result = match lifecycle
+                    .begin_open()
+                    .map_err(WalletServiceError::Lifecycle)
+                    .and_then(|_| {
+                        app_paths
+                            .as_ref()
+                            .ok_or(WalletServiceError::Unavailable)
+                            .and_then(|paths| {
+                                paths
+                                    .secure_existing_wallet(&wallet_id)
+                                    .map_err(WalletServiceError::Storage)
+                            })
+                    }) {
                     Ok(_) => match session.as_ref() {
                         Some(session) => match session
                             .client()
@@ -564,7 +576,7 @@ async fn run_actor(
                         },
                         None => Err(WalletServiceError::Unavailable),
                     },
-                    Err(error) => Err(WalletServiceError::Lifecycle(error)),
+                    Err(error) => Err(error),
                 };
                 if result.is_err() && lifecycle.status().state == super::LifecycleState::Opening {
                     let _ = lifecycle.opening_failed();

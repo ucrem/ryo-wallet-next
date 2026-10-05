@@ -73,6 +73,8 @@ jobs:
           rustup default 1.98.1
       - name: Prepare unchanged reviewed native runtimes
         run: node scripts/prepare-dev-runtime.mjs
+      - name: Native service permissions and process ownership tests
+        run: cargo test -p ryo-wallet-service --lib --locked
       - name: Observe public testnet availability from this runner
         continue-on-error: true
         run: node scripts/probe-testnet.mjs 30
@@ -123,6 +125,8 @@ jobs:
           node scripts/prepare-dev-runtime.mjs
       - name: Check Tauri host
         run: cargo check -p ryo-wallet-next --locked
+      - name: Host tests including redacted diagnostics export
+        run: cargo test -p ryo-wallet-next --lib --locked
       - name: Verify wallet-file import with disposable copied wallets
         run: cargo test -p ryo-wallet-next --lib wallet_import --locked -- --ignored --nocapture
       - name: Verify independent local-node lifecycle with disposable wallet

@@ -1,6 +1,6 @@
 # Next release: testnet validation
 
-Updated 2026-10-03. This milestone validates the existing wallet rather than declaring it stable after a successful transfer. Candidate version and publication remain undecided until the acceptance gates pass.
+Updated 2026-10-05. Candidate version and publication remain undecided until the acceptance gates pass. The user reports that Ryo developers will restore testnet after their migration; current-fork funded acceptance is explicitly waiting for that restoration. No newly guessed endpoint or short-chain pass closes this gate.
 
 ## Evidence so far
 
@@ -77,12 +77,14 @@ The probe contacts public testnet peers, creates a separate chain under `target/
 | Native tray, autostart, inactivity and OS suspend/resume | Not verified end to end | Not verified | Not verified | Required |
 | Hybrid bootstrap handover to a complete local chain | Not verified | Not verified | Not verified | Required if hybrid is included |
 | Native capability denials / CSP | Not verified end to end | Not verified | Not verified | Required |
-| Private file permissions and crash process ownership | Owner ACL / Job Object gates open | Full gate open | Full gate open | Required |
+| Private file permissions and crash process ownership | Native ACL and abrupt-owner-exit Job Object tests pass; installed crash recovery and spawn window remain open | Unix modes tested; process-group/full installed gate open | Unix modes tested; full installed gate open | Required |
 | Installed update, OS signing/notarization, dependency/notices inventory | Gates open | Gates open | Gates open | Required |
 
 CI adds this unchanged-runtime funded suite on all three supported native targets and retains **only** the non-sensitive acceptance and public-availability receipts. Each runner also probes public peers for 30 seconds to distinguish our host's connectivity from runner observations. That observation cannot waive a funded current-fork gate; a probe error is retained independently and does not prevent the isolated fixture from running. These checks do not prove GUI behavior, clean installation, OS signing, or current-fork readiness.
 
 ## Next dependent step
+
+Continue local hardening and installation checks with disposable wallets. Current-fork tests remain deferred until the Ryo developers restore the maintained network. The earlier peer probes are historical availability evidence, not a request to repeatedly probe an unavailable network.
 
 Obtain a maintained testnet peer and enough spendable test coins, or a reviewed reproducible fixture that exercises current consensus features. Verify daemon network, tip/fork and runtime identity before running a funded current-fork suite. A guessed RPC port, merely setting `--testnet`, or passing a mocked transaction is insufficient evidence.
 

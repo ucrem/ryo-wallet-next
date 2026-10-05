@@ -22,12 +22,17 @@ pub enum ProcessError {
     Wait(#[source] std::io::Error),
     #[error("sidecar could not be terminated")]
     Terminate(#[source] std::io::Error),
+    #[cfg(windows)]
+    #[error("sidecar process ownership could not be established")]
+    Ownership(#[source] std::io::Error),
 }
 
 /// An app-owned child process. This type has no public constructor: a future
 /// lifecycle adapter can create it only after manifest verification succeeds.
 pub struct ManagedProcess {
     child: Child,
+    #[cfg(windows)]
+    _job: super::windows_job::ProcessJob,
 }
 
 impl ManagedProcess {
@@ -98,8 +103,26 @@ impl ManagedProcess {
                 command.env("SystemRoot", system_root);
             }
         }
+        #[cfg(windows)]
+        let job = super::windows_job::ProcessJob::new().map_err(ProcessError::Ownership)?;
         let child = command.spawn().map_err(ProcessError::Start)?;
-        Ok(Self { child })
+        #[cfg(windows)]
+        let mut child = child;
+        #[cfg(windows)]
+        if let Err(error) = child
+            .raw_handle()
+            .ok_or_else(|| std::io::Error::other("sidecar exited before ownership"))
+            .and_then(|handle| job.assign(handle))
+        {
+            let _ = child.start_kill();
+            let _ = timeout(Duration::from_secs(2), child.wait()).await;
+            return Err(ProcessError::Ownership(error));
+        }
+        Ok(Self {
+            child,
+            #[cfg(windows)]
+            _job: job,
+        })
     }
 
     pub fn pid(&self) -> Option<u32> {

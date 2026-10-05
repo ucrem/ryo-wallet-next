@@ -7,6 +7,8 @@ mod binary;
 mod credentials;
 mod scan_progress;
 mod supervisor;
+#[cfg(windows)]
+mod windows_job;
 pub(crate) use scan_progress::ScanProgress;
 mod upstream_path;
 pub use upstream_path::upstream_path;

@@ -5,6 +5,7 @@ import { releaseUrl } from "@/lib/appVersion"
 import type { AppVersionInfo } from "@/lib/useAppVersion"
 import type { AppUpdates } from "@/lib/useAppUpdates"
 import { Button } from "@/components/ui/button"
+import { Diagnostics } from "./Diagnostics"
 
 export function About({ appVersion, updates }: { appVersion: AppVersionInfo; updates: AppUpdates }) {
   const [openError, setOpenError] = useState(false)
@@ -148,6 +149,8 @@ export function About({ appVersion, updates }: { appVersion: AppVersionInfo; upd
         {updates.error ? <p className="mt-3 text-sm text-red-300" role="alert">{updates.error}</p> : null}
         {openError ? <p className="mt-2 text-sm text-red-300" role="alert">Could not open your browser. Please try again.</p> : null}
       </section>
+
+      <Diagnostics isNative={appVersion.isNative} />
 
       <section aria-labelledby="changelog-title" className="mt-9">
         <h2 id="changelog-title" className="text-xl font-semibold">What&apos;s new</h2>

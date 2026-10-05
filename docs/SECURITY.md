@@ -1,6 +1,6 @@
 # Security design
 
-This is a threat model and release checklist, not a completed security audit. No wallet application has been implemented. Source evidence: [upstream analysis](UPSTREAM_ANALYSIS.md).
+This is a threat model and release checklist, not a completed security audit. The desktop preview implements wallet creation, recovery, import, synchronization and transaction preparation/relay. Implemented controls and verified limitations are recorded in [implementation status](IMPLEMENTATION_STATUS.md) and the [acceptance matrix](TESTNET_VALIDATION.md). Source evidence: [upstream analysis](UPSTREAM_ANALYSIS.md).
 
 ## Assets, adversaries and trust boundaries
 
@@ -61,6 +61,12 @@ No remote JS/CDNs, HTML rendering of notes/errors, eval, third-party analytics, 
 
 ## Sidecars and platform ownership
 
+Windows app-managed network, wallet, chain and runtime directories receive protected DACLs granting the current user and LocalSystem access. New files inherit that policy; imported copies and existing wallet file pairs are explicitly secured. The selected parent directory (including a drive root) and imported originals are not permission targets. Credential reads validate owner and DACL on the same open handle used for the bounded read; null/broad ACLs and final reparse points are rejected. Tests cover inherited access, an Everyone read grant, a null DACL, and preservation of a shared selected parent. Native [GetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-getsecurityinfo) and SetSecurityInfo APIs implement this policy. Administrators retain privileged OS recovery; this does not isolate secrets from a compromised OS or same-user malware. Filesystems that cannot enforce the policy fail startup/import rather than silently losing protection.
+
+Each verified Windows sidecar is assigned to an anonymous, non-inheritable [Job Object](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects) with kill-on-close before it becomes usable. Assignment failure stops the child and rejects startup. An isolated subprocess test exits without Rust destructors and verifies kernel termination of its owned child. The stable process API still has a small spawn-to-assignment window; abrupt exit inside that window is not covered. Graceful wallet checkpointing remains necessary to retain the latest scan cache. Unix descendant process-group ownership and cross-platform installed crash/recovery checks remain open.
+
+About can export an explicitly allowlisted JSON report through a Rust-owned native save dialog. It contains app/platform version, network/mode, lifecycle, cached scan height, node health and fixed observation categories. It excludes endpoints, paths, wallet IDs/names/addresses, raw logs/errors, passwords, keys and signed transaction metadata; nothing is uploaded. Cancellation writes nothing, existing files are never replaced, and application storage is excluded as a destination. See [Diagnostics](DIAGNOSTICS.md).
+
 Use Tauri `bundle.externalBin` for traceable packaging, with architecture-suffixed inputs. Rust process supervision owns launching and termination; no renderer shell API. Prefer `tokio::process::Command` behind an injected `BinaryLocator`, so services remain Tauri-independent. Resolve packaged paths using a tested platform adapter; never use PATH, the current directory or a user-writable random executable. [Tauri sidecar packaging](https://tauri.app/develop/sidecar/).
 
 | Target | Initial architecture | Required checks |
@@ -71,7 +77,7 @@ Use Tauri `bundle.externalBin` for traceable packaging, with architecture-suffix
 
 Target triples describe package targets; they do not prove upstream Ryo binaries currently exist for each. Separate macOS architecture packages are simpler initially than assuming a universal sidecar. Linux/Windows ARM64 and mobile are post-MVP pending upstream support.
 
-Bundle both wallet-rpc and ryod in the eventual full desktop package, start ryod only in Local mode. During development, an explicitly configured external binary must still match an approved digest/build manifest before running. Missing/quarantined/wrong-architecture binaries yield clear failure, never unverified downloads or automatic node-mode changes.
+Both wallet-rpc and ryod are bundled in the desktop preview; ryod starts only in Local or Hybrid mode. During development, an explicitly configured external binary must still match an approved digest/build manifest before running. Missing/quarantined/wrong-architecture binaries yield clear failure, never unverified downloads or automatic node-mode changes.
 
 Manifest per binary: upstream commit/tag, build recipe/toolchain, target, digest, license notices, expected version/protocol profile. Hash verification must anchor to reviewed signed release/build provenance, not a hash fetched beside an untrusted binary. Avoid executable replacement races by protected install locations and fail on modification. Running verified code as an unprivileged user does not sandbox that code from the user's wallet files.
 

@@ -35,15 +35,15 @@ impl AppPaths {
     }
 
     pub fn ensure_private_dirs(&self) -> Result<(), PathError> {
+        fs::create_dir_all(self.root()).map_err(PathError::Io)?;
         for path in [
-            self.root().to_path_buf(),
             self.network_root(),
             self.wallets_root(),
             self.runtime_root(),
             self.chain_root(),
         ] {
             fs::create_dir_all(&path).map_err(PathError::Io)?;
-            set_owner_only(&path).map_err(PathError::Io)?;
+            super::secure_directory(&path).map_err(PathError::Io)?;
         }
         Ok(())
     }
@@ -79,8 +79,17 @@ impl AppPaths {
         self.ensure_private_dirs()?;
         let directory = self.wallet_dir(wallet_id);
         fs::create_dir(&directory).map_err(PathError::Io)?;
-        set_owner_only(&directory).map_err(PathError::Io)?;
+        super::secure_directory(&directory).map_err(PathError::Io)?;
         Ok(directory)
+    }
+
+    pub fn secure_existing_wallet(&self, wallet_id: &WalletId) -> Result<(), PathError> {
+        let directory = self.wallet_dir(wallet_id);
+        super::secure_directory(&directory).map_err(PathError::Io)?;
+        for filename in ["wallet", "wallet.keys"] {
+            super::secure_file(&directory.join(filename)).map_err(PathError::Io)?;
+        }
+        Ok(())
     }
 }
 
@@ -90,20 +99,6 @@ fn network_segment(network: Network) -> &'static str {
         Network::Testnet => "testnet",
         Network::Stagenet => "stagenet",
     }
-}
-
-#[cfg(unix)]
-fn set_owner_only(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-}
-
-#[cfg(not(unix))]
-fn set_owner_only(_path: &Path) -> std::io::Result<()> {
-    // Windows ACL enforcement is an explicit platform adapter task. Do not
-    // claim Unix modes provide equivalent protection there.
-    Ok(())
 }
 
 #[cfg(test)]
@@ -140,16 +135,20 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
 
         let temp = tempfile::tempdir().unwrap();
+        fs::set_permissions(temp.path(), fs::Permissions::from_mode(0o755)).unwrap();
         let paths = AppPaths::new(temp.path().to_path_buf(), Network::Mainnet).unwrap();
         paths.ensure_private_dirs().unwrap();
         for path in [
-            paths.root().to_path_buf(),
             paths.network_root(),
             paths.wallets_root(),
             paths.runtime_root(),
         ] {
             assert_eq!(fs::metadata(&path).unwrap().permissions().mode() & 0o077, 0);
         }
+        assert_eq!(
+            fs::metadata(temp.path()).unwrap().permissions().mode() & 0o777,
+            0o755
+        );
     }
 
     #[test]
