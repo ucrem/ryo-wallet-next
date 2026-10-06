@@ -1,0 +1,140 @@
+{
+  "funded": {
+    "architecture": "x86_64",
+    "checks": [
+      "two real exclusive peers and chain propagation",
+      "mature mined outputs",
+      "actual fee and exact nine-decimal amount",
+      "cancel and no relay before confirmation",
+      "one-shot relay and pool acceptance",
+      "subaddress receipt and confirmed history",
+      "reply lost after daemon acceptance",
+      "persisted unknown journal and fresh-owner reconciliation",
+      "wallet lock leaves nodes active",
+      "funded seed recovery",
+      "rescan and encrypted key images",
+      "real partial split send and no automatic unsent relay after restart",
+      "sweep and zero sender balance",
+      "persisted chain restart",
+      "no test password or recovery phrase in raw logs"
+    ],
+    "current_fork_gate_passed": false,
+    "finished_at_unix": 1791311603,
+    "height": 195,
+    "platform": "windows",
+    "profile": "isolated-testnet-genesis-v1",
+    "runtime": "0.6.1.0"
+  },
+  "availability": {
+    "observedAt": "2026-10-06T18:31:31.152Z",
+    "runtime": "0.6.1.0",
+    "daemonSha256": "a60f8db0ff0e7fd258f7a74c5ec975ca54b732b011c6b5bf706584c2785d3590",
+    "upstreamSeedSource": "166cf188bf351e3eecff904450eda2785f9d0357/src/p2p/net_node.inl",
+    "atomPeerSource": "6c8d0aa68245271fe0e781084b38583abf758869/src-electron/main-process/modules/daemon.js",
+    "observationSeconds": 30,
+    "seeds": [
+      {
+        "host": "185.134.22.134",
+        "port": 13310,
+        "tcpReachable": false
+      },
+      {
+        "host": "81.19.208.43",
+        "port": 13310,
+        "tcpReachable": false
+      },
+      {
+        "host": "149.56.44.109",
+        "port": 13310,
+        "tcpReachable": false
+      },
+      {
+        "host": "45.77.68.151",
+        "port": 13310,
+        "tcpReachable": false
+      }
+    ],
+    "explorerDns": "resolved",
+    "samples": [
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      },
+      {
+        "height": 1,
+        "targetHeight": 0,
+        "difficulty": 1,
+        "ready": false,
+        "outgoing": 0,
+        "incoming": 0,
+        "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+      }
+    ],
+    "publicSyncObserved": false,
+    "exitCode": 0
+  },
+  "scan_resume": {
+    "checks": [
+      "busy_rpc_observed",
+      "graceful_cache_saved",
+      "offline_height_preserved",
+      "offline_funded_balance_preserved",
+      "second_restart_history_preserved"
+    ],
+    "current_fork_gate_passed": false,
+    "observed_at_unix": 1791311651,
+    "platform": "windows",
+    "processed_height": 81,
+    "profile": "isolated-testnet-genesis-busy-lock-v1"
+  }
+}

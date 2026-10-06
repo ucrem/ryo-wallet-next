@@ -1,0 +1,215 @@
+{
+  "source_revision": "3debc4f58d83c43f0df4495fa72fe2ce0126be63",
+  "platform": "windows",
+  "mechanism": "Isolated NSIS installation and embedded WebView2 Tauri IPC over loopback CDP; no GUI inputs/screenshots",
+  "user_wallets_used": false,
+  "rendered_gui_acceptance": false,
+  "checks": [
+    {
+      "name": "resume previously verified isolated NSIS installation",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed runtime digest: ryod.exe",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed runtime digest: ryo-wallet-rpc.exe",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: dependency-inventory.json",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: DEPENDENCY_NOTICES.txt",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: runtime-inventory.json",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: RYO-LICENSE.txt",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: RYO-ORIGINAL-LICENSE.txt",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed notice digest: THIRD_PARTY_NOTICES.md",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "valid existing configuration has no recovery warning",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "embedded frontend executed and mounted",
+      "passed": true,
+      "evidence": {
+        "children": 1,
+        "assets": true
+      }
+    },
+    {
+      "name": "packaged reviewed runtime ready",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "stale node stage permits repeated native settings saves",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "stale data-root stage permits native network change",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native data-root configuration replaces repeatedly",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "recoverable startup: Damaged preferences",
+      "passed": true,
+      "evidence": {
+        "notice_count": 1,
+        "root_unconfigured": false
+      }
+    },
+    {
+      "name": "invalid configuration retained exactly: preferences.json",
+      "passed": true,
+      "evidence": {
+        "backup_count": 1,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "name": "startup service available after Damaged preferences",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "recoverable startup: Damaged preferences",
+      "passed": true,
+      "evidence": {
+        "notice_count": 1,
+        "root_unconfigured": false
+      }
+    },
+    {
+      "name": "invalid configuration retained exactly: preferences.json",
+      "passed": true,
+      "evidence": {
+        "backup_count": 1,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "name": "startup service available after Damaged preferences",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "recoverable startup: damaged data-location",
+      "passed": true,
+      "evidence": {
+        "notice_count": 1,
+        "root_unconfigured": true
+      }
+    },
+    {
+      "name": "invalid configuration retained exactly: wallet-data-root.json",
+      "passed": true,
+      "evidence": {
+        "backup_count": 1,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "name": "startup service available after damaged data-location",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "recoverable startup: damaged data-location",
+      "passed": true,
+      "evidence": {
+        "notice_count": 1,
+        "root_unconfigured": true
+      }
+    },
+    {
+      "name": "invalid configuration retained exactly: wallet-data-root.json",
+      "passed": true,
+      "evidence": {
+        "backup_count": 1,
+        "original_bytes_preserved": true
+      }
+    },
+    {
+      "name": "startup service available after damaged data-location",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "configuration recovery leaves unrelated selected data intact",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "valid original folder can reopen after recovery",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "isolated uninstallation removes registration and application",
+      "passed": true,
+      "evidence": {}
+    }
+  ],
+  "harness_correction": "First run incorrectly required an exit code from PowerShell Get-Process; normal-close exit observation succeeded but the retrieved ExitCode was null. Retest requires observed exit and fresh IPC startup. Prior receipt is preserved.",
+  "installer_sha256": "d29cff72376914ac887b01246cf54be2c85160bf3df2207286d478104710ab40",
+  "legal_payload": [
+    {
+      "file": "dependency-inventory.json",
+      "sha256": "d36443dae4c7eed9d05a700c297130a3d1b3d7e904d5e54f89ebe7fffef59b55"
+    },
+    {
+      "file": "DEPENDENCY_NOTICES.txt",
+      "sha256": "4ee13bfd82fd841bb83a16f5f832db198d05cd3e49cc84649bcc4aff4de41c75"
+    },
+    {
+      "file": "runtime-inventory.json",
+      "sha256": "ce4bfce0fab9dc84570df560083d2d28af55cd4f1c87bbe3aaa181b03aa80d25"
+    },
+    {
+      "file": "RYO-LICENSE.txt",
+      "sha256": "ef035ea12b54fc1d6b9ae6f2d5f241d64f860634f95e9e5f5a51a6557c3ce109"
+    },
+    {
+      "file": "RYO-ORIGINAL-LICENSE.txt",
+      "sha256": "94201a5b8629ea925e27ef2fd870a272058d9fa81a30801f4ce56c4a1d1d5c0e"
+    },
+    {
+      "file": "THIRD_PARTY_NOTICES.md",
+      "sha256": "e2d5e4ab2ea061b66eba3ccb9d9a87a14404f7d463a8fb892f04e40a138ecd8e"
+    }
+  ],
+  "completed": true
+}

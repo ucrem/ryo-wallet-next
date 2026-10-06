@@ -1,0 +1,36 @@
+$ErrorActionPreference = 'Stop'
+$env:PATH = 'C:\Users\davide\.cargo\bin;' + $env:PATH
+$taskWorkspace = 'F:\DEV\ryo-wallet-next-main'
+$taskRelease = Join-Path $taskWorkspace 'target\release'
+$taskEvidence = Join-Path $taskWorkspace 'target\bug-fixes-2026-10-06'
+$taskPreserved = @()
+foreach ($taskName in @('ryo-wallet-next.exe', 'ryo-wallet-rpc.exe', 'ryod.exe')) {
+    $taskOriginal = Join-Path $taskRelease $taskName
+    $taskBackup = Join-Path $taskEvidence ('desktop-before-fixes-' + $taskName)
+    if (Test-Path -LiteralPath $taskBackup) { throw 'Desktop backup already exists' }
+    if (Test-Path -LiteralPath $taskOriginal) {
+        Move-Item -LiteralPath $taskOriginal -Destination $taskBackup
+        $taskPreserved += @{Original=$taskOriginal; Backup=$taskBackup}
+    }
+}
+$taskSucceeded = $false
+try {
+    pnpm exec tauri build --ci --no-bundle *> (Join-Path $taskEvidence 'standalone-build.log')
+    if ($LASTEXITCODE -ne 0) { throw 'Standalone Tauri build failed' }
+    $taskLegal = Join-Path $taskRelease 'legal'
+    New-Item -ItemType Directory -Path $taskLegal -Force | Out-Null
+    Get-ChildItem -LiteralPath (Join-Path $taskWorkspace 'src-tauri\resources\legal') -File | ForEach-Object {
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $taskLegal $_.Name)
+    }
+    $taskSucceeded = $true
+} finally {
+    if (-not $taskSucceeded) {
+        foreach ($taskPair in $taskPreserved) {
+            if (Test-Path -LiteralPath $taskPair.Original) {
+                Move-Item -LiteralPath $taskPair.Original -Destination (Join-Path $taskEvidence ('failed-standalone-' + [IO.Path]::GetFileName($taskPair.Original)))
+            }
+            Move-Item -LiteralPath $taskPair.Backup -Destination $taskPair.Original
+        }
+    }
+}
+Get-Content -LiteralPath (Join-Path $taskEvidence 'standalone-build.log') -Tail 4

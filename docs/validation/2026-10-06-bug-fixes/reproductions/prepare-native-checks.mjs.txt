@@ -1,0 +1,25 @@
+import { readFile, writeFile } from 'node:fs/promises'
+import { resolve, join } from 'node:path'
+const base=resolve('target/bug-fixes-2026-10-06')
+const original=resolve('target/release-audit-2026-10-06-e5a7f55')
+const replacements=[
+ ['release-audit-2026-10-06-e5a7f55','bug-fixes-2026-10-06'],
+ ['Ryo Wallet Next Release Audit','Ryo Wallet Next Bug Fix Review'],
+ ['ryo-wallet-next-release-audit','ryo-wallet-next-bugfix-review'],
+ ['releaseaudit20261006','bugfixreview20261006'],
+ ['Ryo Wallet Next - Release Audit','Ryo Wallet Next - Bug Fix Review'],
+ ['tauri.audit.conf.json','tauri.bugfix.conf.json'],
+ ['release-audit-setup.exe','bugfix-review-setup.exe'],
+ ['isolated-native-build.log','isolated-bugfix-build.log']
+]
+for(const name of ['build-isolated.ps1','windows-session.ps1','windows-ipc-lib.mjs']) {
+ let text=await readFile(join(original,name),'utf8')
+ for(const [from,to] of replacements) text=text.replaceAll(from,to)
+ await writeFile(join(base,name),text)
+}
+const config=JSON.parse(await readFile(join(original,'tauri.audit.conf.json'),'utf8'))
+config.productName='Ryo Wallet Next Bug Fix Review'
+config.mainBinaryName='ryo-wallet-next-bugfix-review'
+config.identifier='io.github.ucrem.ryowalletnext.bugfixreview20261006'
+config.app.windows[0].title='Ryo Wallet Next - Bug Fix Review'
+await writeFile(join(base,'tauri.bugfix.conf.json'),JSON.stringify(config,null,2)+'\n')

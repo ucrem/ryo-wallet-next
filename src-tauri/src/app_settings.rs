@@ -37,20 +37,6 @@ fn preferences_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, &'stat
         .map_err(|_| "preferences storage is unavailable")
 }
 
-#[cfg(test)]
-fn read_preferences(path: &Path) -> Result<Option<Preferences>, &'static str> {
-    match fs::read(path) {
-        Ok(bytes) if bytes.len() <= 16384 => {
-            let prefs: Preferences =
-                serde_json::from_slice(&bytes).map_err(|_| "saved preferences are invalid")?;
-            prefs.validate()?;
-            Ok(Some(prefs))
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
-        _ => Err("saved preferences could not be read"),
-    }
-}
-
 fn write_preferences(path: &Path, prefs: &Preferences) -> Result<(), &'static str> {
     prefs.validate()?;
     let parent = path.parent().ok_or("preferences storage is unavailable")?;
@@ -388,18 +374,28 @@ pub fn setup_tray(app: &tauri::AppHandle) -> tauri::Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn preferences_persist_replace_and_reject_malformed_input() {
+    fn preferences_persist_replace_and_recover_malformed_input() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("preferences.json");
-        assert_eq!(read_preferences(&path).unwrap(), None);
+        let state = crate::configuration_recovery::RecoveryState::default();
+        let read = || {
+            crate::configuration_recovery::load(
+                &path,
+                |prefs: &Preferences| prefs.validate().is_ok(),
+                crate::configuration_recovery::Kind::Preferences,
+                &state,
+            )
+        };
+        assert_eq!(read(), None);
         let mut prefs = Preferences::default();
         write_preferences(&path, &prefs).unwrap();
         prefs.theme = Theme::Light;
         prefs.idle_lock_seconds = 0;
         write_preferences(&path, &prefs).unwrap();
-        assert_eq!(read_preferences(&path).unwrap(), Some(prefs));
+        assert_eq!(read(), Some(prefs));
         fs::write(&path, b"invalid").unwrap();
-        assert!(read_preferences(&path).is_err());
+        assert_eq!(read(), None);
+        assert!(state.messages()[0].contains("backed up"));
     }
     #[test]
     fn general_settings_rebuild_trust_and_validate_bootstrap_and_ports() {

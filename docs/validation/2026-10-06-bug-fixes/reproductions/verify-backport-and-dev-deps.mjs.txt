@@ -1,0 +1,45 @@
+import { readdir, readFile, writeFile } from 'node:fs/promises'
+import { join, resolve, relative } from 'node:path'
+import { createHash } from 'node:crypto'
+import { spawnSync } from 'node:child_process'
+import assert from 'node:assert/strict'
+const root = resolve('.')
+const base = join(root, 'target/bug-fixes-2026-10-06')
+const original = join(base, 'glib-original/glib-0.18.5')
+const patched = join(root, 'vendor/glib')
+const digest = bytes => createHash('sha256').update(bytes).digest('hex')
+async function files(dir, top = dir) {
+  const result = []
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) result.push(...await files(path, top))
+    else if (entry.isFile()) result.push(relative(top, path))
+    else throw Error('Unexpected vendored entry')
+  }
+  return result.sort()
+}
+const originalFiles = await files(original)
+const patchedFiles = await files(patched)
+assert.deepEqual(patchedFiles.filter(path => path !== 'RYO_PATCH_PROVENANCE.json'), originalFiles)
+const changed = []
+for (const path of originalFiles) if (digest(await readFile(join(original, path))) !== digest(await readFile(join(patched, path)))) changed.push(path.replaceAll('\\','/'))
+assert.deepEqual(changed, ['src/variant_iter.rs'])
+const patch = JSON.parse(await readFile(join(patched, 'RYO_PATCH_PROVENANCE.json')))
+assert.equal(digest(await readFile(join(original, patch.modified_file))), patch.original_file_sha256)
+assert.equal(digest(await readFile(join(patched, patch.modified_file))), patch.patched_file_sha256)
+const mapPath = join(root, 'node_modules/.pnpm/source-map-js@1.2.2/node_modules/source-map-js')
+const cases = [
+  { name:'source-map-control', code:`const s=require(${JSON.stringify(mapPath)});const c=new s.SourceMapConsumer({version:3,sections:[{offset:{line:0,column:0},map:{version:3,sources:['audit.ts'],names:[],mappings:'AAAA',sourcesContent:['x']}}]});s.SourceNode.fromStringWithSourceMap('x',c);console.log('completed')` },
+  { name:'source-map-large-offset', code:`const s=require(${JSON.stringify(mapPath)});const c=new s.SourceMapConsumer({version:3,sections:[{offset:{line:1000000000,column:0},map:{version:3,sources:['audit.ts'],names:[],mappings:'AAAA',sourcesContent:['x']}}]});s.SourceNode.fromStringWithSourceMap('x',c);console.log('completed')` }
+]
+const results = cases.map(({ name,code }) => {
+  const start=Date.now()
+  const result=spawnSync(process.execPath,['-e',code],{timeout:1500,windowsHide:true,encoding:'utf8',maxBuffer:65536})
+  assert.equal(result.error,undefined,`${name} timed out or could not run`)
+  if(name==='source-map-control') assert.equal(result.status,0,result.stderr)
+  else { assert.equal(result.status,1);assert.match(result.stderr,/Section offset line must not exceed 10000000/); }
+  return {name,elapsed_ms:Date.now()-start,exit_code:result.status,terminated_for_timeout:result.error?.code==='ETIMEDOUT',stdout:result.stdout.trim(),rejected_oversized_offset:name==='source-map-large-offset'}
+})
+const report={glib:{original_files:originalFiles.length,modified_files:changed,patch_provenance:patch},source_map_js:{version:'1.2.2',child_timeout_ms:1500,results}}
+await writeFile(join(base,'backport-and-dev-deps.json'),JSON.stringify(report,null,2)+'\n')
+console.log(JSON.stringify({original_files:originalFiles.length,changed,results}))

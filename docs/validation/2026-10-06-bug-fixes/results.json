@@ -1,0 +1,578 @@
+{
+  "schema_version": 1,
+  "fix_revision": "3debc4f58d83c43f0df4495fa72fe2ce0126be63",
+  "baseline_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "review": "Primary-agent source review; subsequent removal of an obsolete cfg(test) parser and update of its regression does not change production behavior",
+  "issues": [
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46
+  ],
+  "frontend": {
+    "files": 19,
+    "passed": 82
+  },
+  "windows_rust": {
+    "passed": 110,
+    "ignored": 13
+  },
+  "packaging_regressions": {
+    "passed": 4
+  },
+  "npm_vulnerabilities": {
+    "info": 0,
+    "low": 0,
+    "moderate": 0,
+    "high": 0,
+    "critical": 0
+  },
+  "installed_windows": {
+    "passed": 30,
+    "completed": true,
+    "user_wallets_used": false,
+    "rendered_gui_acceptance": false
+  },
+  "glib": {
+    "source_backport": true,
+    "version_scanner_may_still_match": true,
+    "optimized_linux_regression": "passed"
+  },
+  "ci": {
+    "run_id": 37511603241,
+    "source_revision": "3debc4f58d83c43f0df4495fa72fe2ce0126be63",
+    "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241",
+    "jobs": [
+      {
+        "id": 112433878646,
+        "name": "rust-foundation",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878646",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain and components",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Format",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Clippy for reusable service",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Service tests and generated type drift",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433878785,
+        "name": "Isolated testnet genesis (windows-2022)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878785",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare unchanged reviewed native runtimes",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Native service permissions and process ownership tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Windows RPC startup from existing owner Modify-only storage",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Observe public testnet availability from this runner",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Funded and busy-scan cache fixtures (genesis fork, not current-fork acceptance)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload non-sensitive acceptance and availability receipts",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433878794,
+        "name": "tauri-macos-check",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878794",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain and Clippy",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build frontend assets and prepare reviewed runtimes",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Clippy for Tauri host and diagnostics",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Host tests including native macOS diagnostic probes",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check embedded desktop frontend context",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433878817,
+        "name": "frontend",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878817",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install exact frontend dependencies",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate application and changelog versions",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Typecheck and lint",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Frontend tests and production build",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Validate update manifest preparation",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433878927,
+        "name": "Isolated testnet genesis (ubuntu-24.04)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878927",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare unchanged reviewed native runtimes",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Native service permissions and process ownership tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Windows RPC startup from existing owner Modify-only storage",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Observe public testnet availability from this runner",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Funded and busy-scan cache fixtures (genesis fork, not current-fork acceptance)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload non-sensitive acceptance and availability receipts",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433878988,
+        "name": "tauri-linux-check",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433878988",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install Tauri Linux build prerequisites",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Build frontend assets",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check Tauri host",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Clippy for Tauri host and diagnostics",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Host tests including redacted diagnostics export",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Optimized GLib iterator backport regression",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Check embedded desktop frontend context",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify wallet-file import with disposable copied wallets",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Verify independent local-node lifecycle with disposable wallet",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      },
+      {
+        "id": 112433879207,
+        "name": "Isolated testnet genesis (macos-15-intel)",
+        "status": "completed",
+        "conclusion": "success",
+        "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37511603241/job/112433879207",
+        "steps": [
+          {
+            "name": "Set up job",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Install pinned Rust toolchain",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Prepare unchanged reviewed native runtimes",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Native service permissions and process ownership tests",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Windows RPC startup from existing owner Modify-only storage",
+            "status": "completed",
+            "conclusion": "skipped"
+          },
+          {
+            "name": "Observe public testnet availability from this runner",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Funded and busy-scan cache fixtures (genesis fork, not current-fork acceptance)",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Upload non-sensitive acceptance and availability receipts",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/setup-node@820762786026740c76f36085b0efc47a31fe5020",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Post Run actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1",
+            "status": "completed",
+            "conclusion": "success"
+          },
+          {
+            "name": "Complete job",
+            "status": "completed",
+            "conclusion": "success"
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "Current-fork funded acceptance awaits restored Ryo testnet",
+    "Native GUI inputs and real OS login/sleep not executed",
+    "Complete Linux/macOS installed acceptance not executed",
+    "Ryo internal static-library composition and 49 packages without published notice files still require review",
+    "Paid publisher signing/notarization excluded"
+  ]
+}

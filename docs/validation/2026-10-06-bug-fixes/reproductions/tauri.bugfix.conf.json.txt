@@ -1,0 +1,25 @@
+{
+  "productName": "Ryo Wallet Next Bug Fix Review",
+  "mainBinaryName": "ryo-wallet-next-bugfix-review",
+  "identifier": "io.github.ucrem.ryowalletnext.bugfixreview20261006",
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Ryo Wallet Next - Bug Fix Review",
+        "width": 1400,
+        "height": 800,
+        "minWidth": 1400,
+        "minHeight": 800
+      }
+    ]
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    }
+  }
+}
