@@ -4,6 +4,7 @@ Updated 2026-10-03. Inventory: [Atom wallet screens at 6c8d0aa](https://github.c
 
 | Operation | Local alpha.6 implementation |
 | --- | --- |
+| Import (next release) | Native wallet-file selection, matching `.keys` copy, existing-password validation, backup acknowledgement and opening an app-owned copy; see [Wallet import](WALLET_IMPORT.md) |
 | Wallet | Name, address, balances, recent activity, copy, hide balances and lock |
 | Receive | Primary/subaddresses, used status, labels, balances, QR/identicon SVG export, payment request |
 | Send | Address/contact/request, exact amount, all unlocked coins, payment ID, priority, ring size, optional contact save |
@@ -23,6 +24,8 @@ This covers the open-wallet screens and Wallet actions in Atom. [Settings](SETTI
 The reviewed node and wallet must be synced. `transfer_split` and `sweep_all` prepare with no relay and request metadata, never transaction keys. All amounts remain exact `u64` in RPC and strings in IPC, with checked sums. Account zero is explicit. Confirmation consumes its token before relay. Split outcomes are reported per hash. An ambiguous reply remains unknown; the app never retries or rebuilds it automatically. The private hash-only journal is persisted before each relay and reconciled with read-only `get_transfer_by_txid`.
 
 Names/contacts and transaction notes persist in the wallet; seed restoration alone does not restore them. Signed drafts are memory-only. Removed encrypted wallets remain under `mainnet/removed-wallets`. Key image exports and copied private keys contain sensitive material and require explicit actions.
+
+Home and the saved-wallet selector also show the chosen wallet name while locked. A display-only, unencrypted `wallet-name-v1.json` in each app-owned wallet directory stores just that name, isolated by wallet ID and network. The encrypted `next.name` attribute remains authoritative. Rename updates both. Unlock attempts a bounded authenticated name read for older wallets before returning, including wallets with an incomplete backup. If scanning delays that read, the dashboard retries and refreshes the saved-wallet lists when the name becomes available. Each older wallet needs one unlock in the updated build before its encrypted name can appear on Home; it does not need to be renamed again. Missing or malformed display metadata falls back to the short wallet ID and never blocks opening the wallet. A single saved wallet is selected automatically; multiple saved wallets retain an explicit selector. Password clearing and the backup gate still apply.
 
 Each wallet tab and session has a separate page lifetime. Switching tabs closes Wallet actions and its menu and discards the previous form; returning does not reopen it. Balance visibility remains unchanged across tabs.
 

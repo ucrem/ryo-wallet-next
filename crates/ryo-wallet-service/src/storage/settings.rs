@@ -1,5 +1,4 @@
-use std::fs::{self, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::fs;
 use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
@@ -77,24 +76,15 @@ pub fn save_settings(paths: &AppPaths, settings: &AppSettings) -> Result<(), Set
     settings.validate()?;
     paths.ensure_private_dirs().map_err(SettingsError::Paths)?;
     let final_path = settings_path(paths);
-    let temporary_path = paths.network_root().join("settings.json.new");
-    let bytes = serde_json::to_vec(settings).map_err(|_| SettingsError::InvalidFile)?;
-    let file = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&temporary_path)
-        .map_err(SettingsError::Io)?;
-    let write_result = (|| {
-        let mut writer = BufWriter::new(file);
-        writer.write_all(&bytes).map_err(SettingsError::Io)?;
-        writer.flush().map_err(SettingsError::Io)?;
-        writer.get_ref().sync_all().map_err(SettingsError::Io)?;
-        fs::rename(&temporary_path, final_path).map_err(SettingsError::Io)
-    })();
-    if write_result.is_err() {
-        let _ = fs::remove_file(temporary_path);
-    }
-    write_result
+    let mut temporary =
+        tempfile::NamedTempFile::new_in(paths.network_root()).map_err(SettingsError::Io)?;
+    serde_json::to_writer(temporary.as_file_mut(), settings)
+        .map_err(|_| SettingsError::InvalidFile)?;
+    temporary.as_file().sync_all().map_err(SettingsError::Io)?;
+    temporary
+        .persist(final_path)
+        .map_err(|error| SettingsError::Io(error.error))?;
+    Ok(())
 }
 
 fn settings_path(paths: &AppPaths) -> PathBuf {
@@ -156,5 +146,22 @@ mod tests {
     fn missing_settings_are_unconfigured() {
         let temp = tempfile::tempdir().unwrap();
         assert_eq!(load_settings_if_present(&paths(&temp)).unwrap(), None);
+    }
+
+    #[test]
+    fn interrupted_legacy_stage_does_not_block_repeated_atomic_replacement() {
+        let temp = tempfile::tempdir().unwrap();
+        let paths = paths(&temp);
+        save_settings(&paths, &settings()).unwrap();
+        let old_stage = paths.network_root().join("settings.json.new");
+        fs::write(&old_stage, b"interrupted write").unwrap();
+        let mut changed = settings();
+        changed.theme = Theme::Light;
+        save_settings(&paths, &changed).unwrap();
+        assert_eq!(load_settings(&paths).unwrap(), changed);
+        changed.theme = Theme::Dark;
+        save_settings(&paths, &changed).unwrap();
+        assert_eq!(load_settings(&paths).unwrap(), changed);
+        assert_eq!(fs::read(old_stage).unwrap(), b"interrupted write");
     }
 }

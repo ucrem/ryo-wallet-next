@@ -1,0 +1,28 @@
+import fs from 'node:fs/promises'
+import {createHash} from 'node:crypto'
+const base='target/issue-closure-2026-10-06/',legal='src-tauri/resources/legal/'
+const recovered=JSON.parse(await fs.readFile(base+'recovered-notices.json'))
+const row=JSON.parse(await fs.readFile(base+'missing-notices-source.json')).find(x=>x.name==='libappindicator-sys')
+const sha=row.vcs.git.sha1,repo='tauri-apps/libappindicator-rs'
+const sourceManifest=await fetch(`https://raw.githubusercontent.com/${repo}/${sha}/sys/Cargo.toml`).then(r=>{if(!r.ok)throw Error('Unverified libappindicator source');return r.text()})
+if(!sourceManifest.includes('name = "libappindicator-sys"')||!sourceManifest.includes('version = "0.9.0"'))throw Error('Upstream package mismatch')
+async function notice(url,sourcePath,dir){
+ const r=await fetch(url);if(!r.ok)throw Error('Source notice HTTP '+r.status)
+ const bytes=Buffer.from(await r.arrayBuffer());if(bytes.length>262144||bytes.includes(0))throw Error('Invalid notice')
+ const hash=createHash('sha256').update(bytes).digest('hex'),file=hash+'.txt'
+ await fs.mkdir(legal+dir,{recursive:true});await fs.writeFile(legal+dir+'/'+file,bytes)
+ return {file,source:url,sha256:hash,source_path:sourcePath}
+}
+const notices=[]
+for(const file of ['LICENSE-APACHE','LICENSE-MIT'])notices.push(await notice(`https://raw.githubusercontent.com/${repo}/${sha}/${file}`,file,'supplemental'))
+recovered.records.push({ecosystem:'cargo',name:row.name,version:row.version,license:row.license,repository:'https://github.com/'+repo,source_commit:sha,publication_provenance:'Published .cargo_vcs_info.json SHA and matching sys/Cargo.toml name/version at that commit',notices})
+recovered.unresolved=recovered.unresolved.filter(x=>!['libappindicator-sys','r-efi'].includes(x.name))
+await fs.writeFile(legal+'supplemental-inventory.json',JSON.stringify({schema_version:1,records:recovered.records},null,2)+'\n')
+await fs.writeFile(base+'remaining-dependency-notices.json',JSON.stringify(recovered.unresolved,null,2)+'\n')
+const sourceCommit='166cf188bf351e3eecff904450eda2785f9d0357'
+const ryoNotices=[]
+for(const file of ['contrib/epee/LICENSE.txt','external/db_drivers/liblmdb/COPYRIGHT','external/db_drivers/liblmdb/LICENSE','external/fmt/LICENSE.rst','external/miniupnp/miniupnpc/LICENSE','external/rapidjson/license.txt','external/unbound/LICENSE','src/crypto/crypto_ops_builder/include/libsodium_LICENSE']){
+ ryoNotices.push(await notice(`https://raw.githubusercontent.com/ryo-currency/ryo-currency/${sourceCommit}/${file}`,file,'ryo-source-notices'))
+}
+await fs.writeFile(legal+'ryo-source-materials.json',JSON.stringify({schema_version:1,source_commit:sourceCommit,scope:'Conservative collection of source-tree component notices. This is not a verified bill of materials for the official runtime executable artifacts; externally resolved build libraries and exact link composition still require upstream records.',notices:ryoNotices},null,2)+'\n')
+console.log(JSON.stringify({supplemented_dependencies:recovered.records.length,ryo_source_notices:ryoNotices.length,remaining_published_notice_gaps:recovered.unresolved.length}))

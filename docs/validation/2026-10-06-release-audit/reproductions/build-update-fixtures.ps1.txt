@@ -1,0 +1,44 @@
+$ErrorActionPreference='Stop'
+$env:PATH='C:\Users\davide\.cargo\bin;'+$env:PATH
+$taskBase='F:\DEV\ryo-wallet-next-main\target\release-audit-2026-10-06-e5a7f55'
+$taskRelease='F:\DEV\ryo-wallet-next-main\target\release'
+$taskKey=Join-Path $taskBase 'audit-update.key'
+$taskPubkey=[IO.File]::ReadAllText($taskKey+'.pub').Trim()
+$taskBackup=@()
+foreach($taskName in @('ryo-wallet-next.exe','ryo-wallet-rpc.exe','ryod.exe')) {
+ $taskOriginal=Join-Path $taskRelease $taskName
+ $taskSaved=Join-Path $taskBase ('update-preserved-'+$taskName)
+ if(Test-Path -LiteralPath $taskSaved){throw 'Prior test backup exists'}
+ Move-Item -LiteralPath $taskOriginal -Destination $taskSaved
+ $taskBackup+=@{Original=$taskOriginal;Saved=$taskSaved}
+}
+try {
+ foreach($taskCase in @(@{Name='update-base';Version='0.1.0-alpha.6'},@{Name='update-candidate';Version='0.1.0-alpha.7'})){
+  $taskOutput=Join-Path $taskBase $taskCase.Name
+  New-Item -ItemType Directory -Path $taskOutput | Out-Null
+  $taskConfig=Get-Content -LiteralPath (Join-Path $taskBase 'tauri.audit.conf.json') -Raw | ConvertFrom-Json -AsHashtable
+  $taskConfig.version=$taskCase.Version
+  $taskConfig.bundle.createUpdaterArtifacts=$true
+  $taskConfig.plugins=@{updater=@{pubkey=$taskPubkey;endpoints=@('http://127.0.0.1:34655/latest.json');requireSignedVersion=$true;dangerousInsecureTransportProtocol=$true;windows=@{installMode='passive';installerArgs=@('/NS')}}}
+  $taskConfigFile=Join-Path $taskOutput 'tauri.conf.json'
+  $taskConfig | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $taskConfigFile -Encoding utf8
+  $env:TAURI_SIGNING_PRIVATE_KEY=[IO.File]::ReadAllText($taskKey).Trim()
+  $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD=''
+  pnpm exec tauri build --ci --bundles nsis --config $taskConfigFile *> (Join-Path $taskOutput 'build.log')
+  if($LASTEXITCODE -ne 0){throw ('Update test build failed: '+$taskCase.Name)}
+  $taskSetup=@(Get-ChildItem -LiteralPath (Join-Path $taskRelease 'bundle\nsis') -File | Where-Object {$_.Name -like ('Ryo Wallet Next Release Audit*'+$taskCase.Version+'*setup.exe')})
+  if($taskSetup.Count -ne 1){throw 'Expected one test update package'}
+  Copy-Item -LiteralPath $taskSetup[0].FullName -Destination (Join-Path $taskOutput 'audit-setup.exe')
+  Copy-Item -LiteralPath ($taskSetup[0].FullName+'.sig') -Destination (Join-Path $taskOutput 'audit-setup.exe.sig')
+  Copy-Item -LiteralPath (Join-Path $taskRelease 'ryo-wallet-next-release-audit.exe') -Destination (Join-Path $taskOutput 'ryo-wallet-next-release-audit.exe')
+  Get-FileHash -LiteralPath (Join-Path $taskOutput 'audit-setup.exe') -Algorithm SHA256 | Select-Object Hash | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskOutput 'digest.json')
+ }
+} finally {
+ Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY -ErrorAction SilentlyContinue
+ Remove-Item Env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD -ErrorAction SilentlyContinue
+ foreach($taskPair in $taskBackup){
+  if(Test-Path -LiteralPath $taskPair.Original){Remove-Item -LiteralPath $taskPair.Original}
+  Move-Item -LiteralPath $taskPair.Saved -Destination $taskPair.Original
+ }
+}
+'Built two isolated signed updater fixtures; application source and production executable restored.'

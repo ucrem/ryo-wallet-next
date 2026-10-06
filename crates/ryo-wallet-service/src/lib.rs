@@ -1,8 +1,8 @@
 //! Reusable, Tauri-independent foundation for Ryo Wallet Next.
 //!
-//! This crate implements domain types, a verified sidecar lifecycle, and typed
-//! wallet RPC clients. It does not expose wallet operations to a renderer or
-//! authorize transfers.
+//! Domain types, verified sidecar ownership, typed RPC clients and wallet
+//! operations, including immutable transaction preparation and one-shot relay.
+//! The desktop host exposes scoped commands; this crate is independent of Tauri.
 
 pub mod application;
 pub mod domain;

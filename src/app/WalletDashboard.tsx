@@ -22,6 +22,9 @@ function Alert({ message }: { message: string | null }) {
   return message ? <p role="alert" className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{message}</p> : null
 }
 function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+  return <CopyValueButton key={value} value={value} label={label} />
+}
+function CopyValueButton({ value, label }: { value: string; label: string }) {
   const [status, setStatus] = useState("")
   return <Button type="button" variant="outline" size="sm" disabled={!value} onClick={() => {
     void writeText(value).then(() => setStatus("Copied"), () => setStatus("Copy failed"))
@@ -29,7 +32,23 @@ function CopyButton({ value, label = "Copy" }: { value: string; label?: string }
 }
 function useWalletData<T>(generation: string, type: "contacts" | "history" | "info" | "address_balances" | "send_journal", refresh = false) {
   return useQuery({ queryKey: ["wallet-operation", generation, type], queryFn: () => walletOperation<T>(generation, { type }), retry: false,
-    refetchInterval: refresh ? 15_000 : false, refetchIntervalInBackground: false })
+    refetchInterval: (query) => refresh || (type !== "send_journal" && query.state.status === "error") ? 15_000 : false,
+    refetchIntervalInBackground: false })
+}
+
+function walletRpcBusy(error: unknown) { return String(error) === "wallet RPC busy" }
+
+function DataRefreshIndicator({ subject, hasSnapshot, refreshing }: { subject: "balances" | "history"; hasSnapshot: boolean; refreshing: boolean }) {
+  const detail = `${refreshing ? "Refreshing wallet data." : "Waiting for updated wallet data."} ${hasSnapshot ? `Showing the last available ${subject}. ` : ""}${subject === "history" ? "Transactions" : "Balances"} update automatically.`
+  return <span role="status" title={detail} aria-label={detail}
+    className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/5 px-2 py-0.5 text-xs font-normal text-amber-200">
+    <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"
+      className={refreshing ? "size-3 animate-spin [animation-duration:3s] motion-reduce:animate-none" : "size-3"}>
+      {refreshing ? <path d="M20 7v5h-5M4 17v-5h5M6.1 6.1A8 8 0 0 1 20 12M17.9 17.9A8 8 0 0 1 4 12" />
+        : <><circle cx="12" cy="12" r="8" /><path d="M12 8v4l2 2" /></>}
+    </svg>
+    {refreshing ? "Updating" : "Update pending"}
+  </span>
 }
 
 type DashboardProps = SessionProps & {
@@ -45,8 +64,16 @@ export function WalletDashboard(props: DashboardProps) {
 function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved, locking, hidden, onToggleBalances }: DashboardProps & {
   hidden: boolean; onToggleBalances: () => void
 }) {
+  const queryClient = useQueryClient()
   const overview = useQuery({ queryKey: ["wallet-overview", generation], queryFn: getWalletOverview, refetchInterval: 10_000 })
   const info = useWalletData<{ name: string }>(generation, "info")
+  useEffect(() => {
+    if (!info.isSuccess) return
+    // A delayed authenticated name read can fill an older wallet's display
+    // cache after unlock. Refresh both pickers before the next lock.
+    void queryClient.invalidateQueries({ queryKey: ["wallet-list"] })
+    void queryClient.invalidateQueries({ queryKey: ["active-wallet", generation] })
+  }, [queryClient, generation, info.isSuccess, info.data?.name])
   const history = useWalletData<Transaction[]>(generation, "history", true)
   const [action, setAction] = useState<string | null>(null)
   const address = overview.data?.primary_address ?? ""
@@ -61,7 +88,10 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
         <div className={`flex min-w-0 gap-3 ${compact ? "items-center" : "items-start"}`}>
           {address ? <WalletArtwork artwork={identiconArtwork(address)} label="Wallet address identicon" className={`${compact ? "size-9" : "size-14"} shrink-0 rounded-md`} /> : null}
           <div className="min-w-0">
-            <h1 className={`${compact ? "max-w-64 truncate text-lg" : "text-xl"} font-semibold`}>{info.data?.name || "My wallet"}</h1>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className={`${compact ? "max-w-64 truncate text-lg" : "text-xl"} font-semibold`}>{info.data?.name || "My wallet"}</h1>
+              {overview.isError && walletRpcBusy(overview.error) ? <DataRefreshIndicator subject="balances" hasSnapshot={overview.data !== undefined} refreshing={overview.isFetching} /> : null}
+            </div>
             {!compact ? <p className="mt-1 break-all font-mono text-xs text-slate-300">{address || "Loading address…"}</p> : null}
           </div>
         </div>
@@ -82,23 +112,25 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
         </div>
       </div>
       {!compact ? <div className="mt-4 grid grid-cols-3 gap-4 border-t border-slate-700 pt-3">{balances}</div> : null}
-      <Alert message={overview.isError ? "Balances could not be loaded. Try locking and reopening the wallet." : null} />
+      <Alert message={overview.isError && !walletRpcBusy(overview.error) ? `Balances could not be updated. Retrying automatically.${overview.data ? " Showing the last available balances." : ""}` : null} />
     </section>
     {action ? <WalletActions key={action} generation={generation} action={action} name={info.data?.name ?? ""} onClose={() => setAction(null)} onRemoved={onRemoved} /> : null}
     {section === "overview" ? <section className={cardClass}>
-      <div className="flex justify-between"><h2 className="text-lg font-semibold">Recent transactions</h2><Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
-      <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} hidden={hidden} />
+      <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Recent transactions</h2>
+        <Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
+      <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} hidden={hidden} />
     </section> : null}
     {section === "receive" ? <ReceivePanel generation={generation} /> : null}
     {section === "send" ? <SendPanel generation={generation} unlocked={overview.data?.unlocked.atomic ?? "0"} onHistory={() => onSection("history")} /> : null}
     {section === "contacts" ? <ContactsPanel generation={generation} onSend={() => onSection("send")} /> : null}
-    {section === "history" ? <HistoryPanel generation={generation} entries={history.data} loading={history.isPending} failed={history.isError} /> : null}
+    {section === "history" ? <HistoryPanel generation={generation} entries={history.data} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} refreshing={history.isFetching} /> : null}
   </div>
 }
 
 function ReceivePanel({ generation }: SessionProps) {
   const client = useQueryClient()
-  const addresses = useQuery({ queryKey: ["receive-addresses", generation], queryFn: () => getReceiveAddresses(generation), retry: false })
+  const addresses = useQuery({ queryKey: ["receive-addresses", generation], queryFn: () => getReceiveAddresses(generation), retry: false,
+    refetchInterval: (query) => query.state.status === "error" ? 15_000 : false })
   const balances = useWalletData<AddressBalance[]>(generation, "address_balances", true)
   const [index, setIndex] = useState(0)
   const [uri, setUri] = useState("")
@@ -188,11 +220,16 @@ function ContactsPanel({ generation, onSend }: SessionProps & { onSend: () => vo
       <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto">{contacts.data?.filter((c) => `${c.name} ${c.address}`.toLowerCase().includes(filter.toLowerCase())).map((contact) =>
         <div key={contact.id} className="rounded-lg border border-slate-700 p-3">
           <div className="flex items-center justify-between gap-3"><h3 className="min-w-0 truncate font-medium">{contact.name}</h3>
-          <div className="flex shrink-0 gap-1"><Button size="sm" onClick={() => { client.setQueryData(["send-contact", generation], contact); onSend() }}>Send</Button>
+          <div className="flex shrink-0 gap-1"><Button size="sm" disabled={busy} onClick={() => { client.setQueryData(["send-contact", generation], contact); onSend() }}>Send</Button>
             <CopyButton value={contact.address} label="Copy address" /><Button size="sm" variant="outline" onClick={() => { setEditing(contact); setError(null) }}>Edit</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (!window.confirm(`Delete contact ${contact.name}?`)) return
-              setBusy(true); void walletOperation(generation, { type: "delete_contact", id: contact.id }).catch((cause: unknown) => setError(String(cause)))
-                .finally(() => { void contacts.refetch(); setBusy(false) }) }}>Delete</Button></div></div>
+              setBusy(true); setError(null); void walletOperation(generation, { type: "delete_contact", id: contact.id }).then(() => {
+                if (client.getQueryData<Contact>(["send-contact", generation])?.id === contact.id) {
+                  client.removeQueries({ queryKey: ["send-contact", generation], exact: true })
+                }
+                setEditing((current) => current?.id === contact.id ? null : current)
+              }).catch((cause: unknown) => setError(String(cause)))
+                .finally(async () => { await contacts.refetch(); setBusy(false) }) }}>Delete</Button></div></div>
           <p className="mt-1 break-all font-mono text-xs text-slate-300">{contact.address}</p>
           {contact.payment_id ? <p className="mt-1 break-all text-xs text-slate-400">Payment ID: {contact.payment_id}</p> : null}
           {contact.notes ? <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-400">{contact.notes}</p> : null}
@@ -218,9 +255,11 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   const client = useQueryClient()
   const contacts = useWalletData<Contact[]>(generation, "contacts")
   const sync = useQuery({ queryKey: ["wallet-send-sync", generation], queryFn: getWalletSyncStatus, refetchInterval: 5000 })
-  const selected = client.getQueryData<Contact>(["send-contact", generation])
+  const contactIntent = client.getQueryData<Contact>(["send-contact", generation])
+  const selected = contacts.data?.find((contact) => contact.id === contactIntent?.id)
   const [address, setAddress] = useState(selected?.address ?? "")
   const [paymentId, setPaymentId] = useState(selected?.payment_id ?? "")
+  const [contactId, setContactId] = useState(selected?.id ?? "")
   const [amount, setAmount] = useState("")
   const [sweep, setSweep] = useState(false)
   const [draft, setDraft] = useState<SendDraft | null>(null)
@@ -231,6 +270,10 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   const [error, setError] = useState<string | null>(null)
   const [saveContact, setSaveContact] = useState<{ name: string; notes: string } | null>(null)
   const ready = sync.data?.node_reachable && sync.data.node_ready && !sync.data.node_offline && sync.data.wallet_height !== null && sync.data.daemon_height !== null && BigInt(sync.data.wallet_height) >= BigInt(sync.data.daemon_height)
+  useEffect(() => {
+    // A contact selected in Address Book is a one-use navigation intent.
+    client.removeQueries({ queryKey: ["send-contact", generation], exact: true })
+  }, [client, generation])
   useEffect(() => () => { if (draftRef.current) void walletOperation(generation, { type: "cancel_send", token: draftRef.current.token }).catch(() => {}) }, [generation])
   async function prepare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (guard.current) return
@@ -265,20 +308,21 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   }
   return <section className={compactCardClass}>
     <div className="flex items-center justify-between gap-4"><h2 className="text-lg font-semibold">Send Ryo</h2><p className="text-sm text-slate-400">Unlocked: {formatRyo(unlocked)} RYO · Review the exact fee before confirming.</p></div>
-    {result ? <><SendResults entries={result} /><div className="mt-4 flex gap-3"><Button onClick={onHistory}>View transaction history</Button><Button variant="outline" disabled={result.some((entry) => entry.state === "unknown")} onClick={() => { setResult(null); setAddress(""); setAmount(""); setPaymentId(""); setSweep(false) }}>New transaction</Button></div></>
+    {result ? <><SendResults entries={result} /><div className="mt-4 flex gap-3"><Button onClick={onHistory}>View transaction history</Button><Button variant="outline" disabled={result.some((entry) => entry.state === "unknown")} onClick={() => { setResult(null); setAddress(""); setAmount(""); setPaymentId(""); setContactId(""); setSweep(false) }}>New transaction</Button></div></>
       : draft ? <SendReview draft={draft} busy={busy} warnNoPaymentId={preferences.data?.notify_no_payment_id ?? true} onConfirm={() => void confirm()} onCancel={() => {
         if (guard.current) return; draftRef.current = null; setDraft(null)
         void walletOperation(generation, { type: "cancel_send", token: draft.token }).catch((cause: unknown) => setError(String(cause)))
       }} /> : <>
         {!ready ? <p role="status" className="mt-2 text-sm text-amber-200">Both node and wallet must finish syncing before a send can be prepared.</p> : null}
         <form onSubmit={(event) => void prepare(event)} className="mt-3 grid gap-3 md:grid-cols-4">
-          <div className="md:col-span-3"><Field label="Recipient address"><input required value={address} maxLength={256} onChange={(e) => setAddress(e.target.value)} className={`${inputClass} font-mono`} disabled={busy} /></Field></div>
-          <Field label="Choose from address book"><select className={inputClass} defaultValue="" disabled={busy} onChange={(e) => {
+          <div className="md:col-span-3"><Field label="Recipient address"><input required value={address} maxLength={256} onChange={(e) => { setAddress(e.target.value); setContactId("") }} className={`${inputClass} font-mono`} disabled={busy} /></Field></div>
+          <Field label="Choose from address book"><select className={inputClass} value={contacts.data?.some((c) => c.id === contactId && c.address === address && c.payment_id === paymentId) ? contactId : ""} disabled={busy} onChange={(e) => {
+            setContactId(e.target.value)
             const contact = contacts.data?.find((c) => c.id === e.target.value); if (contact) { setAddress(contact.address); setPaymentId(contact.payment_id) }
           }}><option value="">Select a contact…</option>{contacts.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <div><Field label="Amount (RYO)"><input inputMode="decimal" value={sweep ? "" : amount} disabled={busy || sweep} placeholder={sweep ? "All unlocked coins, minus the fee" : "0.000000000"} onChange={(e) => setAmount(e.target.value)} className={inputClass} /></Field>
           <label className="mt-1.5 flex items-center gap-2 text-xs"><input type="checkbox" checked={sweep} disabled={busy} onChange={(e) => setSweep(e.target.checked)} />Send all unlocked coins</label></div>
-          <Field label="Payment ID (optional)"><input value={paymentId} maxLength={64} onChange={(e) => setPaymentId(e.target.value)} className={inputClass} disabled={busy} /></Field>
+          <Field label="Payment ID (optional)"><input value={paymentId} maxLength={64} onChange={(e) => { setPaymentId(e.target.value); setContactId("") }} className={inputClass} disabled={busy} /></Field>
           <Field label="Priority"><select name="priority" defaultValue="0" className={inputClass} disabled={busy}>{["Normal", "High ×2", "High ×4", "High ×20", "Highest ×144"].map((label, index) => <option key={index} value={index}>{label}</option>)}</select></Field>
           <Field label="Ring size"><select name="ring_size" defaultValue="25" className={inputClass} disabled={busy}><option value="25">25 members (default)</option><option value="100">100 members</option></select></Field>
           <div className="md:col-span-2"><Field label="Save recipient as contact (optional name)"><input name="contact_name" maxLength={100} className={inputClass} disabled={busy} /></Field></div>
@@ -289,7 +333,7 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
           event.preventDefault(); if (guard.current) return
           const uri = String(new FormData(event.currentTarget).get("uri") ?? ""); guard.current = true; setBusy(true); setError(null)
           void walletOperation<{ address: string; amount: string; payment_id: string }>(generation, { type: "parse_request", uri })
-            .then((request) => { setAddress(request.address); setAmount(request.amount); setPaymentId(request.payment_id); setSweep(false) })
+            .then((request) => { setAddress(request.address); setAmount(request.amount); setPaymentId(request.payment_id); setContactId(""); setSweep(false) })
             .catch((cause: unknown) => setError(String(cause))).finally(() => { guard.current = false; setBusy(false) })
         }}><div className="min-w-0 flex-1"><Field label="Load a Ryo payment request"><input name="uri" placeholder="ryo:…" className={inputClass} maxLength={4096} /></Field></div><Button type="submit" size="sm" variant="outline" disabled={busy}>Load request</Button></form>
       </>}
@@ -326,34 +370,49 @@ function SendResults({ entries }: { entries: SendEntry[] }) {
   </div>)}</div>
 }
 
-function HistoryPanel({ generation, entries, loading, failed }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean }) {
+function HistoryPanel({ generation, entries, loading, failed, busy, refreshing }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; busy: boolean; refreshing: boolean }) {
   const [type, setType] = useState("all")
   const [search, setSearch] = useState("")
   const [page, setPage] = useState(0)
   const journal = useWalletData<SendEntry[]>(generation, "send_journal")
   const filtered = entries?.filter((entry) => (type === "all" || entry.type === type) && entry.txid.toLowerCase().includes(search.toLowerCase()))
-  return <section className={cardClass}><div className="flex justify-between"><h2 className="text-lg font-semibold">Transaction history</h2>
+  return <section className={cardClass}><div className="flex items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Transaction history</h2>
+    {failed && busy ? <DataRefreshIndicator subject="history" hasSnapshot={entries !== undefined} refreshing={refreshing} /> : null}</div>
     <Button variant="outline" size="sm" onClick={() => void journal.refetch()} disabled={journal.isFetching}>Check send outcomes</Button></div>
     {journal.data?.some((entry) => entry.state === "unknown" || entry.state === "not_sent") ? <SendResults entries={journal.data.filter((entry) => entry.state === "unknown" || entry.state === "not_sent")} /> : null}
     <div className="mt-4 flex gap-3"><input aria-label="Filter by transaction ID" placeholder="Filter by transaction ID" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0) }} className={`${inputClass} flex-1`} />
       <select aria-label="Transaction type" value={type} onChange={(e) => { setType(e.target.value); setPage(0) }} className={`${inputClass} max-w-48`}>
         {[["all", "All transactions"], ["in", "Incoming"], ["out", "Outgoing"], ["pending", "Pending"], ["pool", "In pool"], ["failed", "Failed"]].map(([value, label]) => <option value={value} key={value}>{label}</option>)}
       </select></div>
-    <Transactions generation={generation} entries={filtered?.slice(page * 50, page * 50 + 50)} loading={loading} failed={failed} hidden={false} />
+    <Transactions generation={generation} entries={filtered?.slice(page * 50, page * 50 + 50)} loading={loading} failed={failed} busy={busy} hidden={false} />
     {(filtered?.length ?? 0) > 50 ? <div className="mt-4 flex items-center gap-3"><Button size="sm" variant="outline" disabled={page === 0} onClick={() => setPage(page - 1)}>Previous</Button><span className="text-sm">Page {page + 1}</span><Button size="sm" variant="outline" disabled={(page + 1) * 50 >= (filtered?.length ?? 0)} onClick={() => setPage(page + 1)}>Next</Button></div> : null}
     <Alert message={journal.isError ? "Send outcomes could not be checked. Do not retry an uncertain send." : null} />
   </section>
 }
-function Transactions({ generation, entries, loading, failed, hidden }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; hidden: boolean }) {
+const transactionTypeLabels: Record<Transaction["type"], string> = {
+  in: "Incoming", out: "Outgoing", pool: "Incoming · Unconfirmed", pending: "Outgoing · Pending", failed: "Outgoing · Failed",
+}
+function Transactions({ generation, entries, loading, failed, busy, hidden }: SessionProps & { entries: Transaction[] | undefined; loading: boolean; failed: boolean; busy: boolean; hidden: boolean }) {
   const [selected, setSelected] = useState<string | null>(null)
   return <div className="mt-3">
-    {loading ? <p className="py-4 text-sm text-slate-400">Loading transactions…</p> : failed ? <Alert message="Transaction history could not be loaded." /> : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
-    {entries?.map((entry) => <div key={`${entry.type}-${entry.txid}-${entry.address}`} className="border-t border-slate-700 first:border-t-0">
+    {loading ? <p className="py-4 text-sm text-slate-400">Loading transactions…</p>
+      : failed ? busy ? null : <Alert message="Transaction history could not be updated. Retrying automatically." />
+        : entries?.length === 0 ? <p className="py-4 text-sm text-slate-400">No transactions found.</p> : null}
+    {entries?.map((entry) => {
+      const incoming = entry.type === "in" || entry.type === "pool"
+      return <div key={`${entry.type}-${entry.txid}-${entry.address}`} className="border-t border-slate-700 first:border-t-0">
       <button type="button" onClick={() => setSelected(selected === entry.txid ? null : entry.txid)} aria-expanded={selected === entry.txid} className="flex w-full items-center justify-between gap-4 py-3 text-left hover:bg-slate-800/40">
-        <div className="min-w-0"><p className="truncate font-mono text-sm text-sky-200">{entry.txid}</p><p className="mt-1 text-xs text-slate-400">{entry.type} · {entry.height !== "0" ? `Height ${entry.height} · ` : ""}{transactionDate(entry.timestamp)}</p></div>
-        <p className={`shrink-0 font-mono text-sm ${entry.type === "in" || entry.type === "pool" ? "text-emerald-300" : "text-slate-100"}`}>{hidden ? "••••" : `${entry.type === "in" || entry.type === "pool" ? "+" : "−"}${formatRyo(entry.amount)} RYO`}</p>
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <span aria-hidden="true" title={incoming ? "Incoming transaction" : "Outgoing transaction"} className={`flex size-9 shrink-0 items-center justify-center rounded-full ${incoming ? "bg-emerald-400/10 text-emerald-300" : "bg-red-400/10 text-red-300"}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="size-5">
+              <path d={incoming ? "M17 7 7 17M7 7v10h10" : "M7 17 17 7M7 7h10v10"} />
+            </svg>
+          </span>
+          <div className="min-w-0"><p className="truncate font-mono text-sm text-sky-200">{entry.txid}</p><p className="mt-1 text-xs text-slate-400">{transactionTypeLabels[entry.type]} · {entry.height !== "0" ? `Height ${entry.height} · ` : ""}{transactionDate(entry.timestamp)}</p></div>
+        </div>
+        <p className={`shrink-0 font-mono text-sm ${incoming ? "text-emerald-300" : "text-red-300"}`}>{hidden ? "••••" : `${incoming ? "+" : "−"}${formatRyo(entry.amount)} RYO`}</p>
       </button>{selected === entry.txid ? <TransactionDetails key={entry.txid} generation={generation} entry={entry} /> : null}
-    </div>)}
+    </div>})}
   </div>
 }
 function TransactionDetails({ generation, entry }: SessionProps & { entry: Transaction }) {
@@ -398,7 +457,11 @@ function WalletActions({ generation, action, name, onClose, onRemoved }: Session
     if (action === "password" && newPassword !== values.get("confirmation")) { setError("Passwords do not match."); form.reset(); return }
     form.reset(); guard.current = true; setBusy(true); setError(null); setMessage(null)
     try {
-      if (action === "name") { await walletOperation(generation, { type: "set_name", name: String(values.get("name") ?? "") }); setMessage("Wallet name saved.") }
+      if (action === "name") {
+        await walletOperation(generation, { type: "set_name", name: String(values.get("name") ?? "") }); setMessage("Wallet name saved.")
+        await client.invalidateQueries({ queryKey: ["wallet-list"] })
+        await client.invalidateQueries({ queryKey: ["active-wallet"] })
+      }
       if (action === "password") { await walletOperation(generation, { type: "change_password", old_password: password, new_password: newPassword }); setMessage("Password changed.") }
       if (action === "secrets") { setSecrets(await walletOperation<SecretMaterial>(generation, { type: "secrets", password })) }
       if (action === "rescan") { await walletOperation(generation, { type: "rescan", spent_only: values.get("rescan") === "spent" }); setMessage("Rescan requested. The wallet sync will update below.") }

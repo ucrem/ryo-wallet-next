@@ -1,0 +1,12 @@
+{
+  "productName": "Ryo Wallet Next Release Audit",
+  "mainBinaryName": "ryo-wallet-next-release-audit",
+  "identifier": "io.github.ucrem.ryowalletnext.releaseaudit20261006",
+  "app": {
+    "windows": [{"label":"main","title":"Ryo Wallet Next - Release Audit","width":1400,"height":800,"minWidth":1400,"minHeight":800}]
+  },
+  "bundle": {
+    "createUpdaterArtifacts": false,
+    "windows": {"nsis":{"installMode":"currentUser"}}
+  }
+}

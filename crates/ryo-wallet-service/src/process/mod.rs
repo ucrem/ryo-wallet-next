@@ -5,7 +5,11 @@
 
 mod binary;
 mod credentials;
+mod scan_progress;
 mod supervisor;
+#[cfg(windows)]
+mod windows_job;
+pub(crate) use scan_progress::ScanProgress;
 mod upstream_path;
 pub use upstream_path::upstream_path;
 mod wallet_rpc_launch;
@@ -18,3 +22,4 @@ pub use wallet_rpc_launch::{WalletRpcLaunch, WalletRpcLaunchError};
 pub use wallet_rpc_session::{WalletRpcSession, WalletRpcStartupError};
 mod daemon_session;
 pub use daemon_session::{DaemonError, DaemonSession};
+mod daemon_gate;

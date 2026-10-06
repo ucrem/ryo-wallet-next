@@ -1,0 +1,116 @@
+{
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "platform": "windows",
+  "user_wallets_used": false,
+  "production_signing_key_used": false,
+  "publisher_signature": false,
+  "test_only": "Separate identifier/basename, ephemeral test signing key, loopback HTTP feed override; application implementation unchanged",
+  "checks": [
+    {
+      "name": "install signed isolated updater baseline",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "baseline runtime version uses isolated package metadata",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "update starts with a real open wallet and managed local node",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native updater discovers signed test candidate",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "announced candidate mismatch rejected before download",
+      "passed": true,
+      "evidence": {
+        "error": "Error: the available update changed; check again"
+      }
+    },
+    {
+      "name": "mismatched update preserves open wallet session",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native updater rejects changed installer bytes",
+      "passed": true,
+      "evidence": {
+        "error": "Error: update download or signature verification failed"
+      }
+    },
+    {
+      "name": "bad signature leaves wallet and node running",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "signed version binding rejects forged feed version",
+      "passed": true,
+      "evidence": {
+        "error": "Error: update download or signature verification failed"
+      }
+    },
+    {
+      "name": "failed update attempts clear installation guard",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "actual in-app update installs exact signed candidate",
+      "passed": true,
+      "evidence": {
+        "installed_version": "0.1.0-alpha.7",
+        "installer_sha256": "9aa0497238ae9421bbc46d1fedec4fa052b85ca0f90b980c1b7aa2222b644043",
+        "download_requests": 3,
+        "old_process_disconnected": true,
+        "all_payload_bytes_match_after_standard_nsis_bundle_marker": true,
+        "installed_executable_sha256": "1e2ecad68ff76e20c1729a308edb79903009e0336087dd3214bf50e17e9c4825",
+        "expected_nsis_executable_sha256": "1e2ecad68ff76e20c1729a308edb79903009e0336087dd3214bf50e17e9c4825",
+        "patched_marker": "__TAURI_BUNDLE_TYPE_VAR_UNK -> __TAURI_BUNDLE_TYPE_VAR_NSS",
+        "marker_bytes_changed": 3,
+        "classification": "Initial harness compared unbundled output against NSIS payload. All bytes match after the standard three-byte bundle marker, verified against pinned Tauri source."
+      }
+    },
+    {
+      "name": "installed updated application restarts at new native version",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "updated app starts locked with no orphan wallet/node runtime",
+      "passed": true,
+      "evidence": {
+        "state": "stopped"
+      }
+    },
+    {
+      "name": "update preserves wallet keys and discovery",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "update preserves preferences",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "updater reports current after genuine installed upgrade",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "saved wallet reopens after real installed upgrade",
+      "passed": true,
+      "evidence": {}
+    }
+  ],
+  "completed": true,
+  "harness_corrections_only": true
+}

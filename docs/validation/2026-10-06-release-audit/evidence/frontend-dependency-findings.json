@@ -1,0 +1,53 @@
+[
+  {
+    "module_name": "braces",
+    "severity": "high",
+    "url": "https://github.com/advisories/GHSA-vfj7-8cjw-p6xm",
+    "vulnerable_versions": "<=3.0.3",
+    "patched_versions": ">=3.0.4",
+    "findings": [
+      {
+        "version": "3.0.3",
+        "paths": [
+          ".>shadcn>fast-glob>micromatch>braces",
+          ".>shadcn>ts-morph>@ts-morph/common>fast-glob>micromatch>braces"
+        ],
+        "dev": true,
+        "optional": false,
+        "bundled": false
+      }
+    ]
+  },
+  {
+    "module_name": "source-map-js",
+    "severity": "high",
+    "url": "https://github.com/advisories/GHSA-68fv-2mgg-jv7q",
+    "vulnerable_versions": ">=1.0.0 <1.2.2",
+    "patched_versions": ">=1.2.2",
+    "findings": [
+      {
+        "version": "1.2.1",
+        "paths": [
+          ".>@tailwindcss/vite>@tailwindcss/node>source-map-js",
+          ".>@tailwindcss/vite>vite>postcss>source-map-js",
+          ".>@vitejs/plugin-react>vite>postcss>source-map-js",
+          ".>jsdom>@asamuzakjp/dom-selector>css-tree>source-map-js",
+          ".>jsdom>@bramus/specificity>css-tree>source-map-js",
+          ".>jsdom>@csstools/css-syntax-patches-for-csstree>css-tree>source-map-js",
+          ".>jsdom>css-tree>source-map-js",
+          ".>shadcn>postcss>source-map-js",
+          ".>vite>postcss>source-map-js",
+          ".>vitest>@vitest/mocker>vite>postcss>source-map-js",
+          ".>vitest>vite>postcss>source-map-js",
+          ".>vitest>jsdom>@asamuzakjp/dom-selector>css-tree>source-map-js",
+          ".>vitest>jsdom>@bramus/specificity>css-tree>source-map-js",
+          ".>vitest>jsdom>@csstools/css-syntax-patches-for-csstree>css-tree>source-map-js",
+          ".>vitest>jsdom>css-tree>source-map-js"
+        ],
+        "dev": true,
+        "optional": false,
+        "bundled": false
+      }
+    ]
+  }
+]

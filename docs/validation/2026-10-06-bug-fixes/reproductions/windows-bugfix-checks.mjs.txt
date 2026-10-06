@@ -1,0 +1,84 @@
+import fs from 'node:fs'
+import path from 'node:path'
+import { createHash } from 'node:crypto'
+import assert from 'node:assert/strict'
+import {base,connect,action,freePort} from './windows-ipc-lib.mjs'
+const profile=path.join(process.env.APPDATA,'io.github.ucrem.ryowalletnext.bugfixreview20261006')
+const install=path.join(base,'installed')
+const data=path.join(base,'windows-data')
+const source=path.resolve('src-tauri/resources/legal')
+const report={source_revision:'3debc4f58d83c43f0df4495fa72fe2ce0126be63',platform:'windows',mechanism:'Isolated NSIS installation and embedded WebView2 Tauri IPC over loopback CDP; no GUI inputs/screenshots',user_wallets_used:false,rendered_gui_acceptance:false,checks:[]}
+if(process.argv.includes('--resume')) report.harness_correction='First run incorrectly required an exit code from PowerShell Get-Process; normal-close exit observation succeeded but the retrieved ExitCode was null. Retest requires observed exit and fresh IPC startup. Prior receipt is preserved.'
+const digest=bytes=>createHash('sha256').update(bytes).digest('hex')
+const save=()=>fs.writeFileSync(path.join(base,'windows-bugfix-report.json'),JSON.stringify(report,null,2)+'\n')
+function check(name,ok,evidence={}){report.checks.push({name,passed:!!ok,evidence});save();console.log(JSON.stringify({name,passed:!!ok}));assert.ok(ok,name)}
+let c
+async function start(){const port=await freePort();action('start',port);c=await connect(port);return c}
+function close(){c?.close();c=null;const result=action('close');assert.equal(result.exited,true);assert.equal(action('inspect').process_count,0)}
+const prefs={theme:'dark',idle_lock_seconds:0,minimize_to_tray:false,launch_on_startup:false,notify_no_payment_id:true,notify_weak_password:true}
+const validRoot=JSON.stringify({root:data,network:'testnet'})
+async function recovery(file,bytes,expected,rootMissing=false){
+ close()
+ fs.writeFileSync(path.join(profile,'preferences.json'),JSON.stringify(prefs))
+ fs.writeFileSync(path.join(profile,'wallet-data-root.json'),validRoot)
+ const before=new Set(fs.readdirSync(profile))
+ fs.writeFileSync(path.join(profile,file),bytes)
+ await start()
+ const config=await c.invoke('data_root_configuration')
+ const backups=fs.readdirSync(profile).filter(name=>!before.has(name)&&name.startsWith(file.replace(/\.json$/,'' )+'.invalid.'))
+ check('recoverable startup: '+expected,config.startup_notices.some(text=>text.includes(expected))&&(!rootMissing||config.root===null),{notice_count:config.startup_notices.length,root_unconfigured:config.root===null})
+ check('invalid configuration retained exactly: '+file,backups.length===1&&fs.readFileSync(path.join(profile,backups[0])).equals(Buffer.from(bytes)),{backup_count:backups.length,original_bytes_preserved:true})
+ check('startup service available after '+expected,(await c.invoke('app_status')).state==='stopped')
+}
+try{
+ if(process.argv.includes('--resume')) check('resume previously verified isolated NSIS installation',action('inspect').process_count===0&&fs.existsSync(path.join(install,'ryo-wallet-next-bugfix-review.exe')))
+ else check('clean isolated current-user NSIS installation',action('install').installed)
+ report.installer_sha256=digest(fs.readFileSync(path.join(base,'bugfix-review-setup.exe')))
+ const manifest=JSON.parse(fs.readFileSync('src-tauri/runtime-manifest.json'))
+ const runtime=manifest.platforms['x86_64-pc-windows-msvc']
+ for(const [name,expected] of [['ryod.exe',runtime.daemonSha256],['ryo-wallet-rpc.exe',runtime.binarySha256]])check('installed runtime digest: '+name,digest(fs.readFileSync(path.join(install,name)))===expected)
+ const legalPayload=[]
+ for(const file of fs.readdirSync(source)){
+  const hash=digest(fs.readFileSync(path.join(install,'legal',file)))
+  check('installed notice digest: '+file,hash===digest(fs.readFileSync(path.join(source,file))))
+  legalPayload.push({file,sha256:hash})
+ }
+ report.legal_payload=legalPayload
+ await start()
+ const initial=await c.invoke('data_root_configuration')
+ check('valid existing configuration has no recovery warning',initial.root===data&&initial.startup_notices.length===0)
+ const mounted=await c.evaluate(`({children:document.getElementById('root')?.childElementCount,assets:[...document.querySelectorAll('script[src]')].every(s=>s.src.startsWith(location.origin))})`)
+ check('embedded frontend executed and mounted',mounted.children>0&&mounted.assets,mounted)
+ check('packaged reviewed runtime ready',await c.invoke('wallet_runtime_ready'))
+ fs.mkdirSync(path.join(data,'testnet'),{recursive:true})
+ const stage=path.join(data,'testnet','settings.json.new')
+ fs.writeFileSync(stage,'interrupted legacy node write')
+ await c.invoke('save_node_selection',{selection:{mode:'local'}})
+ const node=await c.invoke('save_node_selection',{selection:{mode:'remote',host:'127.0.0.1',port:18881}})
+ const saved=JSON.parse(fs.readFileSync(path.join(data,'testnet','settings.json')))
+ check('stale node stage permits repeated native settings saves',node.mode==='remote'&&saved.node.mode==='remote'&&fs.readFileSync(stage,'utf8')==='interrupted legacy node write')
+ const rootStage=path.join(profile,'wallet-data-root.json.new')
+ fs.writeFileSync(rootStage,'interrupted legacy data-root write')
+ const advanced={daemon_log_level:0,wallet_log_level:0,in_peers:-1,out_peers:-1,limit_rate_up:-1,limit_rate_down:-1,p2p_port:0,rpc_port:0,zmq_port:0,wallet_rpc_port:0,public_p2p:false}
+ await c.invoke('save_general_settings',{settings:{mode:'local',network:'mainnet',host:'',port:0,advanced}})
+ check('stale data-root stage permits native network change',(await c.invoke('data_root_configuration')).network==='mainnet'&&JSON.parse(fs.readFileSync(path.join(profile,'wallet-data-root.json'))).network==='mainnet'&&fs.readFileSync(rootStage,'utf8')==='interrupted legacy data-root write')
+ await c.invoke('save_general_settings',{settings:{mode:'local',network:'testnet',host:'',port:0,advanced}})
+ check('native data-root configuration replaces repeatedly',(await c.invoke('data_root_configuration')).network==='testnet')
+ const marker=path.join(data,'testnet','original-wallet-marker.txt')
+ fs.writeFileSync(marker,'Unrelated data preservation marker; no wallet secrets')
+ const markerHash=digest(fs.readFileSync(marker))
+ await recovery('preferences.json','{','Damaged preferences')
+ await recovery('preferences.json','{"idle_lock_seconds":59}','Damaged preferences')
+ await recovery('wallet-data-root.json','{','damaged data-location',true)
+ await recovery('wallet-data-root.json','{"root":"relative","network":"testnet"}','damaged data-location',true)
+ check('configuration recovery leaves unrelated selected data intact',digest(fs.readFileSync(marker))===markerHash)
+ close()
+ fs.writeFileSync(path.join(profile,'preferences.json'),JSON.stringify(prefs))
+ fs.writeFileSync(path.join(profile,'wallet-data-root.json'),validRoot)
+ await start()
+ check('valid original folder can reopen after recovery',(await c.invoke('data_root_configuration')).root===data&&(await c.invoke('data_root_configuration')).startup_notices.length===0)
+ close()
+ check('isolated uninstallation removes registration and application',action('uninstall').uninstalled)
+ report.completed=true
+}catch(error){report.harness_error=String(error);console.error(error);process.exitCode=1}
+finally{try{if(c)close()}catch(error){report.cleanup_error=String(error);process.exitCode=1}save();console.log(JSON.stringify({checks:report.checks.length,passed:report.checks.filter(x=>x.passed).length,completed:report.completed,harness_error:report.harness_error}))}

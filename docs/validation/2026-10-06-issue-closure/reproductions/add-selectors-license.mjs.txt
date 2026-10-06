@@ -1,0 +1,25 @@
+import fs from 'node:fs/promises'
+import {createHash} from 'node:crypto'
+const base='target/issue-closure-2026-10-06/',legal='src-tauri/resources/legal/'
+const rows=JSON.parse(await fs.readFile(base+'missing-notices-source.json'))
+const row=rows.find(x=>x.name==='selectors'),sha=row.vcs.git.sha1
+const source=`https://raw.githubusercontent.com/servo/stylo/${sha}/selectors/lib.rs`
+const bytes=Buffer.from(await fetch(source).then(r=>{if(!r.ok)throw Error('Source unavailable');return r.arrayBuffer()}))
+if(!bytes.equals(await fs.readFile(row.package_directory+'/lib.rs')))throw Error('Published source does not match provenance')
+const excerpt=bytes.toString('utf8').split('\n').slice(0,3).join('\n')+'\n'
+if(!excerpt.includes('License, v. 2.0'))throw Error('Unexpected source license')
+const url=new URL('https://raw.githubusercontent.com/spdx/license-list-data/v3.26.0/text/MPL-2.0.txt')
+const text=Buffer.from(await fetch(url).then(r=>{if(!r.ok)throw Error('License unavailable');return r.arrayBuffer()}))
+if(text.length>50000||!text.toString('utf8').includes('Mozilla Public License Version 2.0'))throw Error('Unexpected MPL text')
+const notices=[]
+for(const [content,sourceURL,sourcePath] of [[Buffer.from(excerpt),source,'selectors/lib.rs license header'],[text,url.href,'SPDX license-list-data v3.26.0 MPL 2.0 text']]){
+ const hash=createHash('sha256').update(content).digest('hex'),file=hash+'.txt'
+ await fs.writeFile(legal+'supplemental/'+file,content)
+ notices.push({file,source:sourceURL,sha256:hash,source_path:sourcePath})
+}
+const inventory=JSON.parse(await fs.readFile(legal+'supplemental-inventory.json'))
+inventory.records.push({ecosystem:'cargo',name:row.name,version:row.version,license:row.license,repository:row.repository,source_commit:sha,publication_provenance:'Published crate lib.rs matches the .cargo_vcs_info.json source commit byte-for-byte and declares MPL 2.0; full SPDX standard MPL 2.0 text collected separately',source_code_url:'https://static.crates.io/crates/selectors/selectors-0.36.1.crate',notices})
+await fs.writeFile(legal+'supplemental-inventory.json',JSON.stringify(inventory,null,2)+'\n')
+const gaps=JSON.parse(await fs.readFile(base+'remaining-dependency-notices.json')).filter(x=>x.name!=='selectors')
+await fs.writeFile(base+'remaining-dependency-notices.json',JSON.stringify(gaps,null,2)+'\n')
+console.log(JSON.stringify({selectors_publication_match:true,canonical_license_source:url.href,remaining_gaps:gaps.length}))

@@ -10,6 +10,7 @@ use zeroize::Zeroizing;
 
 use crate::domain::{AtomicAmount, NodeConfig};
 use crate::rpc::{DaemonRpcClient, RpcError, WalletRpcClient};
+use crate::storage::save_wallet_name;
 
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
@@ -83,6 +84,15 @@ pub enum WalletOperation {
     Authenticate {
         password: Zeroizing<String>,
     },
+}
+
+impl WalletOperation {
+    pub(crate) fn is_background_read(&self) -> bool {
+        matches!(
+            self,
+            Self::Info | Self::History | Self::Contacts | Self::AddressBalances
+        )
+    }
 }
 
 pub struct SecretMaterial {
@@ -210,11 +220,13 @@ impl OperationsState {
     ) -> Result<WalletOperationOutput, OperationError> {
         let value = match operation {
             WalletOperation::Info => {
-                json!({"name":attribute(client, "next.name").await?.unwrap_or_default()})
+                let name = read_wallet_name(client, directory).await?;
+                json!({"name":name})
             }
             WalletOperation::SetName { name } => {
                 text(&name, 100, false)?;
                 save_attribute(client, "next.name", &name).await?;
+                save_wallet_name(directory, &name).map_err(|_| OperationError::Storage)?;
                 json!({})
             }
             WalletOperation::History => {
@@ -708,6 +720,17 @@ fn clean_payment_id(id: &str) -> &str {
 fn is_hash(value: &str) -> bool {
     value.len() == 64 && value.bytes().all(|b| b.is_ascii_hexdigit())
 }
+pub(crate) async fn read_wallet_name(
+    client: &WalletRpcClient,
+    directory: &Path,
+) -> Result<String, OperationError> {
+    let name = attribute(client, "next.name").await?.unwrap_or_default();
+    // Backfill names from older wallets after a successful authenticated read.
+    // A broken display cache must not prevent access to the encrypted wallet.
+    let _ = save_wallet_name(directory, &name);
+    Ok(name)
+}
+
 async fn attribute(client: &WalletRpcClient, key: &str) -> Result<Option<String>, OperationError> {
     #[derive(Deserialize)]
     struct Attribute {

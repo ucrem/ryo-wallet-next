@@ -1,0 +1,77 @@
+param([switch]$Resume)
+$ErrorActionPreference = 'Stop'
+$taskAuditRoot = 'F:\DEV\ryo-wallet-next-main\target\release-audit-2026-10-06-e5a7f55'
+$taskInstall = [IO.Path]::GetFullPath((Join-Path $taskAuditRoot 'installed'))
+if (-not $taskInstall.StartsWith($taskAuditRoot + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Audit install directory escaped its workspace' }
+$taskInstaller = Join-Path $taskAuditRoot 'release-audit-setup.exe'
+$taskProfile = Join-Path $env:APPDATA 'io.github.ucrem.ryowalletnext.releaseaudit20261006'
+$taskRegistry = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Ryo Wallet Next Release Audit'
+if (-not $Resume -and ((Test-Path -LiteralPath $taskInstall) -or (Test-Path -LiteralPath $taskProfile) -or (Test-Path -LiteralPath $taskRegistry))) { throw 'The isolated audit target already exists' }
+if ($Resume -and -not (Test-Path -LiteralPath (Join-Path $taskAuditRoot 'native-installer-report.json'))) { throw 'No prior isolated install receipt exists' }
+$taskTemplate = Get-Content -LiteralPath (Join-Path $taskAuditRoot 'installer.nsi') -Raw
+foreach ($taskExpected in @('!define PRODUCTNAME "Ryo Wallet Next Release Audit"','!define MAINBINARYNAME "ryo-wallet-next-release-audit"','!define BUNDLEID "io.github.ucrem.ryowalletnext.releaseaudit20261006"')) {
+    if (-not $taskTemplate.Contains($taskExpected)) { throw 'Installer identity is not isolated' }
+}
+$taskReport = [ordered]@{source_revision='e5a7f55df8515b0873565286fcd7b2c8ec93bbc7';platform='windows';isolation='Separate product, binary basename, identifier, registry and app-data profile';installer_sha256=(Get-FileHash -LiteralPath $taskInstaller -Algorithm SHA256).Hash;checks=@();user_wallets_used=$false;installed_wallet_gui_verified=$false;paid_publisher_signing='excluded';in_app_update_verified=$false}
+function Save-AuditReport { $taskReport | ConvertTo-Json -Depth 7 | Set-Content -LiteralPath (Join-Path $taskAuditRoot 'native-installer-report.json') -Encoding utf8 }
+function Add-AuditCheck($name, $passed, $detail) { $taskReport.checks += [pscustomobject]@{name=$name;passed=$passed;detail=$detail}; Save-AuditReport }
+if (-not $Resume) {
+    $taskSetup = Start-Process -FilePath $taskInstaller -ArgumentList @('/S','/NS',('/D=' + $taskInstall)) -WindowStyle Hidden -PassThru
+    if (-not $taskSetup.WaitForExit(30000) -or $taskSetup.ExitCode -ne 0) { throw 'Isolated installation failed' }
+}
+$taskRegistered = Get-ItemProperty -LiteralPath $taskRegistry
+if ($taskRegistered.InstallLocation.Trim('"') -ne $taskInstall) { throw 'Installer registry location differs from the isolated target' }
+Add-AuditCheck 'clean current-user NSIS installation and registered target' $true 'Installer exit 0; separate product and executable name.'
+$taskManifest = Get-Content -LiteralPath 'F:\DEV\ryo-wallet-next-main\src-tauri\runtime-manifest.json' -Raw | ConvertFrom-Json
+$taskWindows = $taskManifest.platforms.'x86_64-pc-windows-msvc'
+foreach ($taskRuntime in @(@{Name='ryo-wallet-rpc.exe';Expected=$taskWindows.binarySha256},@{Name='ryod.exe';Expected=$taskWindows.daemonSha256})) {
+    $taskDigest = (Get-FileHash -LiteralPath (Join-Path $taskInstall $taskRuntime.Name) -Algorithm SHA256).Hash.ToLowerInvariant()
+    Add-AuditCheck ('installed digest: '+$taskRuntime.Name) ($taskDigest -eq $taskRuntime.Expected) $taskDigest
+}
+$taskPayload = @(Get-ChildItem -LiteralPath $taskInstall -File -Recurse | ForEach-Object {$_.FullName.Substring($taskInstall.Length+1)})
+$taskPayload | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskAuditRoot 'installed-payload.json') -Encoding utf8
+if (-not (Test-Path -LiteralPath $taskProfile)) { New-Item -ItemType Directory -Path $taskProfile | Out-Null }
+$taskPrefsFile = Join-Path $taskProfile 'preferences.json'
+$taskRootFile = Join-Path $taskProfile 'wallet-data-root.json'
+$taskValidPrefs = '{"theme":"light","idle_lock_seconds":120,"minimize_to_tray":false,"launch_on_startup":false,"notify_no_payment_id":true,"notify_weak_password":true}'
+[IO.File]::WriteAllText($taskPrefsFile,$taskValidPrefs)
+$taskPrefsHash = (Get-FileHash -LiteralPath $taskPrefsFile -Algorithm SHA256).Hash
+function Test-AuditLaunch($caseName) {
+    $taskExecutable = Join-Path $taskInstall 'ryo-wallet-next-release-audit.exe'
+    $taskProcess = Start-Process -FilePath $taskExecutable -WorkingDirectory $taskInstall -WindowStyle Normal -PassThru -RedirectStandardError (Join-Path $taskAuditRoot ($caseName+'.stderr.txt'))
+    try { $null=$taskProcess.WaitForInputIdle(10000) } catch { }
+    $taskWindowDeadline = [DateTime]::UtcNow.AddSeconds(20)
+    do {
+        Start-Sleep -Milliseconds 100
+        $taskProcess.Refresh()
+    } while (-not $taskProcess.HasExited -and $taskProcess.MainWindowHandle -eq 0 -and [DateTime]::UtcNow -lt $taskWindowDeadline)
+    $taskWindow = (-not $taskProcess.HasExited) -and $taskProcess.MainWindowHandle -ne 0 -and $taskProcess.MainWindowTitle -eq 'Ryo Wallet Next - Release Audit'
+    if ($taskWindow) {
+        if (-not $taskProcess.CloseMainWindow() -or -not $taskProcess.WaitForExit(15000)) { throw 'The isolated audit desktop did not close normally' }
+    } elseif (-not $taskProcess.WaitForExit(10000)) {
+        if (-not $taskProcess.CloseMainWindow() -or -not $taskProcess.WaitForExit(15000)) { throw 'The isolated audit desktop is still active; no forced termination performed' }
+    }
+    [pscustomobject]@{native_window_present=$taskWindow;exit_code=$taskProcess.ExitCode;rendered_ui_verified=$false}
+}
+$taskBaseline = Test-AuditLaunch 'valid-preferences'
+Add-AuditCheck 'native startup and graceful close with valid preferences' $taskBaseline.native_window_present $taskBaseline
+$taskRepair = Start-Process -FilePath $taskInstaller -ArgumentList @('/S','/NS',('/D='+$taskInstall)) -WindowStyle Hidden -PassThru
+if (-not $taskRepair.WaitForExit(30000) -or $taskRepair.ExitCode -ne 0) { throw 'Isolated reinstallation failed' }
+Add-AuditCheck 'same-version reinstall preserves existing preferences' ((Get-FileHash -LiteralPath $taskPrefsFile -Algorithm SHA256).Hash -eq $taskPrefsHash) 'Separate audit profile only.'
+[IO.File]::WriteAllText($taskPrefsFile,'{')
+$taskBadPrefs = Test-AuditLaunch 'malformed-preferences'
+Add-AuditCheck 'recoverable startup with malformed non-wallet preferences' ($taskBadPrefs.native_window_present -and $taskBadPrefs.exit_code -eq 0) $taskBadPrefs
+[IO.File]::WriteAllText($taskPrefsFile,$taskValidPrefs)
+[IO.File]::WriteAllText($taskRootFile,'{')
+$taskBadRoot = Test-AuditLaunch 'malformed-data-root'
+Add-AuditCheck 'recoverable startup with malformed data-location configuration' ($taskBadRoot.native_window_present -and $taskBadRoot.exit_code -eq 0) $taskBadRoot
+Remove-Item -LiteralPath $taskRootFile
+$taskRecovered = Test-AuditLaunch 'restored-configuration'
+Add-AuditCheck 'startup after external restoration of valid configuration' $taskRecovered.native_window_present $taskRecovered
+$taskUninstaller = Join-Path $taskInstall 'uninstall.exe'
+if (-not (Test-Path -LiteralPath $taskUninstaller)) { throw 'Isolated uninstaller missing' }
+$taskUninstall = Start-Process -FilePath $taskUninstaller -ArgumentList @('/S',('_?='+$taskInstall)) -WindowStyle Hidden -PassThru
+if (-not $taskUninstall.WaitForExit(30000) -or $taskUninstall.ExitCode -ne 0) { throw 'Isolated uninstallation failed' }
+Add-AuditCheck 'isolated uninstallation removes application and registration' ((-not (Test-Path -LiteralPath (Join-Path $taskInstall 'ryo-wallet-next-release-audit.exe'))) -and (-not (Test-Path -LiteralPath $taskRegistry))) 'The audit profile is retained as evidence; no real wallet files were used.'
+Save-AuditReport
+$taskReport | ConvertTo-Json -Depth 7

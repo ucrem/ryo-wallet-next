@@ -895,17 +895,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "diqwest"
-version = "3.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d10611d0d3ed31b33e13ec3e31329aa2053aa4f773eb082b597f39a97e68360"
-dependencies = [
- "digest_auth",
- "reqwest",
- "url",
-]
-
-[[package]]
 name = "dirs"
 version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1565,8 +1554,6 @@ dependencies = [
 [[package]]
 name = "glib"
 version = "0.18.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5"
 dependencies = [
  "bitflags 2.13.2",
  "futures-channel",
@@ -3566,6 +3553,8 @@ checksum = "cf54715a573b99ac80df0bc206da022bcd442c974952c7b9720069370852e21f"
 name = "ryo-wallet-next"
 version = "0.1.0-alpha.6"
 dependencies = [
+ "glib",
+ "libc",
  "ryo-wallet-service",
  "serde",
  "serde_json",
@@ -3580,6 +3569,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "uuid",
+ "windows-sys 0.61.2",
  "zeroize",
 ]
 
@@ -3587,7 +3577,7 @@ dependencies = [
 name = "ryo-wallet-service"
 version = "0.1.0"
 dependencies = [
- "diqwest",
+ "digest_auth",
  "reqwest",
  "serde",
  "serde_json",
@@ -3597,6 +3587,7 @@ dependencies = [
  "tokio",
  "ts-rs",
  "uuid",
+ "windows-sys 0.61.2",
  "zeroize",
 ]
 

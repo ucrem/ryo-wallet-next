@@ -1,0 +1,31 @@
+{
+  "published_version": "0.1.0-alpha.6",
+  "application_candidate_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "downloaded_assets_executed": false,
+  "records": [
+    {
+      "name": "ryo-wallet-next_0.1.0-alpha.6_windows_x86_64-setup.exe",
+      "sha256": "1c95161de3a7232eae838c9cca2d7c989f2235221313969eafe1c0e202878252",
+      "checksums_match": true,
+      "feed_signature_match": true
+    },
+    {
+      "name": "ryo-wallet-next_0.1.0-alpha.6_darwin_x86_64.app.tar.gz",
+      "sha256": "bfa4b45e42a6ad8a9bde6acafb88abc8ddc36d3e662d1c768516b98635b6e5cb",
+      "checksums_match": true,
+      "feed_signature_match": true
+    },
+    {
+      "name": "ryo-wallet-next_0.1.0-alpha.6_amd64.deb",
+      "sha256": "33e8629149e494578e72fceed403b530b3733ddf4de76d3f0a024584e494b9db",
+      "checksums_match": true,
+      "feed_signature_match": true
+    },
+    {
+      "name": "ryo-wallet-next-0.1.0-alpha.6-1.x86_64.rpm",
+      "sha256": "622bf44712e9a41da34f947d29142b8609a043a00d8649ee95b669b0f9c72992",
+      "checksums_match": true,
+      "feed_signature_match": true
+    }
+  ]
+}

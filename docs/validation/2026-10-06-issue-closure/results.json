@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "application_fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13",
+  "material_revision": "ebdd7b299b81162de55357cad6cecefec6d290ab",
+  "closed_issues": [
+    38,
+    39,
+    40,
+    41,
+    43,
+    44,
+    45,
+    46
+  ],
+  "remaining_issue": 42,
+  "remaining_issue_reason": "Version-matched production npm notice and exact upstream runtime linked-dependency materials are not established",
+  "inventory": {
+    "cargo_packages": 592,
+    "production_npm_packages": 117,
+    "notice_files": 1162,
+    "packages_without_notice": [
+      {
+        "ecosystem": "cargo",
+        "name": "rustls-platform-verifier-android",
+        "version": "0.1.1",
+        "license": "MIT OR Apache-2.0"
+      },
+      {
+        "ecosystem": "cargo",
+        "name": "winapi-i686-pc-windows-gnu",
+        "version": "0.4.0",
+        "license": "MIT/Apache-2.0"
+      },
+      {
+        "ecosystem": "cargo",
+        "name": "winapi-x86_64-pc-windows-gnu",
+        "version": "0.4.0",
+        "license": "MIT/Apache-2.0"
+      },
+      {
+        "ecosystem": "npm",
+        "name": "react-remove-scroll-bar",
+        "version": "2.3.8",
+        "license": "MIT"
+      }
+    ]
+  },
+  "installed_windows": {
+    "checks": 41,
+    "passed": 41,
+    "legal_files": 37
+  },
+  "script_checks": {
+    "integrity_regressions": 5,
+    "runtime_manifest_regressions": 2,
+    "lint": "passed"
+  },
+  "testnet": {
+    "observation_seconds": 30,
+    "public_sync_observed": false,
+    "exit_code": 0,
+    "current_fork_gate_passed": false
+  },
+  "pr_merged": false,
+  "release_published": false
+}

@@ -1,0 +1,41 @@
+[
+  {
+    "name": "ryod.exe",
+    "sha256": "a60f8db0ff0e7fd258f7a74c5ec975ca54b732b011c6b5bf706584c2785d3590",
+    "pe_imports": [
+      "ADVAPI32.dll",
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "msvcrt.dll",
+      "MSWSOCK.dll",
+      "SHELL32.dll",
+      "USER32.dll",
+      "WS2_32.dll"
+    ],
+    "version_strings": [
+      "LMDB 0.9.70: (December 19, 2015)",
+      "OpenSSL 1.1.1d  10 Sep 2019",
+      "libminiupnpc"
+    ],
+    "static_link_composition_proven": false
+  },
+  {
+    "name": "ryo-wallet-rpc.exe",
+    "sha256": "26b18488c30e14f2e49eba87c89b9048c4b5493be7d23b8e5173be7d1a212721",
+    "pe_imports": [
+      "ADVAPI32.dll",
+      "IPHLPAPI.DLL",
+      "KERNEL32.dll",
+      "msvcrt.dll",
+      "MSWSOCK.dll",
+      "SHELL32.dll",
+      "USER32.dll",
+      "WS2_32.dll"
+    ],
+    "version_strings": [
+      "LMDB 0.9.70: (December 19, 2015)",
+      "OpenSSL 1.1.1d  10 Sep 2019"
+    ],
+    "static_link_composition_proven": false
+  }
+]

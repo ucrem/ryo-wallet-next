@@ -1,0 +1,70 @@
+2026-10-06T19:17:39.7574760Z warning: spurious network error (2 tries remaining): transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:17:39.7628960Z warning: spurious network error (2 tries remaining): transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:17:39.7672950Z warning: spurious network error (2 tries remaining): transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:17:39.7739110Z warning: spurious network error (3 tries remaining): transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:17:45.8109390Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8223930Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8315980Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8375500Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8414520Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8466190Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8517300Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8551770Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8585430Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8630910Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:17:45.8655090Z warning: spurious network error (1 try remaining): [55] Failed sending data to the peer (Send failure: Broken pipe)
+2026-10-06T19:18:10.6873920Z warning: spurious network error (2 tries remaining): transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:18:14.4985300Z error: failed to get `yoke` as a dependency of package `icu_collections v2.3.0`
+2026-10-06T19:18:14.5026350Z     ... which satisfies dependency `icu_collections = "~2.3.0"` (locked to 2.3.0) of package `icu_normalizer v2.3.0`
+2026-10-06T19:18:14.5070300Z     ... which satisfies dependency `icu_normalizer = "^2.2"` (locked to 2.3.0) of package `idna_adapter v1.2.2`
+2026-10-06T19:18:14.5106180Z     ... which satisfies dependency `idna_adapter = "^1"` (locked to 1.2.2) of package `idna v1.1.0`
+2026-10-06T19:18:14.5139270Z     ... which satisfies dependency `idna = "^1.1.0"` (locked to 1.1.0) of package `url v2.5.8`
+2026-10-06T19:18:14.5165280Z     ... which satisfies dependency `url = "^2"` (locked to 2.5.8) of package `tauri v2.11.6`
+2026-10-06T19:18:14.5190230Z     ... which satisfies dependency `tauri = "=2.11.6"` (locked to 2.11.6) of package `ryo-wallet-next v0.1.0-alpha.6 (/Users/runner/work/ryo-wallet-next/ryo-wallet-next/src-tauri)`
+2026-10-06T19:18:14.5219880Z
+2026-10-06T19:18:14.5248430Z Caused by:
+2026-10-06T19:18:14.5274300Z   failed to load source for dependency `yoke`
+2026-10-06T19:18:14.5287300Z
+2026-10-06T19:18:14.5304590Z Caused by:
+2026-10-06T19:18:14.5338380Z   unable to update registry `crates-io`
+2026-10-06T19:18:14.5352040Z
+2026-10-06T19:18:14.5377230Z Caused by:
+2026-10-06T19:18:14.5397450Z   download of yo/ke/yoke failed
+2026-10-06T19:18:14.5430760Z
+2026-10-06T19:18:14.5464310Z Caused by:
+2026-10-06T19:18:14.5503450Z   transfer too slow: failed to transfer more than 10 bytes in 30s (transferred 0 bytes)
+2026-10-06T19:18:14.5546710Z ##[error]Process completed with exit code 101.
+2026-10-06T19:18:14.6137000Z Post job cleanup.
+2026-10-06T19:18:14.9232520Z [command]/usr/local/bin/git version
+2026-10-06T19:18:14.9411110Z git version 2.55.0
+2026-10-06T19:18:14.9607470Z Copying '/Users/runner/.gitconfig' to '/Users/runner/work/_temp/8fa164dd-6d52-42a1-ab87-36c453a50b33/.gitconfig'
+2026-10-06T19:18:14.9643920Z Temporarily overriding HOME='/Users/runner/work/_temp/8fa164dd-6d52-42a1-ab87-36c453a50b33' before making global git config changes
+2026-10-06T19:18:14.9647230Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-06T19:18:14.9734620Z [command]/usr/local/bin/git config --global --add safe.directory /Users/runner/work/ryo-wallet-next/ryo-wallet-next
+2026-10-06T19:18:14.9806290Z Removing SSH command configuration
+2026-10-06T19:18:14.9829610Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-06T19:18:15.0003980Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-06T19:18:15.2995110Z Removing HTTP extra header
+2026-10-06T19:18:15.3092110Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-06T19:18:15.3392650Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-06T19:18:15.6059710Z Removing includeIf entries pointing to credentials config files
+2026-10-06T19:18:15.6122550Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-06T19:18:15.6208060Z includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git.path
+2026-10-06T19:18:15.6301320Z includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git/worktrees/*.path
+2026-10-06T19:18:15.6437300Z includeif.gitdir:/github/workspace/.git.path
+2026-10-06T19:18:15.6504960Z includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-06T19:18:15.6696880Z [command]/usr/local/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git.path
+2026-10-06T19:18:15.6738490Z /Users/runner/work/_temp/git-credentials-cfcbc79d-5d3b-4a13-8178-14444a4a89a4.config
+2026-10-06T19:18:15.6929490Z [command]/usr/local/bin/git config --local --unset includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git.path \/Users\/runner\/work\/_temp\/git\-credentials\-cfcbc79d\-5d3b\-4a13\-8178\-14444a4a89a4\.config
+2026-10-06T19:18:15.7115720Z [command]/usr/local/bin/git config --local --get-all includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git/worktrees/*.path
+2026-10-06T19:18:15.7270160Z /Users/runner/work/_temp/git-credentials-cfcbc79d-5d3b-4a13-8178-14444a4a89a4.config
+2026-10-06T19:18:15.7492140Z [command]/usr/local/bin/git config --local --unset includeif.gitdir:/Users/runner/work/ryo-wallet-next/ryo-wallet-next/.git/worktrees/*.path \/Users\/runner\/work\/_temp\/git\-credentials\-cfcbc79d\-5d3b\-4a13\-8178\-14444a4a89a4\.config
+2026-10-06T19:18:15.7673930Z [command]/usr/local/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git.path
+2026-10-06T19:18:15.7712350Z /github/runner_temp/git-credentials-cfcbc79d-5d3b-4a13-8178-14444a4a89a4.config
+2026-10-06T19:18:15.7931010Z [command]/usr/local/bin/git config --local --unset includeif.gitdir:/github/workspace/.git.path \/github\/runner_temp\/git\-credentials\-cfcbc79d\-5d3b\-4a13\-8178\-14444a4a89a4\.config
+2026-10-06T19:18:15.8422060Z [command]/usr/local/bin/git config --local --get-all includeif.gitdir:/github/workspace/.git/worktrees/*.path
+2026-10-06T19:18:15.8586840Z /github/runner_temp/git-credentials-cfcbc79d-5d3b-4a13-8178-14444a4a89a4.config
+2026-10-06T19:18:15.8769400Z [command]/usr/local/bin/git config --local --unset includeif.gitdir:/github/workspace/.git/worktrees/*.path \/github\/runner_temp\/git\-credentials\-cfcbc79d\-5d3b\-4a13\-8178\-14444a4a89a4\.config
+2026-10-06T19:18:15.8936140Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-06T19:18:16.0417190Z Removing credentials config '/Users/runner/work/_temp/git-credentials-cfcbc79d-5d3b-4a13-8178-14444a4a89a4.config'
+2026-10-06T19:18:16.0906970Z Cleaning up orphan processes

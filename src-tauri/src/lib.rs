@@ -1,5 +1,5 @@
 use std::fs::{self, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -10,9 +10,11 @@ use ryo_wallet_service::application::{
     LifecycleStatus, NodeService, NodeStatus, WalletOverview, WalletService, WalletServiceError,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
+use ryo_wallet_service::process::{WalletRpcLaunchError, WalletRpcStartupError};
 use ryo_wallet_service::rpc::{ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
-    AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, save_settings,
+    AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, load_wallet_name,
+    save_settings,
 };
 use serde::ser::SerializeStruct;
 use tauri::{Emitter, Manager};
@@ -21,6 +23,9 @@ use zeroize::Zeroizing;
 
 mod app_settings;
 mod app_updates;
+mod configuration_recovery;
+mod diagnostics;
+mod wallet_import;
 mod wallet_operations;
 mod wallet_runtime;
 
@@ -87,6 +92,7 @@ struct ShutdownState {
 #[derive(serde::Serialize)]
 struct WalletEntry {
     id: String,
+    name: Option<String>,
     backup_complete: bool,
 }
 
@@ -105,6 +111,7 @@ fn backup_complete(paths: &AppPaths, id: &WalletId) -> bool {
 struct DataRootConfiguration {
     root: Option<PathBuf>,
     network: Network,
+    startup_notices: Vec<&'static str>,
 }
 
 #[derive(serde::Deserialize)]
@@ -118,18 +125,14 @@ enum NodeSelection {
 impl DataRootState {
     fn load(app: &tauri::AppHandle) -> Result<Self, &'static str> {
         let path = data_root_selection_path(app)?;
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Self(Mutex::new(None)));
-            }
-            Err(_) => return Err("data location configuration is unavailable"),
-        };
-        let persisted: PersistedDataRoot =
-            serde_json::from_slice(&bytes).map_err(|_| "data location configuration is invalid")?;
-        let paths = AppPaths::new(persisted.root, persisted.network)
-            .map_err(|_| "data location configuration is invalid")?;
-        Ok(Self(Mutex::new(Some(paths))))
+        let persisted = configuration_recovery::load(
+            &path,
+            |value: &PersistedDataRoot| value.root.is_absolute(),
+            configuration_recovery::Kind::DataLocation,
+            &app.state::<configuration_recovery::RecoveryState>(),
+        );
+        let paths = persisted.and_then(|saved| AppPaths::new(saved.root, saved.network).ok());
+        Ok(Self(Mutex::new(paths)))
     }
 }
 
@@ -146,45 +149,39 @@ fn persist_data_root(
     network: Network,
 ) -> Result<(), &'static str> {
     let final_path = data_root_selection_path(app)?;
+    write_data_root(&final_path, root, network)
+}
+
+fn write_data_root(final_path: &Path, root: &Path, network: Network) -> Result<(), &'static str> {
     let parent = final_path
         .parent()
         .ok_or("data location configuration is unavailable")?;
     fs::create_dir_all(parent).map_err(|_| "data location configuration is unavailable")?;
-    let temporary_path = parent.join("wallet-data-root.json.new");
-    let bytes = serde_json::to_vec(&PersistedDataRoot {
-        root: root.to_path_buf(),
-        network,
-    })
-    .map_err(|_| "data location configuration is unavailable")?;
-    let file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary_path)
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)
         .map_err(|_| "data location configuration is unavailable")?;
-    let write_result = (|| {
-        let mut writer = BufWriter::new(file);
-        writer
-            .write_all(&bytes)
-            .map_err(|_| "data location configuration is unavailable")?;
-        writer
-            .flush()
-            .map_err(|_| "data location configuration is unavailable")?;
-        writer
-            .get_ref()
-            .sync_all()
-            .map_err(|_| "data location configuration is unavailable")?;
-        fs::rename(&temporary_path, final_path)
-            .map_err(|_| "data location configuration is unavailable")
-    })();
-    if write_result.is_err() {
-        let _ = fs::remove_file(temporary_path);
-    }
-    write_result
+    serde_json::to_writer(
+        temporary.as_file_mut(),
+        &PersistedDataRoot {
+            root: root.to_path_buf(),
+            network,
+        },
+    )
+    .map_err(|_| "data location configuration is unavailable")?;
+    temporary
+        .as_file()
+        .sync_all()
+        .map_err(|_| "data location configuration is unavailable")?;
+    temporary
+        .persist(final_path)
+        .map_err(|_| "data location configuration is unavailable")?;
+    Ok(())
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize)]
 struct WalletSyncStatusResponse {
     wallet_height: Option<String>,
+    wallet_rpc_busy: bool,
+    wallet_rpc_available: bool,
     daemon_height: Option<String>,
     network_height: Option<String>,
     node_reachable: bool,
@@ -204,10 +201,10 @@ async fn app_status(
 async fn wallet_overview(
     service: tauri::State<'_, WalletService>,
 ) -> Result<WalletOverview, &'static str> {
-    service
-        .overview()
-        .await
-        .map_err(|_| "wallet overview unavailable")
+    service.overview().await.map_err(|error| match error {
+        WalletServiceError::Busy => "wallet RPC busy",
+        _ => "wallet overview unavailable",
+    })
 }
 
 #[tauri::command]
@@ -222,6 +219,7 @@ async fn wallet_receive_addresses(
         .receive_addresses(session_generation)
         .await
         .map_err(|error| match error {
+            WalletServiceError::Busy => "wallet RPC busy",
             WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page",
             _ => "receive addresses are unavailable",
         })
@@ -280,11 +278,27 @@ async fn collect_wallet_sync_status(
     nodes: &NodeService,
     node: &NodeConfig,
 ) -> WalletSyncStatusResponse {
-    let wallet_height = service.height().await.ok().map(|height| height.to_string());
-
-    match nodes.status(node).await {
+    // Node health must not queue behind the wallet's single-threaded refresh.
+    let (height, health) = tokio::join!(
+        async {
+            if service.read_is_busy() && service.scan_height().is_some() {
+                None
+            } else {
+                service.height().await.ok()
+            }
+        },
+        nodes.status(node)
+    );
+    let wallet_height = height
+        .or_else(|| service.scan_height())
+        .map(|height| height.to_string());
+    let wallet_rpc_busy = service.read_is_busy();
+    let wallet_rpc_available = height.is_some();
+    match health {
         Ok(health) => WalletSyncStatusResponse {
             wallet_height,
+            wallet_rpc_busy,
+            wallet_rpc_available,
             daemon_height: health.rpc_height.or(health.height),
             network_height: health.target_height,
             node_reachable: health.reachable,
@@ -294,6 +308,8 @@ async fn collect_wallet_sync_status(
         },
         Err(_) => WalletSyncStatusResponse {
             wallet_height,
+            wallet_rpc_busy,
+            wallet_rpc_available,
             daemon_height: None,
             network_height: None,
             node_reachable: false,
@@ -386,6 +402,7 @@ fn wallet_list(state: tauri::State<'_, DataRootState>) -> Result<Vec<WalletEntry
         {
             wallets.push(WalletEntry {
                 id: id.to_string(),
+                name: load_wallet_name(&paths.wallet_dir(&id)).ok().flatten(),
                 backup_complete: backup_complete(&paths, &id),
             });
         }
@@ -408,6 +425,7 @@ fn wallet_active(
     let paths = selected_paths(&state)?;
     Ok(Some(WalletEntry {
         id: id.to_string(),
+        name: load_wallet_name(&paths.wallet_dir(&id)).ok().flatten(),
         backup_complete: backup_complete(&paths, &id),
     }))
 }
@@ -439,6 +457,49 @@ async fn ready_wallet_service(
 ) -> Result<(), &'static str> {
     let setup = app.state::<SetupState>();
     let _guard = setup.0.lock().await;
+    ready_wallet_service_under_setup(service, state, app, nodes).await
+}
+
+// Explicit startup categories; never forward private paths or raw adapter errors.
+fn wallet_startup_message(error: WalletServiceError) -> &'static str {
+    match error {
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::Paths(_),
+        )) => {
+            "wallet runtime storage could not be secured; check permissions on the selected data folder and restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::UnsupportedPath(_),
+        )) => "the selected data folder path is not supported by the bundled wallet runtime",
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(_)) => {
+            "wallet runtime settings are invalid; check node and wallet RPC port settings"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::DaemonTransport(_)) => {
+            "wallet daemon connection could not be prepared; check network connectivity and node settings"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Credentials(_)) => {
+            "wallet runtime credentials could not be validated; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Deadline) => {
+            "wallet runtime did not become ready in time; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Readiness(_)) => {
+            "wallet runtime did not pass its startup check; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Process(_)) => {
+            "wallet runtime process could not be safely started; restart the app"
+        }
+        _ => "wallet runtime could not be started; restart the app",
+    }
+}
+
+// The caller owns SetupState while importing or changing runtime configuration.
+async fn ready_wallet_service_under_setup(
+    service: &WalletService,
+    state: &DataRootState,
+    app: &tauri::AppHandle,
+    nodes: &NodeService,
+) -> Result<(), &'static str> {
     require_app_running(app)?;
     let paths = selected_paths(state)?;
     let binary =
@@ -461,9 +522,7 @@ async fn ready_wallet_service(
     service
         .start_wallet_rpc(binary, paths, node.clone(), wallet_rpc_port(&node)?)
         .await
-        .map_err(
-            |_| "wallet runtime could not be started; check the selected node and restart the app",
-        )?;
+        .map_err(wallet_startup_message)?;
     Ok(())
 }
 
@@ -657,11 +716,15 @@ fn wallet_acknowledge_backup(
     if !wallet_file_pair_exists(&paths, &id) {
         return Err("wallet files are unavailable");
     }
-    let path = backup_ack_path(&paths, &id);
-    if backup_complete(&paths, &id) {
+    save_backup_acknowledgement(&paths, &id)
+}
+
+fn save_backup_acknowledgement(paths: &AppPaths, id: &WalletId) -> Result<(), &'static str> {
+    let path = backup_ack_path(paths, id);
+    if backup_complete(paths, id) {
         return Ok(());
     }
-    let temporary = paths.wallet_dir(&id).join(format!(
+    let temporary = paths.wallet_dir(id).join(format!(
         "backup-acknowledged.{}.new",
         uuid::Uuid::new_v4().simple()
     ));
@@ -688,11 +751,13 @@ fn wallet_acknowledge_backup(
 #[tauri::command]
 fn data_root_configuration(
     state: tauri::State<'_, DataRootState>,
+    recovery: tauri::State<'_, configuration_recovery::RecoveryState>,
 ) -> Result<DataRootConfiguration, &'static str> {
     state
         .0
         .lock()
         .map(|paths| DataRootConfiguration {
+            startup_notices: recovery.messages(),
             root: paths.as_ref().map(|paths| paths.root().to_path_buf()),
             network: paths
                 .as_ref()
@@ -933,13 +998,16 @@ pub fn run() {
             app.manage(WalletService::new());
             app.manage(NodeService::new());
             app.manage(SetupState::default());
+            app.manage(wallet_import::ImportSelectionState::default());
             app.manage(ShutdownState::default());
+            app.manage(configuration_recovery::RecoveryState::default());
             app.manage(DataRootState::load(app.handle())?);
             app.manage(app_settings::PreferencesState::load(app.handle())?);
             app.manage(app_settings::ActivityState(AtomicU64::new(0)));
             app.manage(ActiveWalletState(Mutex::new(None)));
             app.manage(SyncMonitorState(AtomicU64::new(0)));
             app.manage(app_updates::InstallState::default());
+            app.manage(diagnostics::DiagnosticsState::default());
             app_settings::setup_tray(app.handle())?;
             app_settings::apply_window_theme(
                 app.handle(),
@@ -977,6 +1045,7 @@ pub fn run() {
             app_settings::app_activity,
             app_updates::app_update_check,
             app_updates::app_update_install,
+            diagnostics::app_export_diagnostics,
             wallet_overview,
             wallet_operations::wallet_operation,
             wallet_operations::wallet_key_images,
@@ -991,6 +1060,8 @@ pub fn run() {
             wallet_create,
             wallet_restore,
             wallet_open,
+            wallet_import::wallet_select_import,
+            wallet_import::wallet_import,
             wallet_lock,
             wallet_backup_phrase,
             wallet_acknowledge_backup,
@@ -1036,6 +1107,36 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn data_root_save_ignores_interrupted_legacy_stage_and_replaces_configuration() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wallet-data-root.json");
+        let stage = dir.path().join("wallet-data-root.json.new");
+        fs::write(&stage, b"interrupted write").unwrap();
+        write_data_root(&path, dir.path(), Network::Mainnet).unwrap();
+        write_data_root(&path, dir.path(), Network::Testnet).unwrap();
+        let saved: PersistedDataRoot = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(saved.root, dir.path());
+        assert_eq!(saved.network, Network::Testnet);
+        assert_eq!(fs::read(stage).unwrap(), b"interrupted write");
+    }
+
+    #[test]
+    fn startup_feedback_distinguishes_storage_from_readiness_without_raw_errors() {
+        let error = WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::Paths(ryo_wallet_service::storage::PathError::Io(
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "private-path-canary"),
+            )),
+        ));
+        let message = wallet_startup_message(error);
+        assert!(message.contains("permissions"));
+        assert!(!message.contains("canary"));
+        let message =
+            wallet_startup_message(WalletServiceError::Startup(WalletRpcStartupError::Deadline));
+        assert!(message.contains("ready in time"));
+        assert!(!message.contains("selected node"));
+    }
 
     #[test]
     fn creation_result_serializes_the_phrase_without_storing_it_in_settings() {

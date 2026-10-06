@@ -1,0 +1,20 @@
+// Bounded, disposable child processes. Never executes wallet code or sends transactions.
+import { spawnSync } from "node:child_process"
+import { resolve } from "node:path"
+import { writeFileSync } from "node:fs"
+const audit = resolve("target/release-audit-2026-10-06-e5a7f55")
+const bracesPath = resolve("node_modules/.pnpm/braces@3.0.3/node_modules/braces")
+const mapPath = resolve("node_modules/.pnpm/source-map-js@1.2.1/node_modules/source-map-js")
+const cases = [
+  {name:"braces-control",code:`const b=require(${JSON.stringify(bracesPath)}); console.log(JSON.stringify(b.expand('{a,b}')))`},
+  {name:"braces-nested",code:`const b=require(${JSON.stringify(bracesPath)}); try { b.expand('{'.repeat(4998)+'a,b'+'}'.repeat(4998)); console.log('completed') } catch(e) { console.log(e.name+': '+e.message); process.exitCode=17 }`},
+  {name:"source-map-control",code:`const s=require(${JSON.stringify(mapPath)}); const c=new s.SourceMapConsumer({version:3,sections:[{offset:{line:0,column:0},map:{version:3,sources:['audit.ts'],names:[],mappings:'AAAA',sourcesContent:['x']}}]}); s.SourceNode.fromStringWithSourceMap('x',c); console.log('completed')`},
+  {name:"source-map-large-offset",code:`const s=require(${JSON.stringify(mapPath)}); const c=new s.SourceMapConsumer({version:3,sections:[{offset:{line:1000000000,column:0},map:{version:3,sources:['audit.ts'],names:[],mappings:'AAAA',sourcesContent:['x']}}]}); console.log('starting isolated large-offset traversal'); s.SourceNode.fromStringWithSourceMap('x',c); console.log('completed')`},
+]
+const results = cases.map(({name,code})=>{
+  const started=Date.now()
+  const result=spawnSync(process.execPath,["-e",code],{timeout:1500,windowsHide:true,encoding:"utf8",maxBuffer:65536})
+  return {name,elapsed_ms:Date.now()-started,exit_code:result.status,terminated_for_timeout:result.error?.code==="ETIMEDOUT",stdout:result.stdout.trim(),stderr:result.stderr.trim()}
+})
+writeFileSync(resolve(audit,"dev-dependency-probes.json"),JSON.stringify({source_revision:"e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",scope:"Development packages only; no claim of wallet exploitability",child_timeout_ms:1500,results},null,2)+"\n")
+console.log(JSON.stringify(results))

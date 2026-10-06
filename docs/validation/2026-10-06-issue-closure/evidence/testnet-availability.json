@@ -1,0 +1,98 @@
+{
+  "observedAt": "2026-10-06T19:18:55.457Z",
+  "runtime": "0.6.1.0",
+  "daemonSha256": "a60f8db0ff0e7fd258f7a74c5ec975ca54b732b011c6b5bf706584c2785d3590",
+  "upstreamSeedSource": "166cf188bf351e3eecff904450eda2785f9d0357/src/p2p/net_node.inl",
+  "atomPeerSource": "6c8d0aa68245271fe0e781084b38583abf758869/src-electron/main-process/modules/daemon.js",
+  "observationSeconds": 30,
+  "seeds": [
+    {
+      "host": "185.134.22.134",
+      "port": 13310,
+      "tcpReachable": false
+    },
+    {
+      "host": "81.19.208.43",
+      "port": 13310,
+      "tcpReachable": false
+    },
+    {
+      "host": "149.56.44.109",
+      "port": 13310,
+      "tcpReachable": false
+    },
+    {
+      "host": "45.77.68.151",
+      "port": 13310,
+      "tcpReachable": false
+    }
+  ],
+  "explorerDns": "resolved",
+  "samples": [
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    },
+    {
+      "height": 1,
+      "targetHeight": 0,
+      "difficulty": 1,
+      "ready": false,
+      "outgoing": 0,
+      "incoming": 0,
+      "topHash": "7a39f4eb486def57a3ff7364f6f0f170b316e07768960f97ee7c65430c967a65"
+    }
+  ],
+  "publicSyncObserved": false,
+  "exitCode": 0
+}

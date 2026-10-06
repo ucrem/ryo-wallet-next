@@ -1,0 +1,7 @@
+{
+  "all_payload_bytes_match_after_standard_nsis_bundle_marker": true,
+  "installed_executable_sha256": "1e2ecad68ff76e20c1729a308edb79903009e0336087dd3214bf50e17e9c4825",
+  "expected_nsis_executable_sha256": "1e2ecad68ff76e20c1729a308edb79903009e0336087dd3214bf50e17e9c4825",
+  "patched_marker": "__TAURI_BUNDLE_TYPE_VAR_UNK -> __TAURI_BUNDLE_TYPE_VAR_NSS",
+  "marker_bytes_changed": 3
+}

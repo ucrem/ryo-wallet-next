@@ -1,0 +1,39 @@
+{
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "scope": "Development packages only; no claim of wallet exploitability",
+  "child_timeout_ms": 1500,
+  "results": [
+    {
+      "name": "braces-control",
+      "elapsed_ms": 73,
+      "exit_code": 0,
+      "terminated_for_timeout": false,
+      "stdout": "[\"a\",\"b\"]",
+      "stderr": ""
+    },
+    {
+      "name": "braces-nested",
+      "elapsed_ms": 98,
+      "exit_code": 0,
+      "terminated_for_timeout": false,
+      "stdout": "completed",
+      "stderr": ""
+    },
+    {
+      "name": "source-map-control",
+      "elapsed_ms": 67,
+      "exit_code": 0,
+      "terminated_for_timeout": false,
+      "stdout": "completed",
+      "stderr": ""
+    },
+    {
+      "name": "source-map-large-offset",
+      "elapsed_ms": 1549,
+      "exit_code": null,
+      "terminated_for_timeout": true,
+      "stdout": "starting isolated large-offset traversal",
+      "stderr": ""
+    }
+  ]
+}

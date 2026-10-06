@@ -1,0 +1,248 @@
+{
+  "client_date": "2026-10-06",
+  "audited_application_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "version_baseline": "0.1.0-alpha.6",
+  "application_fixes_applied": 0,
+  "paid_publisher_signing": "excluded by owner",
+  "user_wallets_used": false,
+  "computer_use": false,
+  "issue_count": 9,
+  "confirmed_application_defects": 5,
+  "verified_packaging_omissions": 1,
+  "dependency_findings": 3,
+  "issues": [
+    {
+      "key": "copy",
+      "number": 38,
+      "title": "[Bug] Receive keeps 'Copied' after selecting a different address",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/38",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "deletedContact",
+      "number": 39,
+      "title": "[Bug] Deleted address-book contact remains pre-filled in Send",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/39",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "contactSelector",
+      "number": 40,
+      "title": "[Bug] Send contact selector stays selected after the recipient address changes",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/40",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "invalidConfig",
+      "number": 41,
+      "title": "[Bug] Malformed non-wallet configuration causes native startup panic",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/41",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "notices",
+      "number": 42,
+      "title": "[Bug] Windows installer omits third-party notices for bundled runtimes",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/42",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "glib",
+      "number": 43,
+      "title": "[Bug] Linux desktop selects glib 0.18.5 affected by RUSTSEC-2024-0429",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/43",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "braces",
+      "number": 44,
+      "title": "[Bug] Development lockfile selects braces version with a high-severity DoS advisory",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/44",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "sourceMap",
+      "number": 45,
+      "title": "[Bug] Build and test toolchain selects vulnerable source-map-js 1.2.1",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/45",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    },
+    {
+      "key": "staleStage",
+      "number": 46,
+      "title": "[Bug] Interrupted settings save leaves a stage file that permanently blocks later saves",
+      "url": "https://github.com/ucrem/ryo-wallet-next/issues/46",
+      "state": "open",
+      "labels": [
+        "bug"
+      ],
+      "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7"
+    }
+  ],
+  "frontend_existing": {
+    "passed": 72,
+    "files": 18
+  },
+  "rust_workspace": {
+    "host": 25,
+    "ignored": 13,
+    "transport": 11,
+    "service": 69,
+    "passed": 105
+  },
+  "extra_ui_probes": {
+    "cases": [
+      {
+        "fullName": "BUG: receive copy acknowledgement must clear after selecting a different address",
+        "status": "failed"
+      },
+      {
+        "fullName": "BUG: deleting a contact must clear its retained Send recipient",
+        "status": "failed"
+      },
+      {
+        "fullName": "BUG: choosing a contact and then editing its address must clear the contact selector",
+        "status": "failed"
+      },
+      {
+        "fullName": "CONTROL: clearing a failed clipboard acknowledgement permits retry",
+        "status": "passed"
+      },
+      {
+        "fullName": "CONTROL: an expired send review cannot confirm",
+        "status": "passed"
+      },
+      {
+        "fullName": "CONTROL: preferences save while General settings are locked",
+        "status": "passed"
+      }
+    ],
+    "total": 6,
+    "passed": 3,
+    "failed": 3
+  },
+  "isolated_installer": {
+    "distinct_failure_issues": 1,
+    "passed": 7,
+    "failed_cases": 2
+  },
+  "ci": {
+    "linux_host_passed": 27,
+    "receipt_digests_verified": true,
+    "run_id": 37443371047,
+    "jobs_passed": 7,
+    "macos_host_passed": 26,
+    "url": "https://github.com/ucrem/ryo-wallet-next/actions/runs/37443371047"
+  },
+  "npm_production_audit": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 0,
+      "critical": 0
+    },
+    "dependencies": 115,
+    "devDependencies": 0,
+    "optionalDependencies": 17,
+    "totalDependencies": 132
+  },
+  "npm_full_audit": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 0,
+      "high": 2,
+      "critical": 0
+    },
+    "dependencies": 118,
+    "devDependencies": 521,
+    "optionalDependencies": 75,
+    "totalDependencies": 653
+  },
+  "financial_current_fork_gate_passed": false,
+  "published_updater_artifact_crypto_passed": true,
+  "installed_in_app_update_verified": true,
+  "native_wallet_gui_verified": false,
+  "notes": [
+    "GLib advisory aliases are one finding",
+    "Six unmaintained Rust packages are maintenance risks, not six demonstrated exploits",
+    "Braces advisory exploit not reproduced on Node 24.19.0",
+    "Native window existence alone does not establish healthy startup",
+    "Paid publisher signing is separate from updater authentication",
+    "No issue is auto-closed and no fix is included",
+    "73 additional installed Windows assertions pass; complete GUI/dialog/tray-menu/login/system-sleep acceptance remains open"
+  ],
+  "interrupted_settings_stage_bug_reproduced": true,
+  "preserved_user_desktop_executable_sha256": "F531EE8549B2581A4A274D46EF6BD57D916E3E5AC7394F1F6099A3A6F39C7DF1",
+  "windows_follow_up": {
+    "suites": [
+      {
+        "receipt": "windows-installed-report.json",
+        "assertions": 46,
+        "passed": 46
+      },
+      {
+        "receipt": "windows-lifecycle-report.json",
+        "assertions": 10,
+        "passed": 10
+      },
+      {
+        "receipt": "windows-updater-report.json",
+        "assertions": 17,
+        "passed": 17
+      }
+    ],
+    "total_assertions": 73,
+    "new_confirmed_application_bugs": 0,
+    "installed_tauri_ipc_verified": true,
+    "selected_native_capabilities_and_csp_verified": true,
+    "hidden_window_idle_lock_verified": true,
+    "startup_registration_verified": true,
+    "actual_os_login_verified": false,
+    "actual_os_sleep_verified": false,
+    "isolated_process_pause_resume_verified": true,
+    "installed_genesis_hybrid_handover_verified": true,
+    "current_fork_hybrid_handover_verified": false,
+    "installed_two_runtime_crash_cleanup_verified": true,
+    "installed_node_and_wallet_height_after_crash": "157",
+    "installed_signed_update_fixture_verified": true,
+    "production_signing_key_used": false,
+    "production_candidate_published": false,
+    "test_installation_uninstalled": true,
+    "ephemeral_private_signing_key_removed": true
+  },
+  "installed_in_app_update_scope": "Windows isolated signed fixture with configuration-only versions and temporary test key; production candidate not published"
+}

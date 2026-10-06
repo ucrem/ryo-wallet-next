@@ -7,15 +7,16 @@ import { defaultNodeOptions, defaultPreferences, saveGeneralSettings, savePrefer
 import { usePreferences } from "@/lib/usePreferences"
 import { formatDataFolderPath } from "@/lib/displayPath"
 import { Button } from "@/components/ui/button"
+import { RemoteNodeSuggestion } from "@/components/RemoteNodeSuggestion"
+import { defaultNodeRpcPort, remoteNodeSuggestion } from "@/lib/remoteNodeSuggestion"
 
 const input = "w-full min-w-0 rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-1.5 text-sm disabled:opacity-50"
 const panel = "rounded-xl border border-slate-700 bg-[var(--app-surface)] p-4"
-const defaultPort = (network: Network) => network === "mainnet" ? 12211 : network === "testnet" ? 13311 : 14411
 
 export function generalDraft(node: NodeConfig | null, network: Network): GeneralSettings {
   return { mode: node?.mode ?? "local", network: node?.network ?? network,
     host: node?.mode === "remote" ? node.host : node?.bootstrap?.host ?? "",
-    port: node?.mode === "remote" ? node.port : node?.bootstrap?.port ?? defaultPort(network),
+    port: node?.mode === "remote" ? node.port : node?.bootstrap?.port ?? defaultNodeRpcPort(node?.network ?? network),
     advanced: { ...defaultNodeOptions, ...node?.advanced } }
 }
 
@@ -81,8 +82,11 @@ export function Settings({ root, node, network, busy }: { root: string | null; n
           <p className="text-sm text-slate-400">{general.mode === "hybrid" ? "Download the chain locally and use your selected remote node while the local node catches up. Ryo switches to the local chain automatically."
             : local ? "Download and verify the blockchain locally. Transactions require a synchronized node and wallet." : "Connect the wallet to the remote node you select."}</p>
           {general.mode !== "local" ? <div className="grid gap-3 md:grid-cols-[1fr_10rem]">
-            <Field label="Remote node host"><input required autoComplete="off" placeholder="node.example.org" value={general.host} onChange={(event) => setGeneral({ ...general, host: event.target.value })} className={input} /></Field>
+            <Field label="Remote node host"><input required autoComplete="off" placeholder={remoteNodeSuggestion(general.network)?.host ?? "node.example.org"} value={general.host} onChange={(event) => setGeneral({ ...general, host: event.target.value })} className={input} /></Field>
             <Field label="Remote RPC port"><input required type="number" min={1} max={65535} value={general.port} onChange={(event) => setGeneral({ ...general, port: Number(event.target.value) })} className={input} /></Field>
+            <RemoteNodeSuggestion network={general.network} className="md:col-span-2" onSelect={(host, port) => {
+              setGeneral({ ...general, host, port }); setMessage(""); generalSave.reset()
+            }} />
             <p className="text-xs text-amber-200 md:col-span-2">The remote node can see your IP and scan requests. Its RPC connection uses plain HTTP.</p>
           </div> : null}
           {local ? <div className="grid gap-3 md:grid-cols-2">
@@ -102,7 +106,7 @@ export function Settings({ root, node, network, busy }: { root: string | null; n
           <fieldset disabled={busy || pending} className="mt-3 grid gap-3 md:grid-cols-4">
             <Field label="Network"><select value={general.network} onChange={(event) => {
               const next = event.target.value as Network
-              setGeneral({ ...general, network: next, port: general.port === defaultPort(general.network) ? defaultPort(next) : general.port })
+              setGeneral({ ...general, network: next, port: general.port === defaultNodeRpcPort(general.network) ? defaultNodeRpcPort(next) : general.port })
             }} className={input}><option value="mainnet">Mainnet</option><option value="testnet">Testnet</option><option value="stagenet">Stagenet</option></select></Field>
             {numericFields.map(([key, label, min, max]) => <Field key={key} label={label}>
               <input type="number" required min={min} max={max} step={1} disabled={!local && key !== "wallet_log_level" && key !== "wallet_rpc_port"} value={options[key]}

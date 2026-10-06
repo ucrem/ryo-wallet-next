@@ -1,0 +1,323 @@
+{
+  "source_revision": "ebdd7b299b81162de55357cad6cecefec6d290ab",
+  "platform": "windows",
+  "user_wallets_used": false,
+  "scope": "Isolated NSIS install: all legal payload files and runtime digests; no GUI acceptance claim",
+  "checks": [
+    {
+      "name": "clean isolated current-user NSIS installation",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: DEPENDENCY_NOTICES.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: dependency-inventory.json",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: runtime-inventory.json",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: RYO-LICENSE.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: RYO-ORIGINAL-LICENSE.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-materials.json",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental-inventory.json",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: THIRD_PARTY_NOTICES.md",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\53fc31a778519360f4618f46fdddc5bc870fae5ab26e3b1961538595d78b830f.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: ryo-source-notices\\e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\1d85bd754b04ceec93e98e890edd1fa3c6a22e81bcb32135806beeccefa51cd1.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\766674381e88a468d55e07de3596987391cf0e8beebe51baf4fddf11078785b3.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\db7f7f8e7236a2d0b41b855b2501b7b913caebbcda6ce498637a304ad1706ce1.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\eb227437252b2a7a9c1fc342c93ade1f3d7ce38cc6dd754f613db07d53ceff0b.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt",
+      "passed": true
+    },
+    {
+      "name": "installed legal digest: supplemental\\fea1d5bf3dd71605ce5d7d2ff695c1837e914c77195e523a86b5391716477960.txt",
+      "passed": true
+    },
+    {
+      "name": "installed runtime digest: ryod.exe",
+      "passed": true
+    },
+    {
+      "name": "installed runtime digest: ryo-wallet-rpc.exe",
+      "passed": true
+    },
+    {
+      "name": "isolated uninstall removes test application/registration",
+      "passed": true
+    }
+  ],
+  "files": [
+    {
+      "path": "DEPENDENCY_NOTICES.txt",
+      "sha256": "47c0d6d9a3c33833a51572f9687f5c697b1f690f894a8e8faeea2fa8d16ed12e"
+    },
+    {
+      "path": "dependency-inventory.json",
+      "sha256": "6441296e68b634a1508a91d00cf9e1bc7fe00a9569260691185895a1e77f78be"
+    },
+    {
+      "path": "runtime-inventory.json",
+      "sha256": "ce4bfce0fab9dc84570df560083d2d28af55cd4f1c87bbe3aaa181b03aa80d25"
+    },
+    {
+      "path": "RYO-LICENSE.txt",
+      "sha256": "ef035ea12b54fc1d6b9ae6f2d5f241d64f860634f95e9e5f5a51a6557c3ce109"
+    },
+    {
+      "path": "RYO-ORIGINAL-LICENSE.txt",
+      "sha256": "94201a5b8629ea925e27ef2fd870a272058d9fa81a30801f4ce56c4a1d1d5c0e"
+    },
+    {
+      "path": "ryo-source-materials.json",
+      "sha256": "c94aa43baf92c089c7405c4b8a38c957014fb10a309d3885c5acf53a47120ede"
+    },
+    {
+      "path": "supplemental-inventory.json",
+      "sha256": "9cfdecf838018559b95a6e4cfe509621c5937e1b79c12d859aef205b696ac8f2"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "sha256": "dd5d35c3e833ef66644432fcfbc48f546fd56c528e7164d3e887bbcf91c3e38b"
+    },
+    {
+      "path": "ryo-source-notices/2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6.txt",
+      "sha256": "2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6"
+    },
+    {
+      "path": "ryo-source-notices/2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983.txt",
+      "sha256": "2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983"
+    },
+    {
+      "path": "ryo-source-notices/310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569.txt",
+      "sha256": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569"
+    },
+    {
+      "path": "ryo-source-notices/53fc31a778519360f4618f46fdddc5bc870fae5ab26e3b1961538595d78b830f.txt",
+      "sha256": "53fc31a778519360f4618f46fdddc5bc870fae5ab26e3b1961538595d78b830f"
+    },
+    {
+      "path": "ryo-source-notices/560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a.txt",
+      "sha256": "560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a"
+    },
+    {
+      "path": "ryo-source-notices/8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db.txt",
+      "sha256": "8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db"
+    },
+    {
+      "path": "ryo-source-notices/a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32.txt",
+      "sha256": "a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32"
+    },
+    {
+      "path": "ryo-source-notices/e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4.txt",
+      "sha256": "e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4"
+    },
+    {
+      "path": "supplemental/0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594.txt",
+      "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594"
+    },
+    {
+      "path": "supplemental/0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73.txt",
+      "sha256": "0dcf41516e608bbcb6cdc5229feb7b86fe4a643b85e7df251133c93408fdac73"
+    },
+    {
+      "path": "supplemental/1d85bd754b04ceec93e98e890edd1fa3c6a22e81bcb32135806beeccefa51cd1.txt",
+      "sha256": "1d85bd754b04ceec93e98e890edd1fa3c6a22e81bcb32135806beeccefa51cd1"
+    },
+    {
+      "path": "supplemental/23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3.txt",
+      "sha256": "23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3"
+    },
+    {
+      "path": "supplemental/2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50.txt",
+      "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50"
+    },
+    {
+      "path": "supplemental/39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2.txt",
+      "sha256": "39fa265207450e77c62e90c5594a06c085b655d8374c7ced4bf7894b6bd95dd2"
+    },
+    {
+      "path": "supplemental/508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1.txt",
+      "sha256": "508a77d2e7b51d98adeed32648ad124b7b30241a8e70b2e72c99f92d8e5874d1"
+    },
+    {
+      "path": "supplemental/66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172.txt",
+      "sha256": "66a3107d5ad6a058aab753eaac2047ccb2ed0e39465dd0fe5844da3e300d5172"
+    },
+    {
+      "path": "supplemental/766674381e88a468d55e07de3596987391cf0e8beebe51baf4fddf11078785b3.txt",
+      "sha256": "766674381e88a468d55e07de3596987391cf0e8beebe51baf4fddf11078785b3"
+    },
+    {
+      "path": "supplemental/7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54.txt",
+      "sha256": "7f976f7e9cb2d87df7230606feb932c3f21ac0e664045a775b600046ff850c54"
+    },
+    {
+      "path": "supplemental/8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90.txt",
+      "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+    },
+    {
+      "path": "supplemental/9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d.txt",
+      "sha256": "9dd42ea92cff2ede5cd477cbfcce051b2d0115c0ac7f368ee88cb545055dff1d"
+    },
+    {
+      "path": "supplemental/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt",
+      "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+    },
+    {
+      "path": "supplemental/c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae.txt",
+      "sha256": "c0c56f26d9c051cac4d200c34c84e7ae9aaa853e01a982a1df08b09931e518ae"
+    },
+    {
+      "path": "supplemental/c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08.txt",
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+    },
+    {
+      "path": "supplemental/c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4.txt",
+      "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+    },
+    {
+      "path": "supplemental/c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566.txt",
+      "sha256": "c9bff75738922193e67fa726fa225535870d2aa1059f91452c411736284ad566"
+    },
+    {
+      "path": "supplemental/db7f7f8e7236a2d0b41b855b2501b7b913caebbcda6ce498637a304ad1706ce1.txt",
+      "sha256": "db7f7f8e7236a2d0b41b855b2501b7b913caebbcda6ce498637a304ad1706ce1"
+    },
+    {
+      "path": "supplemental/eb227437252b2a7a9c1fc342c93ade1f3d7ce38cc6dd754f613db07d53ceff0b.txt",
+      "sha256": "eb227437252b2a7a9c1fc342c93ade1f3d7ce38cc6dd754f613db07d53ceff0b"
+    },
+    {
+      "path": "supplemental/f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b.txt",
+      "sha256": "f5c342c49f3ac804f3e8e7bb62a8040a44c50d47bb36902b1abd13f66a1adf8b"
+    },
+    {
+      "path": "supplemental/fea1d5bf3dd71605ce5d7d2ff695c1837e914c77195e523a86b5391716477960.txt",
+      "sha256": "fea1d5bf3dd71605ce5d7d2ff695c1837e914c77195e523a86b5391716477960"
+    }
+  ],
+  "completed": true
+}

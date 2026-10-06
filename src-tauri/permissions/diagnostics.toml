@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "allow-app-diagnostics"
+description = "Save a redacted status report to a user-selected new JSON file"
+commands.allow = ["app_export_diagnostics"]

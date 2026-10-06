@@ -38,13 +38,8 @@ pub struct ImportedWallet {
     pub keys_path: PathBuf,
 }
 
-/// Copies an existing wallet pair to private storage. No source is renamed,
-/// deleted, or opened by a wallet engine here.
-pub fn copy_wallet_pair(
-    app_paths: &AppPaths,
-    wallet_id: &WalletId,
-    source_wallet: &Path,
-) -> Result<ImportedWallet, ImportError> {
+/// Checks the selected pair using metadata only; no copy or wallet engine is started.
+pub fn validate_wallet_pair(source_wallet: &Path) -> Result<(), ImportError> {
     if !source_wallet.is_absolute() {
         return Err(ImportError::RelativeSource);
     }
@@ -60,13 +55,25 @@ pub fn copy_wallet_pair(
         return Err(ImportError::MissingKeys);
     }
     validate_source(&source_keys, MAX_KEYS_BYTES, ImportError::KeysTooLarge)?;
+    Ok(())
+}
+
+/// Copies an existing wallet pair to private storage. No source is renamed,
+/// deleted, or opened by a wallet engine here.
+pub fn copy_wallet_pair(
+    app_paths: &AppPaths,
+    wallet_id: &WalletId,
+    source_wallet: &Path,
+) -> Result<ImportedWallet, ImportError> {
+    validate_wallet_pair(source_wallet)?;
+    let source_keys = companion_keys_path(source_wallet);
 
     app_paths
         .ensure_private_dirs()
         .map_err(ImportError::Destination)?;
     let destination_dir = app_paths.wallet_dir(wallet_id);
     fs::create_dir(&destination_dir).map_err(ImportError::Io)?;
-    set_owner_only(&destination_dir).map_err(ImportError::Io)?;
+    super::secure_directory(&destination_dir).map_err(ImportError::Io)?;
 
     let wallet_path = destination_dir.join("wallet");
     let keys_path = destination_dir.join("wallet.keys");
@@ -140,19 +147,9 @@ fn copy_file_bounded(
         }
         writer.write_all(&buffer[..read]).map_err(ImportError::Io)?;
     }
-    writer.flush().map_err(ImportError::Io)
-}
-
-#[cfg(unix)]
-fn set_owner_only(path: &Path) -> std::io::Result<()> {
-    use std::os::unix::fs::PermissionsExt;
-
-    fs::set_permissions(path, fs::Permissions::from_mode(0o700))
-}
-
-#[cfg(not(unix))]
-fn set_owner_only(_path: &Path) -> std::io::Result<()> {
-    Ok(())
+    writer.flush().map_err(ImportError::Io)?;
+    writer.get_ref().sync_all().map_err(ImportError::Io)?;
+    super::secure_file(destination).map_err(ImportError::Io)
 }
 
 #[cfg(test)]
@@ -198,6 +195,25 @@ mod tests {
             copy_wallet_pair(&paths(&temp), &id(), &companion_keys_path(&source)),
             Err(ImportError::SelectedKeyFile)
         ));
+    }
+
+    #[test]
+    fn selection_validation_leaves_originals_and_destination_untouched() {
+        let temp = tempfile::tempdir().unwrap();
+        let source = temp.path().join("personal-wallet");
+        fs::write(&source, b"encrypted wallet").unwrap();
+        assert!(matches!(
+            validate_wallet_pair(&source),
+            Err(ImportError::MissingKeys)
+        ));
+        fs::write(companion_keys_path(&source), b"encrypted keys").unwrap();
+        validate_wallet_pair(&source).unwrap();
+        assert_eq!(fs::read(&source).unwrap(), b"encrypted wallet");
+        assert_eq!(
+            fs::read(companion_keys_path(&source)).unwrap(),
+            b"encrypted keys"
+        );
+        assert!(!paths(&temp).root().exists());
     }
 
     #[cfg(unix)]

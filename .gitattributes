@@ -1,0 +1,6 @@
+# Packaging pins hashes of these files; keep their bytes stable across hosts.
+Cargo.lock text eol=lf
+pnpm-lock.yaml text eol=lf
+# Preserve upstream notice/source whitespace, including original license text.
+src-tauri/resources/legal/** -text -whitespace
+vendor/glib/** -text -whitespace

@@ -1,0 +1,18 @@
+import fs from 'node:fs';
+import {spawn} from 'node:child_process';
+import {base,freePort,sleep} from './windows-ipc-lib.mjs';
+export async function daemon(name,peer,p2p=0,reuse=false,assignedRpc=0){
+ const dir=base+name;if(!reuse)fs.mkdirSync(dir);fs.writeFileSync(dir+'/empty.conf','');
+ const rpc=assignedRpc||await freePort();p2p||=await freePort();
+ const args=['--testnet','--config-file',dir+'/empty.conf','--data-dir',dir,'--rpc-bind-ip','127.0.0.1','--rpc-bind-port',String(rpc),'--p2p-bind-ip','127.0.0.1','--p2p-bind-port',String(p2p),'--zmq-rpc-bind-ip','127.0.0.1','--zmq-rpc-bind-port',String(await freePort()),'--add-exclusive-node',`127.0.0.1:${peer}`,'--allow-local-ip','--hide-my-port','--no-igd','--disable-dns-checkpoints','--check-updates','disabled','--log-level','0','--log-file',dir+'/daemon.log'];
+ const child=spawn(base+'ryod.exe',args,{cwd:dir,windowsHide:true,stdio:['pipe','ignore','ignore']});
+ const exited=new Promise(r=>child.once('exit',(code,signal)=>r({code,signal})));
+ const json=async(method,params={})=>{const b=await fetch(`http://127.0.0.1:${rpc}/json_rpc`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:'audit',method,params}),signal:AbortSignal.timeout(10000)}).then(r=>r.json());if(b.error)throw Error('Daemon RPC '+method+' error '+b.error.code);return b.result;};
+ for(let i=0;i<100;i++){try{let info=await json('get_info');if(info.testnet!==true)throw Error('Wrong audit network');break;}catch(e){if(child.exitCode!==null)throw e;await sleep(200);}}
+ return {name,dir,rpc,p2p,child,json,stop:async()=>{child.stdin.end('exit\n');const r=await Promise.race([exited,sleep(20000).then(()=>{throw Error('Fixture daemon normal shutdown deadline');})]);if(r.code!==0)throw Error('Fixture daemon exit failure');}};
+}
+export async function pair(){const pa=await freePort(),pb=await freePort(),run=Date.now();const a=await daemon('windows-peer-a-'+run,pb,pa),b=await daemon('windows-peer-b-'+run,pa,pb);for(let i=0;i<120;i++){const ia=await a.json('get_info'),ib=await b.json('get_info');if(ia.is_ready&&ib.is_ready)return {a,b};await sleep(500);}throw Error('Isolated peer handshake deadline');}
+function readVarint(b,off){let n=0n,s=0n;while(off.value<b.length){const v=b[off.value++];n|=BigInt(v&127)<<s;if(v<128)return Number(n);s+=7n;}throw Error('Invalid template varint');}
+function varint(v){v=BigInt(v);let b=[];while(v>=128n){b.push(Number(v&127n)|128);v>>=7n;}b.push(Number(v));return Buffer.from(b);}
+export async function mine(node,address,count){let now=Math.floor(Date.now()/1000);for(let i=0;i<count;i++){let t=await node.json('get_block_template',{wallet_address:address,reserve_size:0});if(t.difficulty!==1||t.height>=1000)throw Error('Fixture left reviewed genesis profile');let b=Buffer.from(t.blocktemplate_blob,'hex'),off={value:0};if(readVarint(b,off)!==1)throw Error('Wrong genesis fork');readVarint(b,off);let start=off.value;readVarint(b,off);b=Buffer.concat([b.subarray(0,start),varint(now-7*86400+t.height*240),b.subarray(off.value)]);let r=await node.json('submit_block',[b.toString('hex')]);if(r.status!=='OK')throw Error('Block rejected');}}
+export async function sameTip(a,b){for(let i=0;i<150;i++){let [ia,ib]=await Promise.all([a.json('get_info'),b.json('get_info')]);if(ia.height===ib.height&&ia.top_block_hash===ib.top_block_hash)return ia.height;await sleep(200);}throw Error('Real peer chain tip mismatch');}

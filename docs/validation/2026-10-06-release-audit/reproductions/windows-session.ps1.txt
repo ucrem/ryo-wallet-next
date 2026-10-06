@@ -1,0 +1,81 @@
+param([ValidateSet('install','start','close','second','inspect','uninstall','pause','resume','crash','updatebase')][string]$Action, [int]$Port=0)
+$ErrorActionPreference='Stop'
+$taskBase='F:\DEV\ryo-wallet-next-main\target\release-audit-2026-10-06-e5a7f55'
+$taskInstall=[IO.Path]::GetFullPath((Join-Path $taskBase 'installed'))
+if (-not $taskInstall.StartsWith($taskBase+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Unsafe isolated target' }
+$taskExe=Join-Path $taskInstall 'ryo-wallet-next-release-audit.exe'
+$taskProfile=Join-Path $env:APPDATA 'io.github.ucrem.ryowalletnext.releaseaudit20261006'
+$taskRegistry='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Ryo Wallet Next Release Audit'
+$taskProcesses=@(Get-Process -Name 'ryo-wallet-next-release-audit' -ErrorAction SilentlyContinue)
+foreach($taskProcess in $taskProcesses) { if($taskProcess.Path -ne $taskExe) {throw 'Unexpected audit binary path'} }
+switch($Action) {
+ 'updatebase' {
+  if($taskProcesses.Count -ne 0){throw 'Audit active during baseline installation'}
+  if((Get-ItemProperty -LiteralPath $taskRegistry).InstallLocation.Trim('"') -ne $taskInstall){throw 'Isolated registration missing'}
+  $taskSetup=Start-Process -FilePath (Join-Path $taskBase 'update-base\audit-setup.exe') -ArgumentList @('/S','/NS',('/D='+$taskInstall)) -WindowStyle Hidden -PassThru
+  if(-not $taskSetup.WaitForExit(30000) -or $taskSetup.ExitCode -ne 0){throw 'Baseline test update installation failed'}
+  @{installed=$true;version=(Get-ItemProperty -LiteralPath $taskRegistry).DisplayVersion} | ConvertTo-Json -Compress
+ }
+ {$_ -in 'pause','resume','crash'} {
+  if($taskProcesses.Count -ne 1){throw 'Expected one isolated process'}
+  $taskProcess=$taskProcesses[0]
+  if($Action -eq 'crash'){
+   $taskChildren=@(Get-CimInstance Win32_Process -Filter ('ParentProcessId='+$taskProcess.Id) | Where-Object {$_.ExecutablePath -eq (Join-Path $taskInstall 'ryod.exe') -or $_.ExecutablePath -eq (Join-Path $taskInstall 'ryo-wallet-rpc.exe')} | ForEach-Object {$_.ProcessId})
+   Stop-Process -Id $taskProcess.Id -Force
+   $taskDeadline=[DateTime]::UtcNow.AddSeconds(10)
+   do {$taskSurvivors=@($taskChildren | Where-Object {Get-Process -Id $_ -ErrorAction SilentlyContinue});if($taskSurvivors.Count -eq 0){break};Start-Sleep -Milliseconds 100}while([DateTime]::UtcNow -lt $taskDeadline)
+   @{child_count=$taskChildren.Count;surviving_children=$taskSurvivors.Count;isolated_parent_terminated=$true} | ConvertTo-Json -Compress
+  }else{
+   Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public static class AuditPause { [DllImport("ntdll.dll")] public static extern int NtSuspendProcess(IntPtr h); [DllImport("ntdll.dll")] public static extern int NtResumeProcess(IntPtr h); }'
+   $taskStatus=if($Action -eq 'pause'){[AuditPause]::NtSuspendProcess($taskProcess.Handle)}else{[AuditPause]::NtResumeProcess($taskProcess.Handle)}
+   if($taskStatus -ne 0){throw 'Isolated process transition failed'}
+   @{status=$taskStatus;action=$Action;system_sleep=$false} | ConvertTo-Json -Compress
+  }
+ }
+ 'install' {
+  if($taskProcesses.Count -ne 0){throw 'Audit already active'}
+  if(Test-Path -LiteralPath $taskRegistry){throw 'Audit already installed'}
+  $taskSetup=Start-Process -FilePath (Join-Path $taskBase 'release-audit-setup.exe') -ArgumentList @('/S','/NS',('/D='+$taskInstall)) -WindowStyle Hidden -PassThru
+  if(-not $taskSetup.WaitForExit(30000) -or $taskSetup.ExitCode -ne 0){throw 'Install failed'}
+  if((Get-ItemProperty -LiteralPath $taskRegistry).InstallLocation.Trim('"') -ne $taskInstall){throw 'Registry mismatch'}
+  $taskPrefs=Join-Path $taskProfile 'preferences.json'
+  if(Test-Path -LiteralPath $taskPrefs){Copy-Item -LiteralPath $taskPrefs -Destination (Join-Path $taskBase 'windows-previous-audit-preferences.json')}
+  New-Item -ItemType Directory -Path $taskProfile -Force | Out-Null
+  $taskData=Join-Path $taskBase 'windows-data'
+  if(Test-Path -LiteralPath $taskData){throw 'Fresh disposable data already exists'}
+  New-Item -ItemType Directory -Path $taskData | Out-Null
+  [IO.File]::WriteAllText($taskPrefs,'{"theme":"dark","idle_lock_seconds":0,"minimize_to_tray":false,"launch_on_startup":false,"notify_no_payment_id":true,"notify_weak_password":true}')
+  [IO.File]::WriteAllText((Join-Path $taskProfile 'wallet-data-root.json'),(@{root=$taskData;network='testnet'} | ConvertTo-Json -Compress))
+  @{installed=$true;isolated=$true} | ConvertTo-Json -Compress
+ }
+ 'start' {
+  if($taskProcesses.Count -ne 0 -or $Port -lt 1024){throw 'Invalid audit start'}
+  $env:WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS='--remote-debugging-port='+$Port+' --remote-debugging-address=127.0.0.1'
+  $taskProcess=Start-Process -FilePath $taskExe -WorkingDirectory $taskInstall -WindowStyle Hidden -PassThru -RedirectStandardError (Join-Path $taskBase 'windows-session.stderr.txt') -RedirectStandardOutput (Join-Path $taskBase 'windows-session.stdout.txt')
+  @{pid=$taskProcess.Id;port=$Port} | ConvertTo-Json -Compress
+ }
+ 'second' {
+  if($taskProcesses.Count -ne 1){throw 'Expected one audit instance'}
+  $taskSecond=Start-Process -FilePath $taskExe -WorkingDirectory $taskInstall -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $taskBase 'windows-second.stdout.txt') -RedirectStandardError (Join-Path $taskBase 'windows-second.stderr.txt')
+  $taskExited=$taskSecond.WaitForExit(15000)
+  @{exited=$taskExited;exit_code=$(if($taskExited){$taskSecond.ExitCode}else{$null})} | ConvertTo-Json -Compress
+ }
+ 'close' {
+  if($taskProcesses.Count -ne 1){throw 'Expected one audit instance'}
+  $taskProcess=$taskProcesses[0]
+  $taskSent=$taskProcess.CloseMainWindow()
+  $taskExited=$taskProcess.WaitForExit(10000)
+  @{sent=$taskSent;exited=$taskExited;exit_code=$(if($taskExited){$taskProcess.ExitCode}else{$null})} | ConvertTo-Json -Compress
+ }
+ 'inspect' {
+  $taskStartup=Get-ItemProperty -LiteralPath 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' -Name 'Ryo Wallet Next Release Audit' -ErrorAction SilentlyContinue
+  $taskChildren=@();if($taskProcesses.Count -eq 1){$taskChildren=@(Get-CimInstance Win32_Process -Filter ('ParentProcessId='+$taskProcesses[0].Id) | Where-Object {$_.ExecutablePath -eq (Join-Path $taskInstall 'ryod.exe') -or $_.ExecutablePath -eq (Join-Path $taskInstall 'ryo-wallet-rpc.exe')} | ForEach-Object {$_.ProcessId})}
+  @{process_count=$taskProcesses.Count;startup=$taskStartup.'Ryo Wallet Next Release Audit';pids=@($taskProcesses | ForEach-Object {$_.Id});managed_children=$taskChildren;version=$(if(Test-Path -LiteralPath $taskRegistry){(Get-ItemProperty -LiteralPath $taskRegistry).DisplayVersion}else{$null});executable_sha256=$(if(Test-Path -LiteralPath $taskExe){(Get-FileHash -LiteralPath $taskExe -Algorithm SHA256).Hash}else{$null})} | ConvertTo-Json -Compress
+ }
+ 'uninstall' {
+  if($taskProcesses.Count -ne 0){throw 'Audit still active'}
+  $taskUninstall=Start-Process -FilePath (Join-Path $taskInstall 'uninstall.exe') -ArgumentList @('/S',('_?='+$taskInstall)) -WindowStyle Hidden -PassThru
+  if(-not $taskUninstall.WaitForExit(30000) -or $taskUninstall.ExitCode -ne 0){throw 'Uninstall failed'}
+  @{uninstalled=((-not(Test-Path -LiteralPath $taskExe))-and(-not(Test-Path -LiteralPath $taskRegistry)))} | ConvertTo-Json -Compress
+ }
+}

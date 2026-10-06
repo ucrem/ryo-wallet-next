@@ -1,0 +1,24 @@
+"""Read only Cargo.lock and query public package versions; no credentials or wallets."""
+import json
+import tomllib
+import urllib.request
+from pathlib import Path
+root = Path(__file__).resolve().parents[2]
+audit = Path(__file__).resolve().parent
+packages = [p for p in tomllib.loads((root / "Cargo.lock").read_text())["package"] if p.get("source", "").startswith("registry+")]
+queries = [{"package": {"ecosystem": "crates.io", "name": p["name"]}, "version": p["version"]} for p in packages]
+payload = json.dumps({"queries": queries}).encode()
+request = urllib.request.Request("https://api.osv.dev/v1/querybatch", data=payload, headers={"Content-Type":"application/json","User-Agent":"Ryo-Wallet-Next-release-audit"})
+with urllib.request.urlopen(request, timeout=45) as response:
+    result = json.load(response)
+if len(result["results"]) != len(packages):
+    raise RuntimeError("OSV query response count mismatch")
+findings = []
+for package, vulnerabilities in zip(packages, result["results"], strict=True):
+    if vulnerabilities.get("next_page_token"):
+        raise RuntimeError("OSV result requires pagination; incomplete results refused")
+    for vulnerability in vulnerabilities.get("vulns", []):
+        findings.append({"package":package["name"],"version":package["version"],"id":vulnerability["id"]})
+report = {"source_revision":"e5a7f55df8515b0873565286fcd7b2c8ec93bbc7","provider":"https://api.osv.dev/v1/querybatch","registry_packages_checked":len(packages),"findings":findings,"limitation":"Database lookup only; absence of findings is not a security audit of upstream binaries or the application."}
+(audit / "rust-dependency-audit.json").write_text(json.dumps(report, indent=2)+"\n")
+print(json.dumps(report))

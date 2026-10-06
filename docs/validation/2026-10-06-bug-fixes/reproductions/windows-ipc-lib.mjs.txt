@@ -1,0 +1,22 @@
+import {execFileSync} from 'node:child_process';
+import net from 'node:net';
+import fs from 'node:fs';
+import {fileURLToPath} from 'node:url';
+export const base=fileURLToPath(new URL('.',import.meta.url));
+export const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+export const action=(name,port=0)=>{const log=base+'windows-action-'+name+'.json',err=base+'windows-action-'+name+'.stderr.txt';const outfd=fs.openSync(log,'w'),errfd=fs.openSync(err,'w');try{execFileSync('pwsh',['-NoProfile','-File',base+'windows-session.ps1','-Action',name,'-Port',String(port)],{timeout:45000,stdio:['ignore',outfd,errfd]});}finally{fs.closeSync(outfd);fs.closeSync(errfd);}return JSON.parse(fs.readFileSync(log,'utf8').trim());};
+export const freePort=()=>new Promise((resolve,reject)=>{let s=net.createServer();s.on('error',reject);s.listen(0,'127.0.0.1',()=>{let p=s.address().port;s.close(()=>resolve(p));});});
+export async function connect(port){
+ let pages;
+ for(let i=0;i<100;i++){try{pages=await fetch(`http://127.0.0.1:${port}/json/list`,{signal:AbortSignal.timeout(1000)}).then(r=>r.json());if(pages.some(p=>p.type==='page'&&p.url.startsWith('http://tauri.localhost')))break;}catch{}await sleep(200);}
+ const page=pages?.find(p=>p.type==='page'&&p.url.startsWith('http://tauri.localhost'));
+ if(!page)throw Error('Isolated embedded WebView endpoint unavailable');
+ const ws=new WebSocket(page.webSocketDebuggerUrl);await new Promise((r,j)=>{ws.addEventListener('open',r,{once:true});ws.addEventListener('error',j,{once:true});});
+ let id=0,pending=new Map();
+ ws.addEventListener('message',e=>{let m=JSON.parse(e.data);let p=pending.get(m.id);if(p){pending.delete(m.id);clearTimeout(p.timer);m.error?p.reject(Error(m.error.message)):p.resolve(m.result);}});
+ ws.addEventListener('close',()=>{for(const p of pending.values()){clearTimeout(p.timer);p.reject(Error('Isolated CDP connection closed'));}pending.clear();});
+ const send=(method,params={},timeout=120000)=>new Promise((resolve,reject)=>{let n=++id;let timer=setTimeout(()=>{pending.delete(n);reject(Error('CDP command deadline exceeded'));},timeout);pending.set(n,{resolve,reject,timer});ws.send(JSON.stringify({id:n,method,params}));});
+ const evaluate=async(expression,timeout)=>{let r=await send('Runtime.evaluate',{expression,awaitPromise:true,returnByValue:true},timeout);if(r.exceptionDetails)throw Error(r.exceptionDetails.exception?.description||r.exceptionDetails.exception?.value||r.exceptionDetails.text);return r.result.value;};
+ const invoke=(command,args={})=>evaluate(`window.__TAURI_INTERNALS__.invoke(${JSON.stringify(command)},${JSON.stringify(args)})`);
+ return {invoke,evaluate,send,close:()=>ws.close(),origin:page.url};
+}

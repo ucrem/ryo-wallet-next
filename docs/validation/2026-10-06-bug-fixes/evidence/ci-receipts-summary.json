@@ -1,0 +1,32 @@
+[
+  {
+    "public_sync_observed": false,
+    "funded_checks": 15,
+    "processed_height": 81,
+    "scan_resume_checks": 5,
+    "current_fork_gate_passed": false,
+    "platform": "macos",
+    "chain_height": 195,
+    "artifact_sha256": "sha256:a3fd138791c76f82fdf2e376f87c5793dac25af58cd324a8813c92a4ea52f2cd"
+  },
+  {
+    "public_sync_observed": false,
+    "funded_checks": 15,
+    "processed_height": 81,
+    "scan_resume_checks": 5,
+    "current_fork_gate_passed": false,
+    "platform": "windows",
+    "chain_height": 195,
+    "artifact_sha256": "sha256:40b8a877ae7b59636486766e6fd5885c2084c7a7150d3bbe6043b5faa57f7bd2"
+  },
+  {
+    "public_sync_observed": false,
+    "funded_checks": 15,
+    "processed_height": 81,
+    "scan_resume_checks": 5,
+    "current_fork_gate_passed": false,
+    "platform": "linux",
+    "chain_height": 195,
+    "artifact_sha256": "sha256:ab300c1b651ded9608868e08f1b73ca64150c4bafe4a24e97463a1b68e03a80a"
+  }
+]

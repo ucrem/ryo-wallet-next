@@ -1,0 +1,73 @@
+{
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "platform": "windows",
+  "isolation": "Separate product, binary basename, identifier, registry and app-data profile",
+  "installer_sha256": "A7CAB516462F70DD84AC23AC82F5841B6889B2CB1863832E537A00D1B4548838",
+  "checks": [
+    {
+      "name": "clean current-user NSIS installation and registered target",
+      "passed": true,
+      "detail": "Installer exit 0; separate product and executable name."
+    },
+    {
+      "name": "installed digest: ryo-wallet-rpc.exe",
+      "passed": true,
+      "detail": "26b18488c30e14f2e49eba87c89b9048c4b5493be7d23b8e5173be7d1a212721"
+    },
+    {
+      "name": "installed digest: ryod.exe",
+      "passed": true,
+      "detail": "a60f8db0ff0e7fd258f7a74c5ec975ca54b732b011c6b5bf706584c2785d3590"
+    },
+    {
+      "name": "native startup and graceful close with valid preferences",
+      "passed": true,
+      "detail": {
+        "native_window_present": true,
+        "exit_code": 0,
+        "rendered_ui_verified": false
+      }
+    },
+    {
+      "name": "same-version reinstall preserves existing preferences",
+      "passed": true,
+      "detail": "Separate audit profile only."
+    },
+    {
+      "name": "recoverable startup with malformed non-wallet preferences",
+      "passed": false,
+      "detail": {
+        "native_window_present": true,
+        "exit_code": 101,
+        "rendered_ui_verified": false
+      }
+    },
+    {
+      "name": "recoverable startup with malformed data-location configuration",
+      "passed": false,
+      "detail": {
+        "native_window_present": true,
+        "exit_code": 101,
+        "rendered_ui_verified": false
+      }
+    },
+    {
+      "name": "startup after external restoration of valid configuration",
+      "passed": true,
+      "detail": {
+        "native_window_present": true,
+        "exit_code": 0,
+        "rendered_ui_verified": false
+      }
+    },
+    {
+      "name": "isolated uninstallation removes application and registration",
+      "passed": true,
+      "detail": "The audit profile is retained as evidence; no real wallet files were used."
+    }
+  ],
+  "user_wallets_used": false,
+  "installed_wallet_gui_verified": false,
+  "paid_publisher_signing": "excluded",
+  "in_app_update_verified": false
+}

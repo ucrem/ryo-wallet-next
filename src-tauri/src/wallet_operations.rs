@@ -16,6 +16,7 @@ use super::{
 
 fn operation_error(error: WalletServiceError) -> String {
     match error {
+        WalletServiceError::Busy => "wallet RPC busy".into(),
         WalletServiceError::StaleSession => "wallet session changed; reopen the wallet page".into(),
         WalletServiceError::Operation(error) => error.to_string(),
         _ => "wallet operation unavailable; check that the wallet is open".into(),

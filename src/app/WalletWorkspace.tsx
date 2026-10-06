@@ -2,8 +2,8 @@ import { useEffect, useState, type FormEvent } from "react"
 import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   acknowledgeBackup, createWallet, getBackupPhrase,
-  listWallets, lockWallet, openWallet, restoreWallet, walletRuntimeReady,
-  type WalletEntry,
+  importWallet, listWallets, lockWallet, openWallet, restoreWallet, selectImportWallet, walletRuntimeReady,
+  type ImportSelection, type WalletEntry,
 } from "@/api/wallet"
 import { challengePositions, verifyBackupWords } from "./backupChallenge"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,8 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
   const [answers, setAnswers] = useState<Record<number, string>>({})
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [importCancelled, setImportCancelled] = useState(false)
+  const [importSelection, setImportSelection] = useState<ImportSelection | null>(null)
   const preferences = usePreferences()
   const [weakWarning, setWeakWarning] = useState(false)
   const [weakAccepted, setWeakAccepted] = useState(false)
@@ -150,6 +152,49 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
     }
   }
 
+  async function chooseImportFile() {
+    if (busy) return
+    setImportSelection(null)
+    setImportCancelled(false)
+    setError(null)
+    setBusy(true)
+    try {
+      const selected = await selectImportWallet()
+      setImportSelection(selected)
+      setImportCancelled(selected === null)
+    } catch (cause) {
+      setError(String(cause))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function submitImport(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    if (busy || !importSelection) return
+    const form = event.currentTarget
+    const values = new FormData(form)
+    const password = String(values.get("password") ?? "")
+    const backupConfirmed = values.get("backup") === "on"
+    if (!password || !backupConfirmed) return
+    form.reset()
+    setError(null)
+    setImportCancelled(false)
+    setBusy(true)
+    try {
+      const imported = await importWallet(importSelection.selection_id, password, backupConfirmed)
+      setImportSelection(null)
+      setWalletId(imported.wallet_id)
+      setPhase("open")
+      await refreshWalletState()
+    } catch (cause) {
+      setError(String(cause))
+      await refreshWalletState()
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function confirmBackup(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!phrase || busy) return
@@ -203,12 +248,11 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
           <p className="mt-3 text-sm leading-6 text-slate-400">
             {mode === "create" ? "A new wallet will be saved in the private data folder you selected."
               : mode === "restore" ? "Enter your recovery phrase to create a separate wallet in the private data folder. Your original wallet files are not changed."
-                : "Choose a wallet previously created in this app, then enter its password."}
+                : "Open a wallet already in this app, or import an existing wallet file into private app storage."}
           </p>
           {runtime.data === false ? (
             <p className="mt-6 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-100" role="status">
-              The verified Linux wallet runtime is unavailable. Restart <code>pnpm tauri dev</code>
-              and check its terminal output.
+              The verified wallet runtime is unavailable. Restart the app or reinstall a verified desktop package.
             </p>
           ) : null}
           {mode === "create" ? (
@@ -242,25 +286,57 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
                 {busy ? "Restoring…" : "Restore wallet"}
               </Button>
             </form>
-          ) : wallets.isError ? (
-            <p className="mt-6 text-sm text-red-300" role="alert">Wallet list could not be read.</p>
-          ) : wallets.data?.length === 0 ? (
-            <p className="mt-6 text-sm text-slate-300">No app-owned wallets were found in this data folder.</p>
           ) : (
-            <form onSubmit={(event) => void submitOpen(event)} className="mt-6 grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2 text-sm"><span>Wallet</span>
-                <select value={selectedId} onChange={(event) => setWalletId(event.target.value)}
-                  className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2">
-                  {wallets.data?.map((entry) => <option key={entry.id} value={entry.id}>
-                    Wallet {entry.id.slice(0, 8)}{entry.backup_complete ? "" : " · backup pending"}
-                  </option>)}
-                </select>
-              </label>
-              <PasswordField name="password" label="Wallet password" autoComplete="current-password" />
-              <Button type="submit" disabled={busy || runtime.data !== true || !selectedId} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300 md:col-span-2">
-                {busy ? "Opening…" : "Open wallet"}
-              </Button>
-            </form>
+            <div className="mt-5 grid items-start gap-5 lg:grid-cols-2">
+              <section className="rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Saved wallets">
+                <h2 className="font-semibold">Open a saved wallet</h2>
+                {wallets.isError ? (
+                  <p className="mt-6 text-sm text-red-300" role="alert">Wallet list could not be read.</p>
+                ) : wallets.isPending ? (
+                  <p className="mt-4 text-sm text-slate-400">Loading saved wallets…</p>
+                ) : wallets.data?.length === 0 ? (
+                  <p className="mt-4 text-sm text-slate-400">No saved wallets in this data folder. Import an existing wallet using the form alongside.</p>
+                ) : (
+                  <form onSubmit={(event) => void submitOpen(event)} className="mt-6 grid gap-4 md:grid-cols-2">
+                    <label className="grid gap-2 text-sm"><span>Wallet</span>
+                      <select value={selectedId} onChange={(event) => setWalletId(event.target.value)}
+                        className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2">
+                        {wallets.data?.map((entry) => <option key={entry.id} value={entry.id}>
+                          {entry.name || `Wallet ${entry.id.slice(0, 8)}`}{entry.backup_complete ? "" : " · backup pending"}
+                        </option>)}
+                      </select>
+                    </label>
+                    <PasswordField name="password" label="Wallet password" autoComplete="current-password" />
+                    <Button type="submit" disabled={busy || runtime.data !== true || !selectedId} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300 md:col-span-2">
+                      {busy ? "Opening…" : "Open wallet"}
+                    </Button>
+                  </form>
+                )}
+              </section>
+              <section className="rounded-xl border border-slate-700 bg-[var(--app-surface)] p-5" aria-label="Import wallet file">
+                <h2 className="font-semibold">Import a wallet file</h2>
+                <p className="mt-2 text-sm text-slate-400">Close the wallet in Atom first. Select the main wallet file; its matching .keys file must be in the same folder. The app opens a private copy and preserves the originals.</p>
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button type="button" disabled={busy} variant="outline" onClick={() => void chooseImportFile()}>
+                    {importSelection ? "Change file" : "Choose wallet file"}
+                  </Button>
+                  {importSelection ? <p className="min-w-0 break-all text-sm" role="status">Selected wallet: <strong>{importSelection.file_name}</strong></p> : null}
+                </div>
+                {importSelection ? (
+                  <form key={importSelection.selection_id} onSubmit={(event) => void submitImport(event)} className="mt-4 grid gap-4">
+                    <PasswordField name="password" label="Password for the selected wallet" autoComplete="current-password" />
+                    <label className="flex items-start gap-2 text-sm text-slate-300">
+                      <input type="checkbox" name="backup" required disabled={busy} className="mt-1" />
+                      I have a backup of the original wallet files.
+                    </label>
+                    <Button type="submit" disabled={busy || runtime.data !== true} className="justify-self-start bg-sky-400 text-slate-950 hover:bg-sky-300">
+                      {busy ? "Importing…" : "Import and open wallet"}
+                    </Button>
+                  </form>
+                ) : <p className="mt-3 text-xs text-slate-400">Choose the file first, then enter its existing password to import and open a copy.</p>}
+                {importCancelled ? <p className="mt-3 text-sm text-slate-400" role="status">File selection cancelled. No wallet was imported.</p> : null}
+              </section>
+            </div>
           )}
           <Button type="button" variant="outline" className="mt-4 self-start" onClick={onBack}>← Back to setup</Button>
         </>
@@ -324,7 +400,7 @@ export function WalletWorkspace({ mode, activeWallet, sessionGeneration, onBack,
 
 function PasswordField({ name, label, autoComplete }: { name: string; label: string; autoComplete: string }) {
   return <label className="grid gap-2 text-sm"><span>{label}</span>
-    <input name={name} type="password" autoComplete={autoComplete} required minLength={12}
+    <input name={name} type="password" autoComplete={autoComplete} required minLength={autoComplete === "current-password" ? 1 : 12}
       className="rounded-md border border-slate-600 bg-[var(--app-input)] px-3 py-2" />
   </label>
 }

@@ -1,0 +1,39 @@
+{
+  "passed": true,
+  "profile": "published alpha.6 artifact signatures, not candidate installed-update acceptance",
+  "results": [
+    {
+      "altered_content_rejected": true,
+      "asset": "ryo-wallet-next_0.1.0-alpha.6_windows_x86_64-setup.exe",
+      "published_version_matches": true,
+      "relabel_as_99_rejected": true,
+      "signature_verified": true,
+      "signed_version": "0.1.0-alpha.6"
+    },
+    {
+      "altered_content_rejected": true,
+      "asset": "ryo-wallet-next_0.1.0-alpha.6_darwin_x86_64.app.tar.gz",
+      "published_version_matches": true,
+      "relabel_as_99_rejected": true,
+      "signature_verified": true,
+      "signed_version": "0.1.0-alpha.6"
+    },
+    {
+      "altered_content_rejected": true,
+      "asset": "ryo-wallet-next_0.1.0-alpha.6_amd64.deb",
+      "published_version_matches": true,
+      "relabel_as_99_rejected": true,
+      "signature_verified": true,
+      "signed_version": "0.1.0-alpha.6"
+    },
+    {
+      "altered_content_rejected": true,
+      "asset": "ryo-wallet-next-0.1.0-alpha.6-1.x86_64.rpm",
+      "published_version_matches": true,
+      "relabel_as_99_rejected": true,
+      "signature_verified": true,
+      "signed_version": "0.1.0-alpha.6"
+    }
+  ],
+  "verifier": "minisign-verify 0.2.5, same pinned verifier as updater 2.12.0"
+}

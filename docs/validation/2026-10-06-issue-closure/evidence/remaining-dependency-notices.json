@@ -1,0 +1,26 @@
+[
+  {
+    "name": "rustls-platform-verifier-android",
+    "version": "0.1.1",
+    "license": "MIT OR Apache-2.0",
+    "reason": "No root notice at a publication-linked commit"
+  },
+  {
+    "name": "winapi-i686-pc-windows-gnu",
+    "version": "0.4.0",
+    "license": "MIT/Apache-2.0",
+    "reason": "No root notice at a publication-linked commit"
+  },
+  {
+    "name": "winapi-x86_64-pc-windows-gnu",
+    "version": "0.4.0",
+    "license": "MIT/Apache-2.0",
+    "reason": "No root notice at a publication-linked commit"
+  },
+  {
+    "ecosystem": "npm",
+    "name": "react-remove-scroll-bar",
+    "version": "2.3.8",
+    "reason": "Error: Notice fetch HTTP 404"
+  }
+]

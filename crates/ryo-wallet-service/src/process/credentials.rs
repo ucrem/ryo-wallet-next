@@ -1,9 +1,12 @@
 use std::fs;
+use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use thiserror::Error;
 
 use crate::rpc::{RpcCredentials, RpcError};
+use crate::storage::verify_private_file;
+use zeroize::Zeroizing;
 
 const MAX_LOGIN_BYTES: u64 = 512;
 
@@ -44,8 +47,22 @@ pub fn read_generated_login(
     if metadata.len() > MAX_LOGIN_BYTES {
         return Err(CredentialFileError::TooLarge);
     }
-    check_owner_only(&metadata)?;
-    let contents = fs::read(&path).map_err(|_| CredentialFileError::UnsafeFile)?;
+    let mut options = fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(windows)]
+    {
+        use std::os::windows::fs::OpenOptionsExt;
+        use windows_sys::Win32::Storage::FileSystem::FILE_FLAG_OPEN_REPARSE_POINT;
+        options.custom_flags(FILE_FLAG_OPEN_REPARSE_POINT);
+    }
+    let file = options
+        .open(&path)
+        .map_err(|_| CredentialFileError::UnsafeFile)?;
+    verify_private_file(&file).map_err(|_| CredentialFileError::UnsafeFile)?;
+    let mut contents = Zeroizing::new(Vec::new());
+    file.take(MAX_LOGIN_BYTES + 1)
+        .read_to_end(&mut contents)
+        .map_err(|_| CredentialFileError::UnsafeFile)?;
     if contents.len() > MAX_LOGIN_BYTES as usize {
         return Err(CredentialFileError::TooLarge);
     }
@@ -64,39 +81,15 @@ fn map_credential_error(_error: RpcError) -> CredentialFileError {
     CredentialFileError::InvalidContents
 }
 
-#[cfg(unix)]
-fn check_owner_only(metadata: &fs::Metadata) -> Result<(), CredentialFileError> {
-    use std::os::unix::fs::MetadataExt;
-
-    if metadata.mode() & 0o077 != 0 {
-        return Err(CredentialFileError::UnsafeFile);
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn check_owner_only(_metadata: &fs::Metadata) -> Result<(), CredentialFileError> {
-    // Windows ACL verification is a dedicated platform adapter before release.
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use std::fs;
 
     use super::*;
 
-    #[cfg(unix)]
-    fn write_owner_only(path: &Path, contents: &[u8]) {
-        use std::os::unix::fs::PermissionsExt;
-
-        fs::write(path, contents).unwrap();
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600)).unwrap();
-    }
-
-    #[cfg(not(unix))]
     fn write_owner_only(path: &Path, contents: &[u8]) {
         fs::write(path, contents).unwrap();
+        crate::storage::secure_file(path).unwrap();
     }
 
     #[test]

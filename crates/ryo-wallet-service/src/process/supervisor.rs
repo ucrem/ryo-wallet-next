@@ -22,12 +22,17 @@ pub enum ProcessError {
     Wait(#[source] std::io::Error),
     #[error("sidecar could not be terminated")]
     Terminate(#[source] std::io::Error),
+    #[cfg(windows)]
+    #[error("sidecar process ownership could not be established")]
+    Ownership(#[source] std::io::Error),
 }
 
 /// An app-owned child process. This type has no public constructor: a future
 /// lifecycle adapter can create it only after manifest verification succeeds.
 pub struct ManagedProcess {
     child: Child,
+    #[cfg(windows)]
+    _job: super::windows_job::ProcessJob,
 }
 
 impl ManagedProcess {
@@ -38,7 +43,19 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
     ) -> Result<Self, ProcessError> {
-        Self::spawn(binary, args, working_directory, false).await
+        Self::spawn(binary, args, working_directory, false, false).await
+    }
+
+    pub(crate) async fn start_wallet(
+        binary: &VerifiedBinary,
+        args: &[OsString],
+        working_directory: &Path,
+    ) -> Result<Self, ProcessError> {
+        Self::spawn(binary, args, working_directory, false, true).await
+    }
+
+    pub(crate) fn take_stdout(&mut self) -> Option<tokio::process::ChildStdout> {
+        self.child.stdout.take()
     }
 
     pub(crate) async fn start_daemon(
@@ -46,7 +63,7 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
     ) -> Result<Self, ProcessError> {
-        Self::spawn(binary, args, working_directory, true).await
+        Self::spawn(binary, args, working_directory, true, false).await
     }
 
     async fn spawn(
@@ -54,6 +71,7 @@ impl ManagedProcess {
         args: &[OsString],
         working_directory: &Path,
         console: bool,
+        capture_wallet: bool,
     ) -> Result<Self, ProcessError> {
         if !working_directory.is_absolute() || !working_directory.is_dir() {
             return Err(ProcessError::UnsafeWorkingDirectory);
@@ -69,7 +87,11 @@ impl ManagedProcess {
             } else {
                 std::process::Stdio::null()
             })
-            .stdout(std::process::Stdio::null())
+            .stdout(if capture_wallet {
+                std::process::Stdio::piped()
+            } else {
+                std::process::Stdio::null()
+            })
             .stderr(std::process::Stdio::null())
             .kill_on_drop(true);
         #[cfg(windows)]
@@ -81,8 +103,26 @@ impl ManagedProcess {
                 command.env("SystemRoot", system_root);
             }
         }
+        #[cfg(windows)]
+        let job = super::windows_job::ProcessJob::new().map_err(ProcessError::Ownership)?;
         let child = command.spawn().map_err(ProcessError::Start)?;
-        Ok(Self { child })
+        #[cfg(windows)]
+        let mut child = child;
+        #[cfg(windows)]
+        if let Err(error) = child
+            .raw_handle()
+            .ok_or_else(|| std::io::Error::other("sidecar exited before ownership"))
+            .and_then(|handle| job.assign(handle))
+        {
+            let _ = child.start_kill();
+            let _ = timeout(Duration::from_secs(2), child.wait()).await;
+            return Err(ProcessError::Ownership(error));
+        }
+        Ok(Self {
+            child,
+            #[cfg(windows)]
+            _job: job,
+        })
     }
 
     pub fn pid(&self) -> Option<u32> {

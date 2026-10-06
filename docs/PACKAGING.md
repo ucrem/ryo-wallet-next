@@ -86,6 +86,18 @@ them from repository secrets. Build on the target operating system:
 - macOS Intel: `pnpm exec tauri build --ci --bundles app,dmg --no-sign`
 - Windows: `pnpm exec tauri build --ci --bundles nsis`
 
+For a local standalone desktop executable without an installer, use
+`pnpm exec tauri build --ci --no-bundle`. This runs runtime preparation, builds
+the frontend and enables Tauri's embedded-asset protocol. A plain
+`cargo build --release` does not enable that protocol and would load `devUrl`
+from an external Vite server, causing an empty window when it is stopped.
+The build script now rejects that release configuration. Successful standalone
+builds report `build.frontend_mode: "embedded"` in diagnostic JSON; debug
+development-server builds report `"development_server"`. Linux/macOS host CI
+also compiles the embedded frontend context after the normal debug host tests.
+An OS process being responsive does not verify that its WebView rendered or
+that wallet operations work; native GUI acceptance remains a separate check.
+
 Bundles are written under `target/release/bundle/` because this project uses
 a Cargo workspace. The committed `.icns`, `.ico`, and PNG sizes are generated
 from `src-tauri/icons/icon.png`; the [asset provenance](ASSETS.md) applies to
@@ -99,7 +111,37 @@ reviewed hashes. This local installer has neither platform signing nor an
 updater signature; it is for manual testing. The committed CI configuration
 still requires signed updater artifacts for staging and release promotion.
 
-Before a user-facing release, each platform still needs dependency and license
-notices, platform signing (and Apple notarization), installation tests, and
-wallet-flow tests on clean systems. See the
+## Third-party notices and inventory
+
+Every bundle includes `legal/` with the exact upstream Ryo license/original
+license notices, the reviewed executable/archive inventory, and dependency
+notices collected from the locked Cargo and production npm packages. See
+[the notice scope](../src-tauri/resources/legal/THIRD_PARTY_NOTICES.md).
+Missing published notices are supplemented from reviewed publication-linked
+source commits where available; `AUTHORS` licensing terms are also retained.
+Additional Ryo source-component notices are collected separately. The remaining
+four packages without collected notices are explicitly listed in the inventory;
+the internal static-library composition of upstream Ryo executables is not
+inferred. This payload does not certify complete distribution license clearance.
+
+Packaging verifies the runtime inventory, notice hashes, both lockfile hashes
+and reviewed GLib patch. Dependency changes require reviewing the new packages
+and running `node scripts/generate-legal-inventory.mjs` with Cargo, pnpm and
+the locked dependencies installed. Commit the updated inventory and notices.
+The unused shadcn CLI is no longer a build dependency; existing generated UI
+components remain in source.
+
+Before a user-facing release, each platform still needs review of notice
+completeness, installation and wallet-flow tests on clean systems. Platform
+signing (and Apple notarization) is not configured. See the
 [MVP criteria](MVP.md) and [implementation status](IMPLEMENTATION_STATUS.md).
+
+For local Windows installer smoke tests, use a separate product name, bundle
+identifier, data profile and install directory. Tauri's NSIS process check
+matches the executable basename for the current user; a different bundle ID
+does not isolate that check. Stop every same-named test/development app before
+silent install/reinstall/uninstall, and reopen the ordinary desktop afterwards.
+The 2026-10-05 smoke verified installed runtime digests, native window startup,
+same-version repair preserving preferences, independent node lock/reopen/restart
+and uninstall. It does not close signed in-app update or clean installed funded
+wallet-flow gates.
