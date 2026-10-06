@@ -86,6 +86,18 @@ them from repository secrets. Build on the target operating system:
 - macOS Intel: `pnpm exec tauri build --ci --bundles app,dmg --no-sign`
 - Windows: `pnpm exec tauri build --ci --bundles nsis`
 
+For a local standalone desktop executable without an installer, use
+`pnpm exec tauri build --ci --no-bundle`. This runs runtime preparation, builds
+the frontend and enables Tauri's embedded-asset protocol. A plain
+`cargo build --release` does not enable that protocol and would load `devUrl`
+from an external Vite server, causing an empty window when it is stopped.
+The build script now rejects that release configuration. Successful standalone
+builds report `build.frontend_mode: "embedded"` in diagnostic JSON; debug
+development-server builds report `"development_server"`. Linux/macOS host CI
+also compiles the embedded frontend context after the normal debug host tests.
+An OS process being responsive does not verify that its WebView rendered or
+that wallet operations work; native GUI acceptance remains a separate check.
+
 Bundles are written under `target/release/bundle/` because this project uses
 a Cargo workspace. The committed `.icns`, `.ico`, and PNG sizes are generated
 from `src-tauri/icons/icon.png`; the [asset provenance](ASSETS.md) applies to

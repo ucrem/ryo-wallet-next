@@ -83,6 +83,7 @@ impl Default for DiagnosticsState {
 #[derive(Serialize)]
 struct BuildReport {
     profile: &'static str,
+    frontend_mode: &'static str,
     target: &'static str,
     source_revision: Option<&'static str>,
     tracked_source_modified: Option<bool>,
@@ -164,6 +165,7 @@ impl Report {
                 } else {
                     "release"
                 },
+                frontend_mode: env!("RYO_FRONTEND_MODE"),
                 target: env!("RYO_BUILD_TARGET"),
                 source_revision: match env!("RYO_BUILD_REVISION") {
                     "unknown" => None,

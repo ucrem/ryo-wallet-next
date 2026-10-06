@@ -129,6 +129,8 @@ jobs:
         run: cargo clippy -p ryo-wallet-next --all-targets --locked -- -D warnings
       - name: Host tests including redacted diagnostics export
         run: cargo test -p ryo-wallet-next --lib --locked
+      - name: Check embedded desktop frontend context
+        run: cargo check -p ryo-wallet-next --features tauri/custom-protocol --locked
       - name: Verify wallet-file import with disposable copied wallets
         run: cargo test -p ryo-wallet-next --lib wallet_import --locked -- --ignored --nocapture
       - name: Verify independent local-node lifecycle with disposable wallet
@@ -162,3 +164,5 @@ jobs:
         run: cargo clippy -p ryo-wallet-next --all-targets --locked -- -D warnings
       - name: Host tests including native macOS diagnostic probes
         run: cargo test -p ryo-wallet-next --lib --locked
+      - name: Check embedded desktop frontend context
+        run: cargo check -p ryo-wallet-next --features tauri/custom-protocol --locked

@@ -12,6 +12,21 @@ fn git(root: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn main() {
+    let frontend_dev = tauri_build::is_dev();
+    println!("cargo:rerun-if-env-changed=PROFILE");
+    if std::env::var("PROFILE").as_deref() == Ok("release") && frontend_dev {
+        panic!(
+            "Standalone release requires embedded frontend assets. Run `pnpm exec tauri build --ci --no-bundle`; plain `cargo build --release` would require the Vite development server."
+        );
+    }
+    println!(
+        "cargo:rustc-env=RYO_FRONTEND_MODE={}",
+        if frontend_dev {
+            "development_server"
+        } else {
+            "embedded"
+        }
+    );
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let root = Path::new(&manifest).parent().unwrap();
     let revision = git(root, &["rev-parse", "--verify", "HEAD"]).filter(|value| {
