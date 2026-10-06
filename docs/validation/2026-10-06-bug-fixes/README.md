@@ -103,5 +103,7 @@ Full build/test logs remain under `target/bug-fixes-2026-10-06/`.
   recorded lifecycle/updater results remain in the original audit.
 - Paid publisher signing/notarization remains excluded by the owner's request.
 
-Issues remain open for review/merge, with the fixes and these limits traceable
-through PR #37. There is no stable-readiness claim.
+At this report's `fac5383` snapshot, issues were left open for review/merge.
+The owner's subsequent explicit closure request and the expanded notice
+verification are recorded in the [issue closure follow-up](../2026-10-06-issue-closure/README.md).
+There is no stable-readiness claim.

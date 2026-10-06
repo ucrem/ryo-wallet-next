@@ -1,0 +1,37 @@
+import fs from 'node:fs/promises'
+import path from 'node:path'
+import {createHash} from 'node:crypto'
+const base='target/issue-closure-2026-10-06/'
+const rows=JSON.parse(await fs.readFile(base+'missing-notices-source.json'))
+const trees=JSON.parse(await fs.readFile(base+'upstream-license-trees.json'))
+const destination='src-tauri/resources/legal/supplemental'
+const records=[],unresolved=[]
+const sha256=bytes=>createHash('sha256').update(bytes).digest('hex')
+const cache=new Map()
+async function fetchBytes(url){if(!cache.has(url)){const r=await fetch(url);if(!r.ok)throw Error('Notice fetch HTTP '+r.status);const bytes=Buffer.from(await r.arrayBuffer());if(bytes.length>262144||bytes.includes(0))throw Error('Invalid upstream notice');cache.set(url,bytes)}return cache.get(url)}
+for(const row of rows){
+ const repository=row.repository?.replace(/\/$/,'').replace('https://github.com/','')
+ const tree=trees.find(x=>x.repo===repository&&x.sha===row.vcs?.git?.sha1)
+ const licenses=tree?.licenses.filter(x=>!x.path.includes('/')&&!/\.spdx$/.test(x.path))??[]
+ if(!licenses.length){unresolved.push({name:row.name,version:row.version,license:row.license,reason:'No root notice at a publication-linked commit'});continue}
+ const noticeRecords=[]
+ for(const license of licenses){
+  const source=`https://raw.githubusercontent.com/${repository}/${tree.sha}/${license.path}`
+  const bytes=await fetchBytes(source)
+  const blob=createHash('sha1').update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest('hex')
+  if(blob!==license.sha)throw Error('Git blob mismatch')
+  const file=`${sha256(bytes)}.txt`
+  await fs.mkdir(destination,{recursive:true});await fs.writeFile(path.join(destination,file),bytes)
+  noticeRecords.push({file,source,sha256:sha256(bytes),source_path:license.path,git_blob_sha1:blob})
+ }
+ records.push({ecosystem:'cargo',name:row.name,version:row.version,license:row.license,repository:'https://github.com/'+repository,source_commit:tree.sha,publication_provenance:'.cargo_vcs_info.json git.sha1 from the locked published crate',notices:noticeRecords})
+}
+const npm=await fetch('https://registry.npmjs.org/react-remove-scroll-bar/2.3.8').then(r=>r.json())
+const url=`https://raw.githubusercontent.com/theKashey/react-remove-scroll-bar/${npm.gitHead}/LICENSE`
+try{
+ const bytes=await fetchBytes(url),file=sha256(bytes)+'.txt'
+ await fs.writeFile(path.join(destination,file),bytes)
+ records.push({ecosystem:'npm',name:npm.name,version:npm.version,license:npm.license,repository:'https://github.com/theKashey/react-remove-scroll-bar',source_commit:npm.gitHead,publication_provenance:'gitHead from npm version metadata; dist integrity matches the locked package',npm_dist_integrity:npm.dist.integrity,notices:[{file,source:url,sha256:sha256(bytes),source_path:'LICENSE'}]})
+}catch(error){unresolved.push({ecosystem:'npm',name:npm.name,version:npm.version,reason:String(error)})}
+await fs.writeFile(base+'recovered-notices.json',JSON.stringify({schema_version:1,records,unresolved},null,2)+'\n')
+console.log(JSON.stringify({recovered_packages:records.length,unique_notice_files:cache.size,unresolved}))

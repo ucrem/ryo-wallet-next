@@ -1,0 +1,132 @@
+[
+  {
+    "path": "CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/CMakeLists.txt",
+    "sha256": "710fa6745863e7e0c53c37aa5f6d0ddb91de862abd25379b2c522ca710446e70"
+  },
+  {
+    "path": "external/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/CMakeLists.txt",
+    "sha256": "b4aa99f20711b9a18365b49824fd685f651caca0d6915f34f1648f5ffe762409"
+  },
+  {
+    "path": "src/daemon/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/daemon/CMakeLists.txt",
+    "sha256": "c3a248d80c4ac034fa85400da446acc99e993fb69b7a32f78bfd157c693a6e84"
+  },
+  {
+    "path": "src/wallet/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/wallet/CMakeLists.txt",
+    "sha256": "a66a5f4b618e35cea988f7c93436c005e2643b85eee3d7941fed2cca239190b9"
+  },
+  {
+    "path": "src/crypto/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/crypto/CMakeLists.txt",
+    "sha256": "e3c74430f9002b9650d3ba9a3d84347b37ce8dfde11cec61d722118ebe0a78ce"
+  },
+  {
+    "path": "src/rpc/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/rpc/CMakeLists.txt",
+    "sha256": "586ea7857a27a993b1660caad3be5747505853a1194a6035a9a42420664d90b9"
+  },
+  {
+    "path": "contrib/epee/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/contrib/epee/CMakeLists.txt",
+    "sha256": "73747765a5c8d3e5f6b97976397154cf9560c3f08e9698793039b4d834cb30fd"
+  },
+  {
+    "path": "src/common/CMakeLists.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/common/CMakeLists.txt",
+    "sha256": "bcd6db1ce5af03a56432eb8ec3af17b04f471bc4d67ba0df0ec58f2f6ea751f1"
+  },
+  {
+    "path": "README.md",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/README.md",
+    "sha256": "07858ed7931fd464b428bcd34e749a50f3e4c84076b3b7c94fba9e22263489d5"
+  },
+  {
+    "path": "LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/LICENSE",
+    "sha256": "ef035ea12b54fc1d6b9ae6f2d5f241d64f860634f95e9e5f5a51a6557c3ce109"
+  },
+  {
+    "path": "ORIGINAL-LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/ORIGINAL-LICENSE",
+    "sha256": "94201a5b8629ea925e27ef2fd870a272058d9fa81a30801f4ce56c4a1d1d5c0e"
+  },
+  {
+    "path": "contrib/epee/LICENSE.txt",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/contrib/epee/LICENSE.txt",
+    "sha256": "2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6"
+  },
+  {
+    "path": "external/db_drivers/liblmdb/COPYRIGHT",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/db_drivers/liblmdb/COPYRIGHT",
+    "sha256": "2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983"
+  },
+  {
+    "path": "external/db_drivers/liblmdb/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/db_drivers/liblmdb/LICENSE",
+    "sha256": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569"
+  },
+  {
+    "path": "external/fmt/LICENSE.rst",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/fmt/LICENSE.rst",
+    "sha256": "560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a"
+  },
+  {
+    "path": "external/miniupnp/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/miniupnp/LICENSE",
+    "sha256": "55119268255c0f7894596d9c7fdeb9134699b8dd76cb8301102f426cbafb618c"
+  },
+  {
+    "path": "external/miniupnp/minissdpd/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/miniupnp/minissdpd/LICENSE",
+    "sha256": "8801b32567ec20015c7d31668602a3a7f4a4785b7e17468360146b6003713cba"
+  },
+  {
+    "path": "external/miniupnp/miniupnpc/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/miniupnp/miniupnpc/LICENSE",
+    "sha256": "e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4"
+  },
+  {
+    "path": "external/miniupnp/miniupnpd/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/miniupnp/miniupnpd/LICENSE",
+    "sha256": "8950e1ef76cf7791996e9104809b1016f578c9595b96e9438fd848baa1df177a"
+  },
+  {
+    "path": "external/rapidjson/bin/jsonschema/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/rapidjson/bin/jsonschema/LICENSE",
+    "sha256": "837402bd25fad9b704265801ca3f92566a98157c1f9a7acd6f446299ba1c305a"
+  },
+  {
+    "path": "external/rapidjson/contrib/natvis/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/rapidjson/contrib/natvis/LICENSE",
+    "sha256": "394faaedb93c1da8ecbd61322518834908fee64381117e01a611bf9fac20baa6"
+  },
+  {
+    "path": "external/unbound/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/unbound/LICENSE",
+    "sha256": "8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db"
+  },
+  {
+    "path": "external/unbound/doc/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/unbound/doc/LICENSE",
+    "sha256": "8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db"
+  },
+  {
+    "path": "external/unbound/libunbound/python/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/unbound/libunbound/python/LICENSE",
+    "sha256": "2ac9e5f01e1b7e5d18df69a410d343eaa7c9c76e64b85b3373b9f3a5487a1a3b"
+  },
+  {
+    "path": "external/unbound/pythonmod/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/unbound/pythonmod/LICENSE",
+    "sha256": "2ac9e5f01e1b7e5d18df69a410d343eaa7c9c76e64b85b3373b9f3a5487a1a3b"
+  },
+  {
+    "path": "tests/gtest/LICENSE",
+    "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/tests/gtest/LICENSE",
+    "sha256": "9702de7e4117a8e2b20dafab11ffda58c198aede066406496bef670d40a22138"
+  }
+]

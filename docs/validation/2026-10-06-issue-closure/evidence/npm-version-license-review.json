@@ -1,0 +1,14 @@
+{
+  "repository": "theKashey/react-remove-scroll-bar",
+  "commit": "8ca9ba5ea52de03308fe8ced94f7b159a44d28ff",
+  "repository_version": "2.3.7",
+  "published_version": "2.3.8",
+  "repository_license": "MIT",
+  "published_license": "MIT",
+  "repository_author": "Anton Korzunov <thekashey@gmail.com>",
+  "published_author": {
+    "name": "Anton Korzunov",
+    "email": "thekashey@gmail.com"
+  },
+  "published_gitHead": "b3b1287aad81def2e2ae707274b74531b61ddbaf"
+}

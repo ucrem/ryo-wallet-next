@@ -1,0 +1,32 @@
+$ErrorActionPreference='Stop'
+$taskWorkspace='F:\DEV\ryo-wallet-next-main'
+$taskBase=Join-Path $taskWorkspace 'target\issue-closure-2026-10-06'
+$taskInstall=[IO.Path]::GetFullPath((Join-Path $taskBase 'installed'))
+if(-not $taskInstall.StartsWith($taskBase+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe notice install path'}
+$taskRegistry='HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\Ryo Wallet Next Notice Review'
+if(Test-Path -LiteralPath $taskRegistry){throw 'Notice review already installed'}
+if(Get-Process -Name ryo-wallet-next-notice-review -ErrorAction SilentlyContinue){throw 'Notice review process already running'}
+$taskSource=(Get-Content -LiteralPath (Join-Path $taskBase 'material-revision.txt') -Raw).Trim()
+$taskReport=[ordered]@{source_revision=$taskSource;platform='windows';user_wallets_used=$false;scope='Isolated NSIS install: all legal payload files and runtime digests; no GUI acceptance claim';checks=@();files=@()}
+function Save-NoticeReport{$taskReport | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $taskBase 'installed-notices-report.json') -Encoding utf8}
+function Check-Notice($name,$passed){$taskReport.checks+=@{name=$name;passed=$passed};Save-NoticeReport;if(-not $passed){throw ('Notice verification failed: '+$name)}}
+$taskSetup=Start-Process -FilePath (Join-Path $taskBase 'notice-review-setup.exe') -ArgumentList @('/S','/NS',('/D='+$taskInstall)) -WindowStyle Hidden -PassThru
+if(-not $taskSetup.WaitForExit(30000) -or $taskSetup.ExitCode -ne 0){throw 'Notice test installation failed'}
+Check-Notice 'clean isolated current-user NSIS installation' ((Get-ItemProperty -LiteralPath $taskRegistry).InstallLocation.Trim('"') -eq $taskInstall)
+$taskLegal=Join-Path $taskWorkspace 'src-tauri\resources\legal'
+foreach($taskFile in Get-ChildItem -LiteralPath $taskLegal -File -Recurse){
+ $taskRelative=[IO.Path]::GetRelativePath($taskLegal,$taskFile.FullName)
+ $taskHash=(Get-FileHash -LiteralPath $taskFile.FullName -Algorithm SHA256).Hash
+ $taskInstalled=Join-Path (Join-Path $taskInstall 'legal') $taskRelative
+ Check-Notice ('installed legal digest: '+$taskRelative) ((Get-FileHash -LiteralPath $taskInstalled -Algorithm SHA256).Hash -eq $taskHash)
+ $taskReport.files+=@{path=$taskRelative.Replace('\','/');sha256=$taskHash.ToLowerInvariant()}
+}
+$taskManifest=Get-Content -LiteralPath (Join-Path $taskWorkspace 'src-tauri\runtime-manifest.json') -Raw | ConvertFrom-Json
+foreach($taskRuntime in @(@{file='ryod.exe';sha=$taskManifest.platforms.'x86_64-pc-windows-msvc'.daemonSha256},@{file='ryo-wallet-rpc.exe';sha=$taskManifest.platforms.'x86_64-pc-windows-msvc'.binarySha256})){
+ Check-Notice ('installed runtime digest: '+$taskRuntime.file) ((Get-FileHash -LiteralPath (Join-Path $taskInstall $taskRuntime.file) -Algorithm SHA256).Hash.ToLowerInvariant() -eq $taskRuntime.sha)
+}
+$taskUninstall=Start-Process -FilePath (Join-Path $taskInstall 'uninstall.exe') -ArgumentList @('/S',('_?='+$taskInstall)) -WindowStyle Hidden -PassThru
+if(-not $taskUninstall.WaitForExit(30000) -or $taskUninstall.ExitCode -ne 0){throw 'Notice test uninstall failed'}
+Check-Notice 'isolated uninstall removes test application/registration' ((-not(Test-Path -LiteralPath (Join-Path $taskInstall 'ryo-wallet-next-notice-review.exe')))-and(-not(Test-Path -LiteralPath $taskRegistry)))
+$taskReport.completed=$true;Save-NoticeReport
+@{completed=$true;checks=$taskReport.checks.Count;legal_files=$taskReport.files.Count;passed=@($taskReport.checks | Where-Object passed).Count} | ConvertTo-Json -Compress

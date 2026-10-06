@@ -1,0 +1,58 @@
+[
+  {
+    "number": 38,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/38",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 39,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/39",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 40,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/40",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 41,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/41",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 43,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/43",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 44,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/44",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 45,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/45",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  },
+  {
+    "number": 46,
+    "state": "closed",
+    "state_reason": "completed",
+    "url": "https://github.com/ucrem/ryo-wallet-next/issues/46",
+    "fix_revision": "fac5383bfb9ad6b928eba520b9008b008c820a13"
+  }
+]
