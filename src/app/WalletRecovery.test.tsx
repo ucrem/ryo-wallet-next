@@ -56,7 +56,7 @@ it("recovers balances, history and name automatically after the runtime finishes
   })
   await mount()
   expect(container.querySelector('[role="status"][aria-label*="Balances update automatically"]')).not.toBeNull()
-  expect(container.querySelector('[role="status"][aria-label*="Transactions update automatically"]')).not.toBeNull()
+  expect(container.querySelector('[role="status"][aria-label*="Transactions update automatically"]')).toBeNull()
   expect(container.textContent).not.toContain("update automatically")
   expect(container.textContent).not.toContain("locking and reopening")
   expect(container.querySelector('[role="alert"]')).toBeNull()
@@ -73,21 +73,21 @@ it("recovers balances, history and name automatically after the runtime finishes
   expect(client.getQueryState(["active-wallet", "7"])!.isInvalidated).toBe(true)
 })
 
-it("labels retained balances and history as the last available data during scanning", async () => {
+it("labels retained balances and refreshes recent history silently during scanning", async () => {
   client.setQueryData(["wallet-overview", "7"], snapshot)
   client.setQueryData(["wallet-operation", "7", "history"], [transaction])
   vi.mocked(getWalletOverview).mockRejectedValue("wallet RPC busy")
   vi.mocked(walletOperation).mockRejectedValue("wallet RPC busy")
   await mount()
   expect(container.querySelector('[role="status"][title*="Showing the last available balances"]')).not.toBeNull()
-  expect(container.querySelector('[role="status"][title*="Showing the last available history"]')).not.toBeNull()
+  expect(container.querySelector('[role="status"][title*="Showing the last available history"]')).toBeNull()
   expect(container.textContent).not.toContain("Showing the last available")
   expect(container.textContent).toContain("5 RYO")
   expect(container.textContent).toContain(transaction.txid)
   expect(container.querySelector('[role="alert"]')).toBeNull()
 })
 
-it("keeps a delayed history update distinct from an authenticated wallet scan at 100%", async () => {
+it("keeps recent history free of update badges while the footer reports wallet synchronization", async () => {
   const synced = { wallet_height: "100", daemon_height: "100", network_height: "100", node_reachable: true, node_ready: true, node_offline: false, node_untrusted: false, wallet_rpc_busy: false, wallet_rpc_available: true }
   client.setQueryData(["wallet-sync-status", "7"], synced)
   client.setQueryData(["wallet-operation", "7", "history"], [transaction])
@@ -108,11 +108,13 @@ it("keeps a delayed history update distinct from an authenticated wallet scan at
   const historyIndicator = () => container.querySelector('[role="status"][aria-label*="Transactions update automatically"]')
   expect(walletStatus()).toContain("Wallet synced")
   expect(walletStatus()).toContain("100.0%")
-  expect(historyIndicator()!.textContent).toContain("Update pending")
+  expect(historyIndicator()).toBeNull()
+  expect(container.textContent).not.toContain("Update pending")
   expect(container.textContent).not.toContain("Syncing")
   expect(container.textContent).toContain(transaction.txid)
   await act(async () => { await vi.advanceTimersByTimeAsync(15_100) })
-  expect(historyIndicator()!.textContent).toContain("Updating")
+  expect(historyIndicator()).toBeNull()
+  expect(container.textContent).not.toContain("Updating")
   expect(walletStatus()).toContain("Wallet synced")
   await act(async () => { finishRefresh([transaction]); await vi.advanceTimersByTimeAsync(1) })
   expect(historyIndicator()).toBeNull()

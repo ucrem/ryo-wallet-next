@@ -113,9 +113,8 @@ function WalletDashboardPage({ generation, section, onSection, onLock, onRemoved
     </section>
     {action ? <WalletActions key={action} generation={generation} action={action} name={info.data?.name ?? ""} onClose={() => setAction(null)} onRemoved={onRemoved} /> : null}
     {section === "overview" ? <section className={cardClass}>
-      <div className="flex items-center justify-between gap-3"><div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">Recent transactions</h2>
-        {history.isError && walletRpcBusy(history.error) ? <DataRefreshIndicator subject="history" hasSnapshot={history.data !== undefined} refreshing={history.isFetching} /> : null}
-      </div><Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
+      <div className="flex items-center justify-between gap-3"><h2 className="text-lg font-semibold">Recent transactions</h2>
+        <Button variant="ghost" size="sm" onClick={() => onSection("history")}>View all →</Button></div>
       <Transactions generation={generation} entries={history.data?.slice(0, 5)} loading={history.isPending} failed={history.isError} busy={walletRpcBusy(history.error)} hidden={hidden} />
     </section> : null}
     {section === "receive" ? <ReceivePanel generation={generation} /> : null}

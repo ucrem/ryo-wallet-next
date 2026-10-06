@@ -7,7 +7,7 @@ These are unreleased changes on the 0.1.0-alpha.6 baseline. Assign a version and
 - Native wallet-file import with selection before password entry, preserved originals and app-owned copies.
 - Saved-wallet reopening from Home, name recovery during unlock, and compact named wallet selection.
 - Bounded busy RPC reads, live scan progress and scan-cache persistence across lock/reopen.
-- Consistent history freshness feedback, incoming/outgoing icons and red outgoing icons/amounts.
+- Silent automatic refresh of recent transactions, synchronization progress in the footer, incoming/outgoing icons and red outgoing icons/amounts.
 
 ## Hardening and support
 
