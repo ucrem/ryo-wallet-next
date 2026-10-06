@@ -75,6 +75,11 @@ jobs:
         run: node scripts/prepare-dev-runtime.mjs
       - name: Native service permissions and process ownership tests
         run: cargo test -p ryo-wallet-service --lib --locked
+      - name: Windows RPC startup from existing owner Modify-only storage
+        if: runner.os == 'Windows'
+        env:
+          RYO_TEST_WALLET_RPC: ${{ github.workspace }}/src-tauri/.dev-runtime/ryo-wallet-rpc.exe
+        run: cargo test -p ryo-wallet-service --lib reviewed_wallet_rpc_starts_from_owned_modify_only_storage --locked -- --ignored
       - name: Observe public testnet availability from this runner
         continue-on-error: true
         run: node scripts/probe-testnet.mjs 30

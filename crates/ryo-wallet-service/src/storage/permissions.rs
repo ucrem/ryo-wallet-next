@@ -65,7 +65,7 @@ mod windows {
     use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
     use std::os::windows::io::{AsRawHandle, FromRawHandle, OwnedHandle};
     use std::ptr::{null, null_mut};
-    use windows_sys::Win32::Foundation::{HANDLE, LocalFree};
+    use windows_sys::Win32::Foundation::{ERROR_ACCESS_DENIED, HANDLE, LocalFree};
     use windows_sys::Win32::Security::Authorization::{
         ConvertSidToStringSidW, ConvertStringSecurityDescriptorToSecurityDescriptorW,
         GetSecurityInfo, SDDL_REVISION_1, SE_FILE_OBJECT, SetSecurityInfo,
@@ -181,16 +181,21 @@ mod windows {
     }
 
     fn open(path: &Path, write_security: bool) -> io::Result<File> {
+        open_with_access(
+            path,
+            FILE_READ_ATTRIBUTES
+                | READ_CONTROL
+                | if write_security {
+                    WRITE_DAC | WRITE_OWNER
+                } else {
+                    0
+                },
+        )
+    }
+
+    fn open_with_access(path: &Path, access: u32) -> io::Result<File> {
         let file = fs::OpenOptions::new()
-            .access_mode(
-                FILE_READ_ATTRIBUTES
-                    | READ_CONTROL
-                    | if write_security {
-                        WRITE_DAC | WRITE_OWNER
-                    } else {
-                        0
-                    },
-            )
+            .access_mode(access)
             .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
             .open(path)?;
         if file.metadata()?.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0 {
@@ -200,11 +205,24 @@ mod windows {
     }
 
     pub(super) fn secure(path: &Path, directory: bool) -> io::Result<()> {
-        let file = open(path, true)?;
+        let user = UserSid::current()?;
+        let (file, change_owner) = match open(path, true) {
+            Ok(file) => (file, true),
+            Err(error) if error.raw_os_error() == Some(ERROR_ACCESS_DENIED as i32) => {
+                // Owners can edit their DACL without WRITE_OWNER. Secondary
+                // drives often grant only Modify; do not request an ownership
+                // change when this same validated handle is already user-owned.
+                let file = open_with_access(path, FILE_READ_ATTRIBUTES | READ_CONTROL | WRITE_DAC)?;
+                if !owned_by(&file, &user)? {
+                    return Err(error);
+                }
+                (file, false)
+            }
+            Err(error) => return Err(error),
+        };
         if file.metadata()?.is_dir() != directory {
             return Err(io::Error::other("private storage type changed"));
         }
-        let user = UserSid::current()?;
         let inherit = if directory { "OICI" } else { "" };
         // Only the current user and LocalSystem receive access. Administrators
         // retain the OS's privileged recovery capabilities, not a broad ACE.
@@ -212,10 +230,39 @@ mod windows {
             "D:P(A;{inherit};FA;;;{})(A;{inherit};FA;;;SY)",
             user.string()?
         );
-        apply(&file, &user, &sddl)
+        apply_policy(&file, &user, &sddl, change_owner)
     }
 
+    fn owned_by(file: &File, user: &UserSid) -> io::Result<bool> {
+        let mut owner = null_mut();
+        let mut descriptor = null_mut();
+        // SAFETY: query the live, reparse-checked handle; owner points into the
+        // returned descriptor and is compared before its allocation is freed.
+        unsafe {
+            let result = GetSecurityInfo(
+                file.as_raw_handle(),
+                SE_FILE_OBJECT,
+                OWNER_SECURITY_INFORMATION,
+                &mut owner,
+                null_mut(),
+                null_mut(),
+                null_mut(),
+                &mut descriptor,
+            );
+            if result != 0 {
+                return Err(io::Error::from_raw_os_error(result as i32));
+            }
+            let _allocation = LocalMemory(descriptor);
+            Ok(!owner.is_null() && IsValidSid(owner) != 0 && EqualSid(owner, user.pointer()) != 0)
+        }
+    }
+
+    #[cfg(test)]
     fn apply(file: &File, user: &UserSid, sddl: &str) -> io::Result<()> {
+        apply_policy(file, user, sddl, true)
+    }
+
+    fn apply_policy(file: &File, user: &UserSid, sddl: &str, change_owner: bool) -> io::Result<()> {
         let value: Vec<u16> = sddl.encode_utf16().chain(Some(0)).collect();
         let mut descriptor = null_mut();
         // SAFETY: parsed descriptor and borrowed file/SID handles remain live.
@@ -241,10 +288,18 @@ mod windows {
             let result = SetSecurityInfo(
                 file.as_raw_handle(),
                 SE_FILE_OBJECT,
-                OWNER_SECURITY_INFORMATION
-                    | DACL_SECURITY_INFORMATION
-                    | PROTECTED_DACL_SECURITY_INFORMATION,
-                user.pointer(),
+                DACL_SECURITY_INFORMATION
+                    | PROTECTED_DACL_SECURITY_INFORMATION
+                    | if change_owner {
+                        OWNER_SECURITY_INFORMATION
+                    } else {
+                        0
+                    },
+                if change_owner {
+                    user.pointer()
+                } else {
+                    null_mut()
+                },
                 null_mut(),
                 dacl,
                 null(),
@@ -366,6 +421,120 @@ mod windows {
     #[cfg(test)]
     mod tests {
         use super::*;
+
+        #[test]
+        fn owned_modify_only_directory_can_be_secured_without_write_owner() {
+            let temp = tempfile::tempdir().unwrap();
+            let user = UserSid::current().unwrap();
+            {
+                let file = open(temp.path(), true).unwrap();
+                // Typical secondary-drive Modify grant: current user is owner,
+                // but the DACL does not grant WRITE_OWNER or WRITE_DAC.
+                apply(
+                    &file,
+                    &user,
+                    &format!(
+                        "D:P(A;OICI;0x1301bf;;;{})(A;OICI;FA;;;SY)",
+                        user.string().unwrap()
+                    ),
+                )
+                .unwrap();
+            }
+            assert_eq!(open(temp.path(), true).unwrap_err().raw_os_error(), Some(5));
+            super::super::secure_directory(temp.path())
+                .expect("owner can protect its DACL without changing ownership");
+            let child = temp.path().join("inherited-login");
+            fs::write(&child, b"ryo:disposable-credential").unwrap();
+            super::super::verify_private_file(&File::open(&child).unwrap()).unwrap();
+        }
+
+        #[test]
+        fn owned_modify_only_file_is_secured_without_changing_contents() {
+            let temp = tempfile::tempdir().unwrap();
+            let path = temp.path().join("existing-wallet-canary");
+            fs::write(&path, b"unchanged-disposable-wallet-canary").unwrap();
+            let user = UserSid::current().unwrap();
+            {
+                let file = open(&path, true).unwrap();
+                apply(
+                    &file,
+                    &user,
+                    &format!("D:P(A;;0x1301bf;;;{})(A;;FR;;;WD)", user.string().unwrap()),
+                )
+                .unwrap();
+            }
+            assert_eq!(open(&path, true).unwrap_err().raw_os_error(), Some(5));
+            assert!(super::super::verify_private_file(&File::open(&path).unwrap()).is_err());
+            super::super::secure_file(&path).unwrap();
+            super::super::verify_private_file(&File::open(&path).unwrap()).unwrap();
+            assert_eq!(
+                fs::read(&path).unwrap(),
+                b"unchanged-disposable-wallet-canary"
+            );
+        }
+
+        #[tokio::test]
+        #[ignore = "requires RYO_TEST_WALLET_RPC; only a disposable empty listener is started"]
+        async fn reviewed_wallet_rpc_starts_from_owned_modify_only_storage() {
+            use crate::domain::{Network, NodeConfig};
+            use crate::process::{BinaryDigest, BinaryKind, VerifiedBinary, WalletRpcSession};
+            use crate::storage::AppPaths;
+            use std::net::{Ipv4Addr, TcpListener};
+            use std::time::Duration;
+
+            let manifest: serde_json::Value =
+                serde_json::from_str(include_str!("../../../../src-tauri/runtime-manifest.json"))
+                    .unwrap();
+            let digest = manifest["platforms"]["x86_64-pc-windows-msvc"]["binarySha256"]
+                .as_str()
+                .unwrap();
+            let path = std::path::PathBuf::from(
+                std::env::var_os("RYO_TEST_WALLET_RPC")
+                    .expect("set the verified test runtime path"),
+            );
+            let binary = VerifiedBinary::verify(
+                BinaryKind::WalletRpc,
+                &path,
+                BinaryDigest::parse_hex(digest).unwrap(),
+            )
+            .unwrap();
+            let temp = tempfile::tempdir().unwrap();
+            let paths =
+                AppPaths::new(temp.path().join("disposable-data"), Network::Mainnet).unwrap();
+            paths.ensure_private_dirs().unwrap();
+            let user = UserSid::current().unwrap();
+            for directory in [
+                paths.network_root(),
+                paths.wallets_root(),
+                paths.runtime_root(),
+                paths.chain_root(),
+            ] {
+                let file = open(&directory, true).unwrap();
+                apply(
+                    &file,
+                    &user,
+                    &format!(
+                        "D:P(A;OICI;0x1301bf;;;{})(A;OICI;FA;;;SY)",
+                        user.string().unwrap()
+                    ),
+                )
+                .unwrap();
+            }
+            let listener = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).unwrap();
+            let port = listener.local_addr().unwrap().port();
+            drop(listener);
+            let session = WalletRpcSession::start(
+                &binary,
+                &paths,
+                &NodeConfig::managed_local(Network::Mainnet),
+                port,
+            )
+            .await
+            .expect("reviewed RPC starts after owner-only storage migration");
+            assert!(!session.client().languages().await.unwrap().is_empty());
+            assert_eq!(fs::read_dir(paths.wallets_root()).unwrap().count(), 0);
+            session.stop(Duration::from_secs(5)).await.unwrap();
+        }
 
         #[test]
         fn elevated_upstream_owner_is_narrowly_scoped_and_never_allows_everyone() {

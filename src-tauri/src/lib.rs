@@ -10,6 +10,7 @@ use ryo_wallet_service::application::{
     LifecycleStatus, NodeService, NodeStatus, WalletOverview, WalletService, WalletServiceError,
 };
 use ryo_wallet_service::domain::{Network, NodeConfig};
+use ryo_wallet_service::process::{WalletRpcLaunchError, WalletRpcStartupError};
 use ryo_wallet_service::rpc::{ReceiveAddress, RpcError};
 use ryo_wallet_service::storage::{
     AppPaths, AppSettings, Theme, WalletId, load_settings_if_present, load_wallet_name,
@@ -469,6 +470,39 @@ async fn ready_wallet_service(
     ready_wallet_service_under_setup(service, state, app, nodes).await
 }
 
+// Explicit startup categories; never forward private paths or raw adapter errors.
+fn wallet_startup_message(error: WalletServiceError) -> &'static str {
+    match error {
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::Paths(_),
+        )) => {
+            "wallet runtime storage could not be secured; check permissions on the selected data folder and restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::UnsupportedPath(_),
+        )) => "the selected data folder path is not supported by the bundled wallet runtime",
+        WalletServiceError::Startup(WalletRpcStartupError::Launch(_)) => {
+            "wallet runtime settings are invalid; check node and wallet RPC port settings"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::DaemonTransport(_)) => {
+            "wallet daemon connection could not be prepared; check network connectivity and node settings"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Credentials(_)) => {
+            "wallet runtime credentials could not be validated; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Deadline) => {
+            "wallet runtime did not become ready in time; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Readiness(_)) => {
+            "wallet runtime did not pass its startup check; restart the app"
+        }
+        WalletServiceError::Startup(WalletRpcStartupError::Process(_)) => {
+            "wallet runtime process could not be safely started; restart the app"
+        }
+        _ => "wallet runtime could not be started; restart the app",
+    }
+}
+
 // The caller owns SetupState while importing or changing runtime configuration.
 async fn ready_wallet_service_under_setup(
     service: &WalletService,
@@ -498,9 +532,7 @@ async fn ready_wallet_service_under_setup(
     service
         .start_wallet_rpc(binary, paths, node.clone(), wallet_rpc_port(&node)?)
         .await
-        .map_err(
-            |_| "wallet runtime could not be started; check the selected node and restart the app",
-        )?;
+        .map_err(wallet_startup_message)?;
     Ok(())
 }
 
@@ -1082,6 +1114,22 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn startup_feedback_distinguishes_storage_from_readiness_without_raw_errors() {
+        let error = WalletServiceError::Startup(WalletRpcStartupError::Launch(
+            WalletRpcLaunchError::Paths(ryo_wallet_service::storage::PathError::Io(
+                std::io::Error::new(std::io::ErrorKind::PermissionDenied, "private-path-canary"),
+            )),
+        ));
+        let message = wallet_startup_message(error);
+        assert!(message.contains("permissions"));
+        assert!(!message.contains("canary"));
+        let message =
+            wallet_startup_message(WalletServiceError::Startup(WalletRpcStartupError::Deadline));
+        assert!(message.contains("ready in time"));
+        assert!(!message.contains("selected node"));
+    }
 
     #[test]
     fn creation_result_serializes_the_phrase_without_storing_it_in_settings() {
