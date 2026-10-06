@@ -1,0 +1,55 @@
+{
+  "schema_version": 1,
+  "source_commit": "166cf188bf351e3eecff904450eda2785f9d0357",
+  "scope": "Conservative collection of source-tree component notices. This is not a verified bill of materials for the official runtime executable artifacts; externally resolved build libraries and exact link composition still require upstream records.",
+  "notices": [
+    {
+      "file": "2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/contrib/epee/LICENSE.txt",
+      "sha256": "2a81658817c1928a0e1cbfdf0c44ffcb007482f65b605c4dc3b595ef377cffc6",
+      "source_path": "contrib/epee/LICENSE.txt"
+    },
+    {
+      "file": "2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/db_drivers/liblmdb/COPYRIGHT",
+      "sha256": "2ddabfcfc7ca972fa0b4a9d2118b8c44c65941d850c5a685d25d04ab87e01983",
+      "source_path": "external/db_drivers/liblmdb/COPYRIGHT"
+    },
+    {
+      "file": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/db_drivers/liblmdb/LICENSE",
+      "sha256": "310fe25c858a9515fc8c8d7d1f24a67c9496f84a91e0a0e41ea9975b1371e569",
+      "source_path": "external/db_drivers/liblmdb/LICENSE"
+    },
+    {
+      "file": "560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/fmt/LICENSE.rst",
+      "sha256": "560d39617dfb4b4e4088597291a070ed6c3a8d67668114ed475c673430c3e49a",
+      "source_path": "external/fmt/LICENSE.rst"
+    },
+    {
+      "file": "e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/miniupnp/miniupnpc/LICENSE",
+      "sha256": "e2df21b3d4b1a84a0ac31d808a3ff330fdf3602e0839a526d3df2fcfba287ac4",
+      "source_path": "external/miniupnp/miniupnpc/LICENSE"
+    },
+    {
+      "file": "a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/rapidjson/license.txt",
+      "sha256": "a140e5d46fe734a1c78f1a3c3ef207871dd75648be71fdda8e309b23ab8b1f32",
+      "source_path": "external/rapidjson/license.txt"
+    },
+    {
+      "file": "8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/external/unbound/LICENSE",
+      "sha256": "8eb9a16cbfb8703090bbfa3a2028fd46bb351509a2f90dc1001e51fbe6fd45db",
+      "source_path": "external/unbound/LICENSE"
+    },
+    {
+      "file": "53fc31a778519360f4618f46fdddc5bc870fae5ab26e3b1961538595d78b830f.txt",
+      "source": "https://raw.githubusercontent.com/ryo-currency/ryo-currency/166cf188bf351e3eecff904450eda2785f9d0357/src/crypto/crypto_ops_builder/include/libsodium_LICENSE",
+      "sha256": "53fc31a778519360f4618f46fdddc5bc870fae5ab26e3b1961538595d78b830f",
+      "source_path": "src/crypto/crypto_ops_builder/include/libsodium_LICENSE"
+    }
+  ]
+}

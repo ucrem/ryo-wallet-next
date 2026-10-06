@@ -117,7 +117,10 @@ Every bundle includes `legal/` with the exact upstream Ryo license/original
 license notices, the reviewed executable/archive inventory, and dependency
 notices collected from the locked Cargo and production npm packages. See
 [the notice scope](../src-tauri/resources/legal/THIRD_PARTY_NOTICES.md).
-Packages without published notice files are explicitly listed in the inventory;
+Missing published notices are supplemented from reviewed publication-linked
+source commits where available; `AUTHORS` licensing terms are also retained.
+Additional Ryo source-component notices are collected separately. The remaining
+four packages without collected notices are explicitly listed in the inventory;
 the internal static-library composition of upstream Ryo executables is not
 inferred. This payload does not certify complete distribution license clearance.
 

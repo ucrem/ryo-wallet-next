@@ -28,6 +28,7 @@ These are unreleased changes on the 0.1.0-alpha.6 baseline. Assign a version and
 - Bundle upstream Ryo notices, runtime provenance and locked dependency notices; reject stale notice inventories during packaging.
 - Backport the official GLib iterator pointer correction to the GTK-required 0.18.5 dependency and exercise all affected methods in optimized Linux CI. Version-only scanners can still report the upstream package version.
 - Remove the unused shadcn CLI dependency chain and pin corrected `source-map-js` 1.2.2 for build tooling.
+- Supplement omitted published dependency notices from reviewed source commits, retain `AUTHORS` terms, and include additional Ryo source-component notices. Four notice gaps and the exact upstream runtime link composition remain explicitly unresolved.
 
 ## Validation and pending gates
 

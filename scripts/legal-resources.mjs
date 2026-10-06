@@ -23,6 +23,25 @@ export async function verifyLegalResources(root = projectRoot) {
     }
   }
   const dependencies = JSON.parse(await readFile(join(legal, "dependency-inventory.json"), "utf8"))
+  const supplemental = JSON.parse(await readFile(join(legal, "supplemental-inventory.json"), "utf8"))
+  for (const record of supplemental.records) {
+    const dependency = dependencies[record.ecosystem]?.find(item => item.name === record.name && item.version === record.version)
+    if (!dependency || !/^[a-f0-9]{40}$/.test(record.source_commit)) throw new Error("Supplemental notice package/provenance does not match the locked inventory")
+    for (const notice of record.notices) {
+      if (!/^[a-f0-9]{64}\.txt$/.test(notice.file) ||
+          digest(await readFile(join(legal, "supplemental", notice.file))) !== notice.sha256 ||
+          !dependency.notices.some(item => item.file === `supplemental/${notice.file}` && item.sha256 === notice.sha256 && item.source === notice.source)) {
+        throw new Error("Supplemental notice failed integrity verification")
+      }
+    }
+  }
+  const sourceMaterials = JSON.parse(await readFile(join(legal, "ryo-source-materials.json"), "utf8"))
+  if (sourceMaterials.source_commit !== inventory.source_commit) throw new Error("Ryo source notice inventory is stale")
+  for (const notice of sourceMaterials.notices) {
+    if (!/^[a-f0-9]{64}\.txt$/.test(notice.file) || digest(await readFile(join(legal, "ryo-source-notices", notice.file))) !== notice.sha256) {
+      throw new Error("Ryo source notice failed integrity verification")
+    }
+  }
   if (Object.keys(dependencies.lockfile_sha256).sort().join(",") !== "Cargo.lock,pnpm-lock.yaml") {
     throw new Error("Dependency notices must cover both lockfiles")
   }
