@@ -1,0 +1,321 @@
+{
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "platform": "windows",
+  "mechanism": "Installed embedded WebView2: command invocations over process-local loopback CDP; no UI inputs/screenshots",
+  "user_wallets_used": false,
+  "rendered_gui_acceptance": false,
+  "current_fork_gate_passed": false,
+  "checks": [
+    {
+      "name": "installed runtime ready and initial stopped lifecycle",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "embedded frontend executed and mounted from own origin",
+      "passed": true,
+      "evidence": {
+        "rootChildren": 1,
+        "main": true,
+        "assets": true
+      }
+    },
+    {
+      "name": "native capability denied: plugin:clipboard-manager|read_text",
+      "passed": true,
+      "evidence": {
+        "error": "Error: Command plugin:clipboard-manager|read_text not allowed by ACL"
+      }
+    },
+    {
+      "name": "native capability denied: plugin:dialog|open",
+      "passed": true,
+      "evidence": {
+        "error": "Error: Command plugin:dialog|open not allowed by ACL"
+      }
+    },
+    {
+      "name": "native capability denied: plugin:opener|open_path",
+      "passed": true,
+      "evidence": {
+        "error": "Error: Command plugin:opener|open_path not allowed by ACL"
+      }
+    },
+    {
+      "name": "native capability denied: plugin:opener|open_url",
+      "passed": true,
+      "evidence": {
+        "error": "Error: Not allowed to open url https://example.invalid/",
+        "classification": "ACL/scope denial confirmed; initial harness regex incorrectly required lower-case"
+      }
+    },
+    {
+      "name": "native capability denied: plugin:window|close",
+      "passed": true,
+      "evidence": {
+        "error": "Error: Command plugin:window|close not allowed by ACL"
+      }
+    },
+    {
+      "name": "native production CSP blocks injected inline script and external connection",
+      "passed": true,
+      "evidence": {
+        "inlineExecuted": false,
+        "violations": [
+          "script-src-elem",
+          "connect-src"
+        ],
+        "canary_requests": 0
+      }
+    },
+    {
+      "name": "two unchanged reviewed loopback testnet daemons ready",
+      "passed": true,
+      "evidence": {
+        "height": 1,
+        "public_peers": false
+      }
+    },
+    {
+      "name": "installed remote node health matches real test daemon",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed create exposes real disposable recovery phrase and opens wallet",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "backup gate blocks wallet operations until acknowledgement",
+      "passed": true,
+      "evidence": {
+        "error": "Error: confirm the recovery phrase backup before creating receive addresses"
+      }
+    },
+    {
+      "name": "native overview reads actual empty wallet balances",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "rename persisted into native saved-wallet list",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native receive subaddress and label persisted",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed payment request roundtrip",
+      "passed": true,
+      "evidence": {
+        "request_keys": [
+          "uri"
+        ],
+        "parsed_keys": [
+          "address",
+          "amount",
+          "description",
+          "payment_id"
+        ]
+      }
+    },
+    {
+      "name": "native address book create and read",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native contact edit and delete",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "stale IPC session rejected",
+      "passed": true,
+      "evidence": {
+        "error": "Error: wallet session changed; reopen the wallet page"
+      }
+    },
+    {
+      "name": "direct renderer key-image filename rejected",
+      "passed": true,
+      "evidence": {
+        "error": "Error: use the native file action"
+      }
+    },
+    {
+      "name": "private keys reject wrong password",
+      "passed": true,
+      "evidence": {
+        "error": "Error: wallet password was rejected"
+      }
+    },
+    {
+      "name": "native reopen rejects old password",
+      "passed": true,
+      "evidence": {
+        "error": "Error: incorrect password"
+      }
+    },
+    {
+      "name": "password change and fresh-generation reopen",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed wallet discovers mature real mined outputs",
+      "passed": true,
+      "evidence": {
+        "height": 145
+      }
+    },
+    {
+      "name": "cancelled installed send token cannot relay",
+      "passed": true,
+      "evidence": {
+        "error": "Error: send preview has expired or was already used"
+      }
+    },
+    {
+      "name": "installed command signs and relays real reviewed transaction",
+      "passed": true,
+      "evidence": {
+        "transaction_count": 1,
+        "fee_atomic": "8000000"
+      }
+    },
+    {
+      "name": "confirmed token cannot be reused",
+      "passed": true,
+      "evidence": {
+        "error": "Error: send preview has expired or was already used"
+      }
+    },
+    {
+      "name": "installed outgoing history contains real relay",
+      "passed": true,
+      "evidence": {
+        "elapsed_ms": 18310
+      }
+    },
+    {
+      "name": "native transaction note saved",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed recipient scans exact incoming transfer",
+      "passed": true,
+      "evidence": {
+        "elapsed_ms": 20253
+      }
+    },
+    {
+      "name": "native seed restoration recovers same primary address",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native restored wallet recovers real incoming mining history",
+      "passed": true,
+      "evidence": {
+        "verified_real_incoming_history": true,
+        "incoming_count": 64,
+        "native_session_generation": "7",
+        "classification": "Native query repeated after background refresh; initial 2500ms observation was too early"
+      }
+    },
+    {
+      "name": "invalid idle timeout leaves saved preferences intact",
+      "passed": true,
+      "evidence": {
+        "error": "Error: idle timeout must be disabled or between one minute and one hour"
+      }
+    },
+    {
+      "name": "native autostart registers exact isolated installed executable",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "autostart removal and preferences event apply",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "normal close with tray enabled keeps audit process alive",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "hidden installed window auto-locks without renderer activity",
+      "passed": true,
+      "evidence": {
+        "elapsed_ms": 49548
+      }
+    },
+    {
+      "name": "second instance exits and restores same audit instance",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "native cached reopen retains processed wallet height",
+      "passed": true,
+      "evidence": {
+        "wallet_height": "157"
+      }
+    },
+    {
+      "name": "general settings cannot change during an open wallet",
+      "passed": true,
+      "evidence": {
+        "error": "Error: lock and stop the wallet before changing setup"
+      }
+    },
+    {
+      "name": "removal rejects wrong confirmation",
+      "passed": true,
+      "evidence": {
+        "error": "Error: type DELETE to confirm removal"
+      }
+    },
+    {
+      "name": "removal rejects wrong password",
+      "passed": true,
+      "evidence": {
+        "error": "Error: wallet password was rejected"
+      }
+    },
+    {
+      "name": "native removal locks and preserves encrypted wallet outside list",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "installed official update check reports current published baseline",
+      "passed": true,
+      "evidence": {
+        "state": "current"
+      }
+    },
+    {
+      "name": "installed update rejects absent candidate",
+      "passed": true,
+      "evidence": {
+        "error": "Error: the update is no longer available"
+      }
+    },
+    {
+      "name": "failed update clears install guard",
+      "passed": true,
+      "evidence": {}
+    }
+  ],
+  "completed": true,
+  "harness_corrections_only": true
+}

@@ -8,6 +8,7 @@
 - Local environment: Windows x64 build **26200.9550**, Node **24.19.0**, Rust **1.98.1**, PowerShell **7.6.5**, fallback pnpm **11.19.0**. The reviewed CI uses pinned pnpm **12.6.0**.
 - All wallet/RPC tests used disposable wallets and fresh storage. No user wallet password, seed, private logs or transaction was accessed. The user's desktop process remained running; its original executable was restored with the same SHA-256.
 - Native installer testing used a separate product, executable basename, bundle identifier, registry entry and app-data profile. The application source was unchanged. No computer-use, screenshot or UI-input automation was used.
+- The [installed Windows follow-up](WINDOWS_FOLLOW_UP.md) adds **73 passing native assertions** through real installed IPC, lifecycle and signed updater fixtures. No additional defect was confirmed and no application fix was applied.
 
 ## Findings and issue count
 
@@ -53,6 +54,9 @@ P1/P2/P3 are proposed project priorities. They are separate from advisory-provid
 | Full npm dependency audit | **FAIL: 2 high-severity findings** | Both in development dependencies, #44–45; no dependency changes made |
 | Rust registry package review | **Known findings** | OSV checked **592 locked registry entries** across targets; one unsoundness advisory plus six unmaintained-package notices |
 | Published testnet availability | **EXTERNALLY BLOCKED** | Fresh verified testnet daemon remained at genesis height 1; 0/4 upstream-listed peers reachable on port 13310. Same no-sync result in all three native CI receipts |
+| Installed Windows wallet/security/preferences | **PASS: 46 assertions** | Actual installed Tauri IPC, disposable real transactions/history/restoration, native autostart registration, hidden idle lock, capability denials and production CSP; complete visual GUI/file-dialog acceptance remains open |
+| Installed Windows hybrid/crash/resume | **PASS: 10 assertions** | Actual genesis-chain bootstrap-to-local handover; two managed descendants cleaned after abrupt owner exit; node/wallet height 157 reused; process-pause simulation is separate from real OS sleep |
+| Actual installed Windows updater fixture | **PASS: 17 assertions** | Ephemeral test key and loopback feed; altered bytes and forged version rejected; actual signed NSIS upgrade, restart and saved-wallet reopen; no production candidate published |
 
 ### Financial fixture boundary
 
@@ -64,6 +68,8 @@ The public testnet probe is a bounded observation, not a permanent assertion tha
 
 The cryptographic probe uses `minisign-verify 0.2.5`, the same pinned verification library as updater 2.12.0, and reads the trusted version only after signature verification. It tests **published alpha.6 artifacts**, not a newly promoted candidate installer or the in-app upgrade/authorization flow. No downloaded production installer was executed. The isolated NSIS package has updater-artifact generation disabled and is only a test fixture.
 
+The later Windows follow-up separately built and executed **signed isolated updater fixtures** with a new temporary test key and configuration-only versions. Its actual installed update/restart/reopen passes; the original published-artifact observations above remain unchanged. See the [follow-up boundaries and receipts](WINDOWS_FOLLOW_UP.md).
+
 ## Gates that remain unverified
 
 These are acceptance limits, not additional confirmed bugs and not counted in the nine issues.
@@ -73,11 +79,11 @@ These are acceptance limits, not additional confirmed bugs and not counted in th
 | Funded current-fork send/receive/sweep/recovery | Waiting for the Ryo developers' maintained testnet restoration or a separately reviewed current-fork fixture |
 | Complete native wallet UI workflows on clean installs | Actual services and React components exercised; native dialogs, rendered UI and end-to-end GUI authentication were not automated under the owner's standing computer-use constraint |
 | Clean installed Linux/macOS desktop behavior | Native CI host tests/financial fixtures pass; no clean interactive Linux/macOS installation was available in this Windows audit |
-| Tray menu actions, OS-login startup, hidden-window idle lock, suspend/resume | Preferences/idle rules and ordinary native tray setup are covered; OS session transitions, system sleep and tray interactions not exercised on the user's desktop |
-| Full hybrid bootstrap handover after complete-chain synchronization | Requires an end-to-end synchronized local-chain/bootstrap scenario; short funded fixture does not establish this behavior |
-| Native capability-denial and CSP behavior | Source configuration and service/path/session negative tests inspected; native WebView denial behavior not exercised |
-| Installed in-app update and authorization lifecycle | Artifact cryptography passes; candidate version is not published and no signed installed upgrade was executed |
-| Complete installed crash recovery and Unix descendant process ownership | Windows abrupt-owner-exit Job Object test passes in the existing suite; Unix/full installed acceptance remains open, including the documented spawn-to-assignment limit |
+| Tray menu actions, actual OS-login launch and real system sleep | Windows close-to-tray, hidden native idle lock, startup registration/removal and process-pause resume pass; menu clicks/minimize gesture and actual login/sleep remain unverified. Installed Linux/macOS behavior remains open |
+| Current-fork hybrid bootstrap handover | Actual installed Windows genesis-chain handover at height 157 passes; current public fork and installed Linux/macOS handover remain unverified |
+| Complete native capability/CSP review | Selected installed Windows capability denials and production CSP assertions pass; exhaustive review and installed Linux/macOS cases remain open |
+| Production candidate installed update and authorization lifecycle | Actual signed isolated Windows upgrade/restart/reopen passes; production candidate is not published, and installed Linux/macOS upgrade/authorization remain open |
+| Full installed crash recovery across platforms | Installed Windows two-child cleanup, restart and node/wallet cache reuse pass; Unix installed acceptance and the documented spawn-to-assignment limit remain open |
 | Complete dependency/notices inventory | Verified omission tracked in #42; this audit does not supply the missing inventory |
 
 ## Deduplication and negative observations
@@ -89,6 +95,7 @@ These are acceptance limits, not additional confirmed bugs and not counted in th
 - A native window briefly existed in the malformed-configuration cases, but subsequent exit code 101 and captured setup panic establish failure. The final classification uses those observations; window existence alone is not a successful startup or rendered-UI check.
 - The GitHub app connector could not create issues (HTTP 403). The nine authorized issues were created with the existing Git authentication already used for this PR; no credential was printed or saved.
 - The interrupted-write reproduction uses a disposable injected stage rather than killing a user process. Its standalone Cargo probe reuses the original lockfile, and the application implementation is unchanged. The committed settings are preserved even while repeated writes are blocked.
+- The Windows follow-up's probe corrections and resampled observations are explicit in [its report](WINDOWS_FOLLOW_UP.md); only probe code/expectations changed. All 73 final assertions have recorded evidence, and no additional application bug was confirmed.
 
 ## Saved evidence and reproductions
 
@@ -116,4 +123,4 @@ The native installer harness is scoped to its distinct audit identity, checks re
 
 ## Outcome
 
-The available autonomous checks are recorded, with nine open issues and explicit remaining acceptance limits. **No application implementation, dependency version, release version or published artifact was changed, and no bug was fixed.** This report does not declare stable-release readiness.
+The available autonomous checks and 73 additional installed Windows assertions are recorded, with nine open issues and explicit remaining acceptance limits. **No application implementation, dependency version, release version or published artifact was changed, and no bug was fixed.** This report does not declare stable-release readiness.

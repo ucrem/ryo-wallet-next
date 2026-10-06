@@ -194,7 +194,7 @@
   },
   "financial_current_fork_gate_passed": false,
   "published_updater_artifact_crypto_passed": true,
-  "installed_in_app_update_verified": false,
+  "installed_in_app_update_verified": true,
   "native_wallet_gui_verified": false,
   "notes": [
     "GLib advisory aliases are one finding",
@@ -202,8 +202,47 @@
     "Braces advisory exploit not reproduced on Node 24.19.0",
     "Native window existence alone does not establish healthy startup",
     "Paid publisher signing is separate from updater authentication",
-    "No issue is auto-closed and no fix is included"
+    "No issue is auto-closed and no fix is included",
+    "73 additional installed Windows assertions pass; complete GUI/dialog/tray-menu/login/system-sleep acceptance remains open"
   ],
   "interrupted_settings_stage_bug_reproduced": true,
-  "preserved_user_desktop_executable_sha256": "F531EE8549B2581A4A274D46EF6BD57D916E3E5AC7394F1F6099A3A6F39C7DF1"
+  "preserved_user_desktop_executable_sha256": "F531EE8549B2581A4A274D46EF6BD57D916E3E5AC7394F1F6099A3A6F39C7DF1",
+  "windows_follow_up": {
+    "suites": [
+      {
+        "receipt": "windows-installed-report.json",
+        "assertions": 46,
+        "passed": 46
+      },
+      {
+        "receipt": "windows-lifecycle-report.json",
+        "assertions": 10,
+        "passed": 10
+      },
+      {
+        "receipt": "windows-updater-report.json",
+        "assertions": 17,
+        "passed": 17
+      }
+    ],
+    "total_assertions": 73,
+    "new_confirmed_application_bugs": 0,
+    "installed_tauri_ipc_verified": true,
+    "selected_native_capabilities_and_csp_verified": true,
+    "hidden_window_idle_lock_verified": true,
+    "startup_registration_verified": true,
+    "actual_os_login_verified": false,
+    "actual_os_sleep_verified": false,
+    "isolated_process_pause_resume_verified": true,
+    "installed_genesis_hybrid_handover_verified": true,
+    "current_fork_hybrid_handover_verified": false,
+    "installed_two_runtime_crash_cleanup_verified": true,
+    "installed_node_and_wallet_height_after_crash": "157",
+    "installed_signed_update_fixture_verified": true,
+    "production_signing_key_used": false,
+    "production_candidate_published": false,
+    "test_installation_uninstalled": true,
+    "ephemeral_private_signing_key_removed": true
+  },
+  "installed_in_app_update_scope": "Windows isolated signed fixture with configuration-only versions and temporary test key; production candidate not published"
 }

@@ -1,0 +1,94 @@
+{
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "platform": "windows",
+  "user_wallets_used": false,
+  "current_fork_gate_passed": false,
+  "actual_os_sleep": false,
+  "actual_os_login": false,
+  "checks": [
+    {
+      "name": "restart preserves saved wallet list and preferences",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "real hybrid bootstrap reports separate remote and local heights",
+      "passed": true,
+      "evidence": {
+        "local_height": 1,
+        "rpc_height": 157,
+        "untrusted": true,
+        "node_status": {
+          "mode": "hybrid",
+          "state": "running",
+          "generation": "1",
+          "height": "1",
+          "rpc_height": "157",
+          "target_height": "157",
+          "reachable": true,
+          "ready": true,
+          "offline": false,
+          "untrusted": true
+        }
+      }
+    },
+    {
+      "name": "hybrid hands over to actual synchronized local chain",
+      "passed": true,
+      "evidence": {
+        "height": 157,
+        "local_height": 157,
+        "untrusted": false,
+        "ready": true
+      }
+    },
+    {
+      "name": "local chain stays ready after bootstrap daemon is unavailable",
+      "passed": true,
+      "evidence": {
+        "height": "157"
+      }
+    },
+    {
+      "name": "native idle monitor locks on resume after elapsed inactivity",
+      "passed": true,
+      "evidence": {
+        "simulation": "only the isolated app process was suspended; no system sleep"
+      }
+    },
+    {
+      "name": "managed local node remains ready while wallet is auto-locked",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "abrupt installed owner exit cleans up both managed runtimes",
+      "passed": true,
+      "evidence": {
+        "surviving_children": 0,
+        "isolated_parent_terminated": true,
+        "child_count": 2
+      }
+    },
+    {
+      "name": "installed startup recovers after abrupt exit",
+      "passed": true,
+      "evidence": {}
+    },
+    {
+      "name": "crash restart reuses real persisted node and wallet caches",
+      "passed": true,
+      "evidence": {
+        "before_wallet_height": "157",
+        "after_wallet_height": "157",
+        "daemon_height": "157"
+      }
+    },
+    {
+      "name": "native node stop leaves no running app-owned daemon",
+      "passed": true,
+      "evidence": {}
+    }
+  ],
+  "completed": true
+}
