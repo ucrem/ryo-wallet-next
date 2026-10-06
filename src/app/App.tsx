@@ -181,6 +181,9 @@ export function App() {
         </header>}
         <main className="min-h-0 flex-1 overflow-y-auto px-5 py-5">
           <div className="flex min-h-full w-full flex-col">
+            {dataRoot.data?.startup_notices?.length ? <div role="alert" className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-sm text-amber-200">
+              {dataRoot.data.startup_notices.map((message) => <p key={message}>{message}</p>)}
+            </div> : null}
             {visibleScreen === "about" ? <About appVersion={appVersion} updates={updates} /> : null}
             {visibleScreen === "settings" ? (root && node.isPending ? <p className="text-sm text-slate-400">Loading settings…</p> :
               <Settings key={`${root}:${dataRoot.data?.network ?? "mainnet"}`} root={root} node={node.data ?? null} network={dataRoot.data?.network ?? "mainnet"} busy={setupBusy} />) : null}

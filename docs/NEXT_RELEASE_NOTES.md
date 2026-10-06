@@ -8,6 +8,8 @@ These are unreleased changes on the 0.1.0-alpha.6 baseline. Assign a version and
 - Saved-wallet reopening from Home, name recovery during unlock, and compact named wallet selection.
 - Bounded busy RPC reads, live scan progress and scan-cache persistence across lock/reopen.
 - Silent automatic refresh of recent transactions, synchronization progress in the footer, incoming/outgoing icons and red outgoing icons/amounts.
+- Clear copy acknowledgement when the selected receive address/payment request changes, including late clipboard responses.
+- Consume address-book Send selections once, reject deleted-contact selections, and clear the contact selector when the recipient address or payment ID is edited.
 
 ## Hardening and support
 
@@ -21,6 +23,11 @@ These are unreleased changes on the 0.1.0-alpha.6 baseline. Assign a version and
 - Reject release executables configured to load the UI from Vite, document the standalone Tauri build command, expose frontend mode in diagnostics and compile embedded frontend contexts in Linux/macOS host CI.
 - Native service permission/process tests in the three-platform integration CI.
 - Updated implementation, security, CI and acceptance documentation.
+- Recover from malformed non-wallet preferences/data-location configuration with preserved backup files and visible startup guidance. Wallet/key/cache files are never part of this recovery.
+- Save node settings and data-location configuration through unique atomic temporary files so an interrupted legacy `.new` file cannot block later saves.
+- Bundle upstream Ryo notices, runtime provenance and locked dependency notices; reject stale notice inventories during packaging.
+- Backport the official GLib iterator pointer correction to the GTK-required 0.18.5 dependency and exercise all affected methods in optimized Linux CI. Version-only scanners can still report the upstream package version.
+- Remove the unused shadcn CLI dependency chain and pin corrected `source-map-js` 1.2.2 for build tooling.
 
 ## Validation and pending gates
 

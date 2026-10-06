@@ -22,6 +22,9 @@ function Alert({ message }: { message: string | null }) {
   return message ? <p role="alert" className="mt-4 rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-200">{message}</p> : null
 }
 function CopyButton({ value, label = "Copy" }: { value: string; label?: string }) {
+  return <CopyValueButton key={value} value={value} label={label} />
+}
+function CopyValueButton({ value, label }: { value: string; label: string }) {
   const [status, setStatus] = useState("")
   return <Button type="button" variant="outline" size="sm" disabled={!value} onClick={() => {
     void writeText(value).then(() => setStatus("Copied"), () => setStatus("Copy failed"))
@@ -217,11 +220,16 @@ function ContactsPanel({ generation, onSend }: SessionProps & { onSend: () => vo
       <div className="mt-3 grid max-h-[420px] gap-2 overflow-y-auto">{contacts.data?.filter((c) => `${c.name} ${c.address}`.toLowerCase().includes(filter.toLowerCase())).map((contact) =>
         <div key={contact.id} className="rounded-lg border border-slate-700 p-3">
           <div className="flex items-center justify-between gap-3"><h3 className="min-w-0 truncate font-medium">{contact.name}</h3>
-          <div className="flex shrink-0 gap-1"><Button size="sm" onClick={() => { client.setQueryData(["send-contact", generation], contact); onSend() }}>Send</Button>
+          <div className="flex shrink-0 gap-1"><Button size="sm" disabled={busy} onClick={() => { client.setQueryData(["send-contact", generation], contact); onSend() }}>Send</Button>
             <CopyButton value={contact.address} label="Copy address" /><Button size="sm" variant="outline" onClick={() => { setEditing(contact); setError(null) }}>Edit</Button>
             <Button size="sm" variant="ghost" disabled={busy} onClick={() => { if (!window.confirm(`Delete contact ${contact.name}?`)) return
-              setBusy(true); void walletOperation(generation, { type: "delete_contact", id: contact.id }).catch((cause: unknown) => setError(String(cause)))
-                .finally(() => { void contacts.refetch(); setBusy(false) }) }}>Delete</Button></div></div>
+              setBusy(true); setError(null); void walletOperation(generation, { type: "delete_contact", id: contact.id }).then(() => {
+                if (client.getQueryData<Contact>(["send-contact", generation])?.id === contact.id) {
+                  client.removeQueries({ queryKey: ["send-contact", generation], exact: true })
+                }
+                setEditing((current) => current?.id === contact.id ? null : current)
+              }).catch((cause: unknown) => setError(String(cause)))
+                .finally(async () => { await contacts.refetch(); setBusy(false) }) }}>Delete</Button></div></div>
           <p className="mt-1 break-all font-mono text-xs text-slate-300">{contact.address}</p>
           {contact.payment_id ? <p className="mt-1 break-all text-xs text-slate-400">Payment ID: {contact.payment_id}</p> : null}
           {contact.notes ? <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm text-slate-400">{contact.notes}</p> : null}
@@ -247,9 +255,11 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   const client = useQueryClient()
   const contacts = useWalletData<Contact[]>(generation, "contacts")
   const sync = useQuery({ queryKey: ["wallet-send-sync", generation], queryFn: getWalletSyncStatus, refetchInterval: 5000 })
-  const selected = client.getQueryData<Contact>(["send-contact", generation])
+  const contactIntent = client.getQueryData<Contact>(["send-contact", generation])
+  const selected = contacts.data?.find((contact) => contact.id === contactIntent?.id)
   const [address, setAddress] = useState(selected?.address ?? "")
   const [paymentId, setPaymentId] = useState(selected?.payment_id ?? "")
+  const [contactId, setContactId] = useState(selected?.id ?? "")
   const [amount, setAmount] = useState("")
   const [sweep, setSweep] = useState(false)
   const [draft, setDraft] = useState<SendDraft | null>(null)
@@ -260,6 +270,10 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   const [error, setError] = useState<string | null>(null)
   const [saveContact, setSaveContact] = useState<{ name: string; notes: string } | null>(null)
   const ready = sync.data?.node_reachable && sync.data.node_ready && !sync.data.node_offline && sync.data.wallet_height !== null && sync.data.daemon_height !== null && BigInt(sync.data.wallet_height) >= BigInt(sync.data.daemon_height)
+  useEffect(() => {
+    // A contact selected in Address Book is a one-use navigation intent.
+    client.removeQueries({ queryKey: ["send-contact", generation], exact: true })
+  }, [client, generation])
   useEffect(() => () => { if (draftRef.current) void walletOperation(generation, { type: "cancel_send", token: draftRef.current.token }).catch(() => {}) }, [generation])
   async function prepare(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (guard.current) return
@@ -294,20 +308,21 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
   }
   return <section className={compactCardClass}>
     <div className="flex items-center justify-between gap-4"><h2 className="text-lg font-semibold">Send Ryo</h2><p className="text-sm text-slate-400">Unlocked: {formatRyo(unlocked)} RYO · Review the exact fee before confirming.</p></div>
-    {result ? <><SendResults entries={result} /><div className="mt-4 flex gap-3"><Button onClick={onHistory}>View transaction history</Button><Button variant="outline" disabled={result.some((entry) => entry.state === "unknown")} onClick={() => { setResult(null); setAddress(""); setAmount(""); setPaymentId(""); setSweep(false) }}>New transaction</Button></div></>
+    {result ? <><SendResults entries={result} /><div className="mt-4 flex gap-3"><Button onClick={onHistory}>View transaction history</Button><Button variant="outline" disabled={result.some((entry) => entry.state === "unknown")} onClick={() => { setResult(null); setAddress(""); setAmount(""); setPaymentId(""); setContactId(""); setSweep(false) }}>New transaction</Button></div></>
       : draft ? <SendReview draft={draft} busy={busy} warnNoPaymentId={preferences.data?.notify_no_payment_id ?? true} onConfirm={() => void confirm()} onCancel={() => {
         if (guard.current) return; draftRef.current = null; setDraft(null)
         void walletOperation(generation, { type: "cancel_send", token: draft.token }).catch((cause: unknown) => setError(String(cause)))
       }} /> : <>
         {!ready ? <p role="status" className="mt-2 text-sm text-amber-200">Both node and wallet must finish syncing before a send can be prepared.</p> : null}
         <form onSubmit={(event) => void prepare(event)} className="mt-3 grid gap-3 md:grid-cols-4">
-          <div className="md:col-span-3"><Field label="Recipient address"><input required value={address} maxLength={256} onChange={(e) => setAddress(e.target.value)} className={`${inputClass} font-mono`} disabled={busy} /></Field></div>
-          <Field label="Choose from address book"><select className={inputClass} defaultValue="" disabled={busy} onChange={(e) => {
+          <div className="md:col-span-3"><Field label="Recipient address"><input required value={address} maxLength={256} onChange={(e) => { setAddress(e.target.value); setContactId("") }} className={`${inputClass} font-mono`} disabled={busy} /></Field></div>
+          <Field label="Choose from address book"><select className={inputClass} value={contacts.data?.some((c) => c.id === contactId && c.address === address && c.payment_id === paymentId) ? contactId : ""} disabled={busy} onChange={(e) => {
+            setContactId(e.target.value)
             const contact = contacts.data?.find((c) => c.id === e.target.value); if (contact) { setAddress(contact.address); setPaymentId(contact.payment_id) }
           }}><option value="">Select a contact…</option>{contacts.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
           <div><Field label="Amount (RYO)"><input inputMode="decimal" value={sweep ? "" : amount} disabled={busy || sweep} placeholder={sweep ? "All unlocked coins, minus the fee" : "0.000000000"} onChange={(e) => setAmount(e.target.value)} className={inputClass} /></Field>
           <label className="mt-1.5 flex items-center gap-2 text-xs"><input type="checkbox" checked={sweep} disabled={busy} onChange={(e) => setSweep(e.target.checked)} />Send all unlocked coins</label></div>
-          <Field label="Payment ID (optional)"><input value={paymentId} maxLength={64} onChange={(e) => setPaymentId(e.target.value)} className={inputClass} disabled={busy} /></Field>
+          <Field label="Payment ID (optional)"><input value={paymentId} maxLength={64} onChange={(e) => { setPaymentId(e.target.value); setContactId("") }} className={inputClass} disabled={busy} /></Field>
           <Field label="Priority"><select name="priority" defaultValue="0" className={inputClass} disabled={busy}>{["Normal", "High ×2", "High ×4", "High ×20", "Highest ×144"].map((label, index) => <option key={index} value={index}>{label}</option>)}</select></Field>
           <Field label="Ring size"><select name="ring_size" defaultValue="25" className={inputClass} disabled={busy}><option value="25">25 members (default)</option><option value="100">100 members</option></select></Field>
           <div className="md:col-span-2"><Field label="Save recipient as contact (optional name)"><input name="contact_name" maxLength={100} className={inputClass} disabled={busy} /></Field></div>
@@ -318,7 +333,7 @@ function SendPanel({ generation, unlocked, onHistory }: SessionProps & { unlocke
           event.preventDefault(); if (guard.current) return
           const uri = String(new FormData(event.currentTarget).get("uri") ?? ""); guard.current = true; setBusy(true); setError(null)
           void walletOperation<{ address: string; amount: string; payment_id: string }>(generation, { type: "parse_request", uri })
-            .then((request) => { setAddress(request.address); setAmount(request.amount); setPaymentId(request.payment_id); setSweep(false) })
+            .then((request) => { setAddress(request.address); setAmount(request.amount); setPaymentId(request.payment_id); setContactId(""); setSweep(false) })
             .catch((cause: unknown) => setError(String(cause))).finally(() => { guard.current = false; setBusy(false) })
         }}><div className="min-w-0 flex-1"><Field label="Load a Ryo payment request"><input name="uri" placeholder="ryo:…" className={inputClass} maxLength={4096} /></Field></div><Button type="submit" size="sm" variant="outline" disabled={busy}>Load request</Button></form>
       </>}

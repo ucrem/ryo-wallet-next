@@ -1,0 +1,12 @@
+{
+  "original_package": "glib",
+  "original_version": "0.18.5",
+  "original_crates_io_sha256": "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5",
+  "upstream_fix": "https://github.com/gtk-rs/gtk-rs-core/pull/1343",
+  "upstream_fix_commit": "b5a4071e439bef2b5eea76c3aa25e5ae84839e34",
+  "upstream_diff": "@@ -117,13 +117,13 @@ impl<'a> VariantStrIter<'a> {\n \n     fn impl_get(&self, i: usize) -> &'a str {\n         unsafe {\n-            let p: *mut libc::c_char = std::ptr::null_mut();\n+            let mut p: *mut libc::c_char = std::ptr::null_mut();\n             let s = b\"&s\\0\";\n             ffi::g_variant_get_child(\n                 self.variant.to_glib_none().0,\n                 i,\n                 s as *const u8 as *const _,\n-                &p,\n+                &mut p,\n                 std::ptr::null::<i8>(),\n             );\n             let p = std::ffi::CStr::from_ptr(p);",
+  "modified_file": "src/variant_iter.rs",
+  "original_file_sha256": "1fd02859333761c45321b32f28b24233446b97d0022a90d3a937ed162585b90e",
+  "patched_file_sha256": "a0f5ee8acb8faa089bcdfbc9a57372609fce7654026ccef7d9a224d05a654ccc",
+  "scope": "Two upstream mutability corrections only; public API and package version unchanged. No vendored crate is published."
+}

@@ -52,6 +52,7 @@ jobs:
         run: |
           python3 -m unittest discover -s scripts -p 'test_prepare_update_assets.py'
           node --test scripts/test_prepare_wallet_runtime.mjs
+          node --test scripts/test_legal_resources.mjs
 
   testnet-genesis-integration:
     name: Isolated testnet genesis (${{ matrix.os }})
@@ -134,6 +135,8 @@ jobs:
         run: cargo clippy -p ryo-wallet-next --all-targets --locked -- -D warnings
       - name: Host tests including redacted diagnostics export
         run: cargo test -p ryo-wallet-next --lib --locked
+      - name: Optimized GLib iterator backport regression
+        run: cargo test -p ryo-wallet-next --test glib_variant_iter --locked
       - name: Check embedded desktop frontend context
         run: cargo check -p ryo-wallet-next --features tauri/custom-protocol --locked
       - name: Verify wallet-file import with disposable copied wallets

@@ -1,5 +1,5 @@
 use std::fs::{self, OpenOptions};
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::net::{Ipv4Addr, TcpListener};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -23,6 +23,7 @@ use zeroize::Zeroizing;
 
 mod app_settings;
 mod app_updates;
+mod configuration_recovery;
 mod diagnostics;
 mod wallet_import;
 mod wallet_operations;
@@ -110,6 +111,7 @@ fn backup_complete(paths: &AppPaths, id: &WalletId) -> bool {
 struct DataRootConfiguration {
     root: Option<PathBuf>,
     network: Network,
+    startup_notices: Vec<&'static str>,
 }
 
 #[derive(serde::Deserialize)]
@@ -123,18 +125,14 @@ enum NodeSelection {
 impl DataRootState {
     fn load(app: &tauri::AppHandle) -> Result<Self, &'static str> {
         let path = data_root_selection_path(app)?;
-        let bytes = match fs::read(path) {
-            Ok(bytes) => bytes,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Self(Mutex::new(None)));
-            }
-            Err(_) => return Err("data location configuration is unavailable"),
-        };
-        let persisted: PersistedDataRoot =
-            serde_json::from_slice(&bytes).map_err(|_| "data location configuration is invalid")?;
-        let paths = AppPaths::new(persisted.root, persisted.network)
-            .map_err(|_| "data location configuration is invalid")?;
-        Ok(Self(Mutex::new(Some(paths))))
+        let persisted = configuration_recovery::load(
+            &path,
+            |value: &PersistedDataRoot| value.root.is_absolute(),
+            configuration_recovery::Kind::DataLocation,
+            &app.state::<configuration_recovery::RecoveryState>(),
+        );
+        let paths = persisted.and_then(|saved| AppPaths::new(saved.root, saved.network).ok());
+        Ok(Self(Mutex::new(paths)))
     }
 }
 
@@ -151,40 +149,32 @@ fn persist_data_root(
     network: Network,
 ) -> Result<(), &'static str> {
     let final_path = data_root_selection_path(app)?;
+    write_data_root(&final_path, root, network)
+}
+
+fn write_data_root(final_path: &Path, root: &Path, network: Network) -> Result<(), &'static str> {
     let parent = final_path
         .parent()
         .ok_or("data location configuration is unavailable")?;
     fs::create_dir_all(parent).map_err(|_| "data location configuration is unavailable")?;
-    let temporary_path = parent.join("wallet-data-root.json.new");
-    let bytes = serde_json::to_vec(&PersistedDataRoot {
-        root: root.to_path_buf(),
-        network,
-    })
-    .map_err(|_| "data location configuration is unavailable")?;
-    let file = OpenOptions::new()
-        .create_new(true)
-        .write(true)
-        .open(&temporary_path)
+    let mut temporary = tempfile::NamedTempFile::new_in(parent)
         .map_err(|_| "data location configuration is unavailable")?;
-    let write_result = (|| {
-        let mut writer = BufWriter::new(file);
-        writer
-            .write_all(&bytes)
-            .map_err(|_| "data location configuration is unavailable")?;
-        writer
-            .flush()
-            .map_err(|_| "data location configuration is unavailable")?;
-        writer
-            .get_ref()
-            .sync_all()
-            .map_err(|_| "data location configuration is unavailable")?;
-        fs::rename(&temporary_path, final_path)
-            .map_err(|_| "data location configuration is unavailable")
-    })();
-    if write_result.is_err() {
-        let _ = fs::remove_file(temporary_path);
-    }
-    write_result
+    serde_json::to_writer(
+        temporary.as_file_mut(),
+        &PersistedDataRoot {
+            root: root.to_path_buf(),
+            network,
+        },
+    )
+    .map_err(|_| "data location configuration is unavailable")?;
+    temporary
+        .as_file()
+        .sync_all()
+        .map_err(|_| "data location configuration is unavailable")?;
+    temporary
+        .persist(final_path)
+        .map_err(|_| "data location configuration is unavailable")?;
+    Ok(())
 }
 
 #[derive(Clone, PartialEq, Eq, serde::Serialize)]
@@ -761,11 +751,13 @@ fn save_backup_acknowledgement(paths: &AppPaths, id: &WalletId) -> Result<(), &'
 #[tauri::command]
 fn data_root_configuration(
     state: tauri::State<'_, DataRootState>,
+    recovery: tauri::State<'_, configuration_recovery::RecoveryState>,
 ) -> Result<DataRootConfiguration, &'static str> {
     state
         .0
         .lock()
         .map(|paths| DataRootConfiguration {
+            startup_notices: recovery.messages(),
             root: paths.as_ref().map(|paths| paths.root().to_path_buf()),
             network: paths
                 .as_ref()
@@ -1008,6 +1000,7 @@ pub fn run() {
             app.manage(SetupState::default());
             app.manage(wallet_import::ImportSelectionState::default());
             app.manage(ShutdownState::default());
+            app.manage(configuration_recovery::RecoveryState::default());
             app.manage(DataRootState::load(app.handle())?);
             app.manage(app_settings::PreferencesState::load(app.handle())?);
             app.manage(app_settings::ActivityState(AtomicU64::new(0)));
@@ -1114,6 +1107,20 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn data_root_save_ignores_interrupted_legacy_stage_and_replaces_configuration() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("wallet-data-root.json");
+        let stage = dir.path().join("wallet-data-root.json.new");
+        fs::write(&stage, b"interrupted write").unwrap();
+        write_data_root(&path, dir.path(), Network::Mainnet).unwrap();
+        write_data_root(&path, dir.path(), Network::Testnet).unwrap();
+        let saved: PersistedDataRoot = serde_json::from_slice(&fs::read(path).unwrap()).unwrap();
+        assert_eq!(saved.root, dir.path());
+        assert_eq!(saved.network, Network::Testnet);
+        assert_eq!(fs::read(stage).unwrap(), b"interrupted write");
+    }
 
     #[test]
     fn startup_feedback_distinguishes_storage_from_readiness_without_raw_errors() {

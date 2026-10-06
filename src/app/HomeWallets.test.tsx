@@ -65,6 +65,17 @@ describe("Home saved wallets", () => {
     for (const mutation of [createWallet, restoreWallet, importWallet]) expect(mutation).not.toHaveBeenCalled()
   })
 
+  it("shows native configuration recovery instructions without attempting wallet authentication", async () => {
+    const notice = "The damaged data-location configuration was backed up. Choose your existing data folder in Setup to reopen your wallets."
+    client.setQueryData(["data-root-configured"], { root: null, network: "mainnet", startup_notices: [notice] })
+    await mount()
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(notice)
+    expect(container.querySelector('section[aria-label="Your saved wallets"]')).toBeNull()
+    expect(openWallet).not.toHaveBeenCalled()
+    expect(createWallet).not.toHaveBeenCalled()
+    expect(importWallet).not.toHaveBeenCalled()
+  })
+
   it("returns to the Home selector after inactivity lock and permits opening either saved wallet", async () => {
     await mount(); await unlock()
     state.lifecycle = { state: "locked", session_generation: "9" }

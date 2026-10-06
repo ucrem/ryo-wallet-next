@@ -111,9 +111,26 @@ reviewed hashes. This local installer has neither platform signing nor an
 updater signature; it is for manual testing. The committed CI configuration
 still requires signed updater artifacts for staging and release promotion.
 
-Before a user-facing release, each platform still needs dependency and license
-notices, platform signing (and Apple notarization), installation tests, and
-wallet-flow tests on clean systems. See the
+## Third-party notices and inventory
+
+Every bundle includes `legal/` with the exact upstream Ryo license/original
+license notices, the reviewed executable/archive inventory, and dependency
+notices collected from the locked Cargo and production npm packages. See
+[the notice scope](../src-tauri/resources/legal/THIRD_PARTY_NOTICES.md).
+Packages without published notice files are explicitly listed in the inventory;
+the internal static-library composition of upstream Ryo executables is not
+inferred. This payload does not certify complete distribution license clearance.
+
+Packaging verifies the runtime inventory, notice hashes, both lockfile hashes
+and reviewed GLib patch. Dependency changes require reviewing the new packages
+and running `node scripts/generate-legal-inventory.mjs` with Cargo, pnpm and
+the locked dependencies installed. Commit the updated inventory and notices.
+The unused shadcn CLI is no longer a build dependency; existing generated UI
+components remain in source.
+
+Before a user-facing release, each platform still needs review of notice
+completeness, installation and wallet-flow tests on clean systems. Platform
+signing (and Apple notarization) is not configured. See the
 [MVP criteria](MVP.md) and [implementation status](IMPLEMENTATION_STATUS.md).
 
 For local Windows installer smoke tests, use a separate product name, bundle

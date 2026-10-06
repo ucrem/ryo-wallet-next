@@ -33,6 +33,7 @@
       "icons/icon.ico"
     ],
     "licenseFile": "../LICENSE",
+    "resources": { "resources/legal/": "legal/" },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

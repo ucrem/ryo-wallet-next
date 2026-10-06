@@ -37,6 +37,7 @@ fn preferences_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, &'stat
         .map_err(|_| "preferences storage is unavailable")
 }
 
+#[cfg(test)]
 fn read_preferences(path: &Path) -> Result<Option<Preferences>, &'static str> {
     match fs::read(path) {
         Ok(bytes) if bytes.len() <= 16384 => {
@@ -75,13 +76,23 @@ fn write_preferences(path: &Path, prefs: &Preferences) -> Result<(), &'static st
 
 impl PreferencesState {
     pub fn load(app: &tauri::AppHandle) -> Result<Self, &'static str> {
-        let prefs = match read_preferences(&preferences_path(app)?)? {
+        let recovery = app.state::<crate::configuration_recovery::RecoveryState>();
+        let prefs = match crate::configuration_recovery::load(
+            &preferences_path(app)?,
+            |prefs: &Preferences| prefs.validate().is_ok(),
+            crate::configuration_recovery::Kind::Preferences,
+            &recovery,
+        ) {
             Some(prefs) => prefs,
             None => {
                 let mut prefs = Preferences::default();
                 if let Ok(paths) = selected_paths(&app.state::<DataRootState>())
-                    && let Some(old) = load_settings_if_present(&paths)
-                        .map_err(|_| "saved settings are invalid")?
+                    && let Some(old) = crate::configuration_recovery::load(
+                        &paths.network_root().join("settings.json"),
+                        |settings: &AppSettings| settings.validate().is_ok(),
+                        crate::configuration_recovery::Kind::NodeSettings,
+                        &recovery,
+                    )
                 {
                     if old.theme != Theme::System {
                         prefs.theme = old.theme;

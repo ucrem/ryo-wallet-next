@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core"
 export type DataRootConfiguration = {
   root: string | null
   network: "mainnet" | "testnet" | "stagenet"
+  startup_notices?: string[]
 }
 
 /** The native backend owns the selected path and exposes it only for display. */
