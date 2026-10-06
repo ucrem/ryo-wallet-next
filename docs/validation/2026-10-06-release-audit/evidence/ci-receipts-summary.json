@@ -1,0 +1,29 @@
+[
+  {
+    "platform": "macos",
+    "funded_checks": 15,
+    "chain_height": 195,
+    "scan_resume_checks": 5,
+    "processed_height": 81,
+    "current_fork_gate_passed": false,
+    "public_sync_observed": false
+  },
+  {
+    "platform": "windows",
+    "funded_checks": 15,
+    "chain_height": 195,
+    "scan_resume_checks": 5,
+    "processed_height": 81,
+    "current_fork_gate_passed": false,
+    "public_sync_observed": false
+  },
+  {
+    "platform": "linux",
+    "funded_checks": 15,
+    "chain_height": 195,
+    "scan_resume_checks": 5,
+    "processed_height": 81,
+    "current_fork_gate_passed": false,
+    "public_sync_observed": false
+  }
+]

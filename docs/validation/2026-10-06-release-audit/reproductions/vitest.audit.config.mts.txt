@@ -1,0 +1,8 @@
+import { defineConfig } from "vitest/config"
+import react from "@vitejs/plugin-react"
+import path from "node:path"
+export default defineConfig({
+  plugins: [react()],
+  resolve: { alias: { "@": path.resolve("src") } },
+  test: { include: ["target/release-audit-2026-10-06-e5a7f55/ui-probes.test.tsx"], exclude: ["**/node_modules/**"] },
+})

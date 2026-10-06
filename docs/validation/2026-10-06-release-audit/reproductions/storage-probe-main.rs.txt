@@ -1,0 +1,25 @@
+use ryo_wallet_service::domain::{Network,NodeConfig};
+use ryo_wallet_service::storage::{AppPaths,AppSettings,Theme,SettingsError,load_settings,save_settings};
+use serde_json::json;
+fn main() {
+    let directory=tempfile::tempdir().unwrap();
+    let paths=AppPaths::new(directory.path().join("disposable"),Network::Mainnet).unwrap();
+    let original=AppSettings{node:NodeConfig::managed_local(Network::Mainnet),idle_lock_seconds:300,theme:Theme::Dark};
+    save_settings(&paths,&original).unwrap();
+    let stage=paths.network_root().join("settings.json.new");
+    std::fs::write(&stage,b"interrupted-non-secret-test-stage").unwrap();
+    let modified=AppSettings{theme:Theme::Light,..original.clone()};
+    let first=save_settings(&paths,&modified);
+    let blocked=matches!(&first,Err(SettingsError::Io(error)) if error.kind()==std::io::ErrorKind::AlreadyExists);
+    let repeated=save_settings(&paths,&modified).is_err();
+    let old_unchanged=load_settings(&paths).unwrap()==original;
+    let leftover_remains=stage.is_file();
+    // Remove only the injected file in this owned temporary test directory,
+    // demonstrating external fixture recovery without changing application code.
+    std::fs::remove_file(stage).unwrap();
+    let retry_succeeds=save_settings(&paths,&modified).is_ok();
+    let report=json!({"source_revision":"e5a7f55df8515b0873565286fcd7b2c8ec93bbc7","uses_user_data":false,"profile":"unchanged storage API with injected disposable interrupted-write stage","baseline_save_passed":true,"first_save_error_already_exists":blocked,"repeated_save_blocked":repeated,"original_settings_preserved":old_unchanged,"stage_remains_after_failures":leftover_remains,"retry_after_removing_only_test_stage_succeeded":retry_succeeds,"bug_reproduced":blocked&&repeated&&old_unchanged&&leftover_remains&&retry_succeeds});
+    let output=std::env::args_os().nth(1).expect("audit output JSON");
+    std::fs::write(output,serde_json::to_vec_pretty(&report).unwrap()).unwrap();
+    println!("{}",report);
+}

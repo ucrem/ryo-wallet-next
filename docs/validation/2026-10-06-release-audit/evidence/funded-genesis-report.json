@@ -1,0 +1,26 @@
+{
+  "architecture": "x86_64",
+  "checks": [
+    "two real exclusive peers and chain propagation",
+    "mature mined outputs",
+    "actual fee and exact nine-decimal amount",
+    "cancel and no relay before confirmation",
+    "one-shot relay and pool acceptance",
+    "subaddress receipt and confirmed history",
+    "reply lost after daemon acceptance",
+    "persisted unknown journal and fresh-owner reconciliation",
+    "wallet lock leaves nodes active",
+    "funded seed recovery",
+    "rescan and encrypted key images",
+    "real partial split send and no automatic unsent relay after restart",
+    "sweep and zero sender balance",
+    "persisted chain restart",
+    "no test password or recovery phrase in raw logs"
+  ],
+  "current_fork_gate_passed": false,
+  "finished_at_unix": 1791288612,
+  "height": 195,
+  "platform": "windows",
+  "profile": "isolated-testnet-genesis-v1",
+  "runtime": "0.6.1.0"
+}

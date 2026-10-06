@@ -1,0 +1,14 @@
+{
+  "checks": [
+    "busy_rpc_observed",
+    "graceful_cache_saved",
+    "offline_height_preserved",
+    "offline_funded_balance_preserved",
+    "second_restart_history_preserved"
+  ],
+  "current_fork_gate_passed": false,
+  "observed_at_unix": 1791288658,
+  "platform": "windows",
+  "processed_height": 81,
+  "profile": "isolated-testnet-genesis-busy-lock-v1"
+}

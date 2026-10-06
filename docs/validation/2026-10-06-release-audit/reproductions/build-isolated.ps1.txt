@@ -1,0 +1,39 @@
+$ErrorActionPreference = 'Stop'
+$env:PATH = 'C:\Users\davide\.cargo\bin;' + $env:PATH
+$taskWorkspace = 'F:\DEV\ryo-wallet-next-main'
+$taskRelease = Join-Path $taskWorkspace 'target\release'
+$taskAudit = Join-Path $taskWorkspace 'target\release-audit-2026-10-06-e5a7f55'
+$taskPreserved = @()
+foreach ($taskName in @('ryo-wallet-next.exe', 'ryo-wallet-rpc.exe', 'ryod.exe')) {
+    $taskOriginal = Join-Path $taskRelease $taskName
+    $taskBackup = Join-Path $taskAudit ('preserved-' + $taskName)
+    if (Test-Path -LiteralPath $taskBackup) { throw 'Audit backup already exists' }
+    if (Test-Path -LiteralPath $taskOriginal) {
+        # The known native images can be renamed while their processes continue.
+        Move-Item -LiteralPath $taskOriginal -Destination $taskBackup
+        $taskPreserved += @{Original=$taskOriginal; Backup=$taskBackup}
+    }
+}
+try {
+    pnpm exec tauri build --ci --bundles nsis --config (Join-Path $taskAudit 'tauri.audit.conf.json') *> (Join-Path $taskAudit 'isolated-native-build.log')
+    $taskBuildCode = $LASTEXITCODE
+    if ($taskBuildCode -ne 0) { throw ('Audit build exited ' + $taskBuildCode) }
+    Copy-Item -LiteralPath (Join-Path $taskRelease 'ryo-wallet-next-release-audit.exe') -Destination (Join-Path $taskAudit 'ryo-wallet-next-release-audit.exe')
+    foreach ($taskName in @('ryo-wallet-rpc.exe','ryod.exe')) {
+        Copy-Item -LiteralPath (Join-Path $taskRelease $taskName) -Destination (Join-Path $taskAudit $taskName)
+    }
+    Copy-Item -LiteralPath (Join-Path $taskRelease 'nsis\x64\installer.nsi') -Destination (Join-Path $taskAudit 'installer.nsi')
+    $taskInstaller = @(Get-ChildItem -LiteralPath (Join-Path $taskRelease 'bundle\nsis') -File | Where-Object {$_.Name -like 'Ryo Wallet Next Release Audit*setup.exe'})
+    if ($taskInstaller.Count -ne 1) { throw 'Expected one isolated installer' }
+    Copy-Item -LiteralPath $taskInstaller[0].FullName -Destination (Join-Path $taskAudit 'release-audit-setup.exe')
+} finally {
+    foreach ($taskPair in $taskPreserved) {
+        if (Test-Path -LiteralPath $taskPair.Original) {
+            $taskGenerated = Join-Path $taskAudit ('generated-' + [IO.Path]::GetFileName($taskPair.Original))
+            if (Test-Path -LiteralPath $taskGenerated) { throw 'Generated preservation path already exists' }
+            Move-Item -LiteralPath $taskPair.Original -Destination $taskGenerated
+        }
+        Move-Item -LiteralPath $taskPair.Backup -Destination $taskPair.Original
+    }
+}
+Get-Content -LiteralPath (Join-Path $taskAudit 'isolated-native-build.log') -Tail 9

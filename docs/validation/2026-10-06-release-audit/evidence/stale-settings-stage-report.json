@@ -1,0 +1,12 @@
+{
+  "baseline_save_passed": true,
+  "bug_reproduced": true,
+  "first_save_error_already_exists": true,
+  "original_settings_preserved": true,
+  "profile": "unchanged storage API with injected disposable interrupted-write stage",
+  "repeated_save_blocked": true,
+  "retry_after_removing_only_test_stage_succeeded": true,
+  "source_revision": "e5a7f55df8515b0873565286fcd7b2c8ec93bbc7",
+  "stage_remains_after_failures": true,
+  "uses_user_data": false
+}
